@@ -106,4 +106,7 @@
   <data name="CloseCopiesHint"><value>存在已修改或暂时无法检查的工作副本。它们不会写回压缩包，也不会被自动清理。退出后可从“工作副本”中找回并另存。</value></data>
   <data name="KeepCopiesAndExit"><value>保留副本并退出</value></data>
   <data name="Return"><value>返回</value></data>
+  <data name="FilenameEncoding"><value>ZIP 文件名编码</value></data>
+  <data name="FilenameEncodingAuto"><value>文件名编码：自动</value></data>
+  <data name="EncodingNotSupported"><value>此格式或编码暂不支持手动文件名解码，请使用自动模式。</value></data>
 </root>

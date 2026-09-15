@@ -8,12 +8,12 @@ public sealed class ArchiveOperationException(string code) : Exception(code)
     public string Code { get; } = code;
 }
 
-public sealed record ArchiveScan(string Format, IReadOnlyList<ArchiveEntry> Entries, ArchiveIdentity? Identity = null);
+public sealed record ArchiveScan(string Format, IReadOnlyList<ArchiveEntry> Entries, ArchiveIdentity? Identity = null, int NameCodePage = 0);
 
 /// <summary>Owns a single Worker lifetime. Cancellation tears down native parsing as well as IPC.</summary>
 public sealed partial class ArchiveWorkerClient(string workerPath)
 {
-    public async Task<ArchiveScan> ScanAsync(string path, IProgress<int>? progress = null, CancellationToken cancellationToken = default, string? password = null)
+    public async Task<ArchiveScan> ScanAsync(string path, IProgress<int>? progress = null, CancellationToken cancellationToken = default, string? password = null, int nameCodePage = 0)
     {
         cancellationToken.ThrowIfCancellationRequested();
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -37,7 +37,7 @@ public sealed partial class ArchiveWorkerClient(string workerPath)
         try
         {
             await ArchiveProtocol.WriteAsync(process.StandardInput.BaseStream,
-                new ScanRequest(ArchiveProtocol.Version, Path.GetFullPath(path), Password: password), token);
+                new ScanRequest(ArchiveProtocol.Version, Path.GetFullPath(path), Password: password, NameCodePage: nameCodePage), token);
             process.StandardInput.Close();
             var entries = new List<ArchiveEntry>();
             var ids = new HashSet<long>();
@@ -68,7 +68,7 @@ public sealed partial class ArchiveWorkerClient(string workerPath)
                     case "completed" when format is not null:
                         await process.WaitForExitAsync(token);
                         if (process.ExitCode != 0) throw new ArchiveOperationException("WorkerFailed");
-                        return new ArchiveScan(format, entries, identity);
+                        return new ArchiveScan(format, entries, identity, nameCodePage);
                     case "error": throw new ArchiveOperationException(message.ErrorCode ?? "WorkerFailed");
                     default: throw new ArchiveOperationException("ProtocolMismatch");
                 }

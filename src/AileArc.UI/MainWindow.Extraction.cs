@@ -81,7 +81,7 @@ public sealed partial class MainWindow
             {
                 try
                 {
-                    result = await Task.Run(() => client.ExtractAsync(archivePath, new ExtractionOptions(targetDirectory, smart, SelectedIds: selectedIds, ExpectedIdentity: snapshot.Identity),
+                    result = await Task.Run(() => client.ExtractAsync(archivePath, new ExtractionOptions(targetDirectory, smart, SelectedIds: selectedIds, ExpectedIdentity: snapshot.Identity, NameCodePage: snapshot.NameCodePage),
                         RequestConflictAsync, report, current.Token, sessionPassword), current.Token);
                     break;
                 }

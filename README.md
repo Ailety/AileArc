@@ -9,6 +9,7 @@ Modern archive management for Windows. **Archive should feel like a folder.**
 ## 已实现
 
 - WinUI 3 原生窗口、目录浏览、面包屑、名称搜索、名称/大小排序。
+- 旧式 ZIP 文件名编码：自动、UTF-8、GBK、Shift-JIS；解压和工作副本沿用当前选择。
 - 独立 Worker + 完整 7-Zip 26.03 引擎，ZIP/7Z/RAR 读取；按签名识别，不信任扩展名。
 - 基础解压与 Smart Extract，重名询问/重命名/跳过/替换，逐文件校验后提交。
 - 解压所选文件/目录（递归包含子项）、系统目录选择器和可滚动的错误详情。

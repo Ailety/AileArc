@@ -68,7 +68,7 @@ public sealed partial class MainWindow
                 {
                     record = await Task.Run(() => workCopyStore.PrepareAsync(archivePath, snapshot.Identity, entry,
                         (destination, token) => client.ExtractAsync(archivePath,
-                            new ExtractionOptions(destination, Smart: false, ByteLimit: WorkCopyStore.MaxFileBytes, SelectedIds: [entry.Id], ExpectedIdentity: snapshot.Identity),
+                            new ExtractionOptions(destination, Smart: false, ByteLimit: WorkCopyStore.MaxFileBytes, SelectedIds: [entry.Id], ExpectedIdentity: snapshot.Identity, NameCodePage: snapshot.NameCodePage),
                             cancellationToken: token, password: sessionPassword), current.Token), current.Token);
                     break;
                 }

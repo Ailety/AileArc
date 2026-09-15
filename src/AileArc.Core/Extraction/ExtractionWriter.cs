@@ -6,7 +6,7 @@ namespace AileArc.Core.Extraction;
 public enum ConflictChoice { Rename, Skip, Replace, Cancel }
 public sealed record ConflictDecision(ConflictChoice Choice, bool ApplyToAll = false);
 public sealed record ExtractionOptions(string Destination, bool Smart = true, ConflictChoice? ConflictPolicy = null,
-    ulong ByteLimit = 4UL * 1024 * 1024 * 1024, long[]? SelectedIds = null, ArchiveIdentity? ExpectedIdentity = null);
+    ulong ByteLimit = 4UL * 1024 * 1024 * 1024, long[]? SelectedIds = null, ArchiveIdentity? ExpectedIdentity = null, int NameCodePage = 0);
 public sealed record ExtractionFailure(string Path, string Code);
 public sealed record ExtractionProgress(int Completed, int Skipped, ulong Bytes, string? CurrentPath);
 public sealed record ExtractionResult(string Destination, int Completed, int Skipped, IReadOnlyList<ExtractionFailure> Failures, bool Cancelled);

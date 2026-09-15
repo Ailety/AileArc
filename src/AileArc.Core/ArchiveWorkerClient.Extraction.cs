@@ -27,7 +27,7 @@ public sealed partial class ArchiveWorkerClient
         try
         {
             await ArchiveProtocol.WriteAsync(process.StandardInput.BaseStream,
-                new ScanRequest(ArchiveProtocol.Version, Path.GetFullPath(path), "extract", password, options.ByteLimit), cancellationToken);
+                new ScanRequest(ArchiveProtocol.Version, Path.GetFullPath(path), "extract", password, options.ByteLimit, options.NameCodePage), cancellationToken);
             var metadata = new List<ArchiveEntry>();
             var ids = new HashSet<long>();
             long characters = 0;

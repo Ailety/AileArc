@@ -21,7 +21,7 @@ try
         (format, identity) => ArchiveProtocol.WriteAsync(output, new ScanMessage("opened", Format: format, Identity: identity)).GetAwaiter().GetResult(),
         batch => ArchiveProtocol.WriteAsync(output, new ScanMessage("entries", Entries: batch)).GetAwaiter().GetResult(),
         request.Password, request.Operation == "extract" ? SelectEntries : null,
-        message => ArchiveProtocol.WriteAsync(output, message).GetAwaiter().GetResult(), request.ByteLimit);
+        message => ArchiveProtocol.WriteAsync(output, message).GetAwaiter().GetResult(), request.ByteLimit, request.NameCodePage);
     await ArchiveProtocol.WriteAsync(output, new ScanMessage("completed"));
     return 0;
 }

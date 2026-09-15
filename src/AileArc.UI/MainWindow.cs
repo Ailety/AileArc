@@ -26,6 +26,9 @@ public sealed partial class MainWindow : Window
     private readonly CheckBox descending = new();
     private readonly ComboBox sort = new() { MinWidth = 140, SelectedIndex = 0 };
     private readonly ComboBox languages = new() { MinWidth = 180 };
+    private readonly ComboBox filenameEncoding = new() { MinWidth = 170 };
+    private readonly int[] nameCodePages = [0, 65001, 936, 932];
+    private bool changingEncoding;
     private readonly ProgressBar progress = new() { IsIndeterminate = true, Height = 3, Visibility = Visibility.Collapsed };
     private readonly StackPanel crumbs = new() { Orientation = Orientation.Horizontal, Spacing = 4 };
     private readonly Button back;
@@ -183,6 +186,16 @@ public sealed partial class MainWindow : Window
         secondaryActions.Children.Add(workCopies);
         secondaryActions.Children.Add(errorDetails);
         secondaryActions.Children.Add(restart);
+        foreach (var label in new[] { text["FilenameEncodingAuto"], "UTF-8 (65001)", "GBK (936)", "Shift-JIS (932)" }) filenameEncoding.Items.Add(label);
+        filenameEncoding.SelectedIndex = 0;
+        AutomationProperties.SetName(filenameEncoding, text["FilenameEncoding"]);
+        ToolTipService.SetToolTip(filenameEncoding, text["FilenameEncoding"]);
+        filenameEncoding.SelectionChanged += async (_, _) =>
+        {
+            if (!changingEncoding && scan?.Format == "ZIP" && operation is null && !dialogOpen)
+                await OpenArchiveAsync(archivePath, sessionPassword, nameCodePages[filenameEncoding.SelectedIndex]);
+        };
+        secondaryActions.Children.Add(filenameEncoding);
         notices.Children.Add(secondaryActions);
         Add(notices, 7);
 
@@ -226,7 +239,7 @@ public sealed partial class MainWindow : Window
         catch (Exception) { if (!closed) status.Text = text["OpenFailed"]; }
     }
 
-    public async Task OpenArchiveAsync(string path, string? password = null)
+    public async Task OpenArchiveAsync(string path, string? password = null, int nameCodePage = 0)
     {
         operation?.Cancel();
         query?.Cancel();
@@ -244,6 +257,9 @@ public sealed partial class MainWindow : Window
         empty.Visibility = Visibility.Collapsed;
         archivePath = path;
         sessionPassword = password;
+        changingEncoding = true;
+        filenameEncoding.SelectedIndex = Array.IndexOf(nameCodePages, nameCodePage);
+        changingEncoding = false;
         archiveTitle.Text = System.IO.Path.GetFileName(path);
         status.Text = text["Scanning"];
         SetFailures([]);
@@ -252,7 +268,7 @@ public sealed partial class MainWindow : Window
         try
         {
             var report = new Progress<int>(count => { if (version == generation && !closed && !current.IsCancellationRequested) status.Text = text.Format("ScanProgress", count); });
-            var result = await client.ScanAsync(path, report, current.Token, password);
+            var result = await client.ScanAsync(path, report, current.Token, password, nameCodePage);
             if (version != generation || closed) return;
             status.Text = text["BuildingIndex"];
             var built = await Task.Run(() => new ArchiveIndex(result.Entries, current.Token), current.Token);
@@ -271,7 +287,7 @@ public sealed partial class MainWindow : Window
                 if (error.Code is "PasswordRequired" or "WrongPasswordOrDamaged")
                 {
                     string? entered = await AskPasswordAsync(error.Code);
-                    if (entered is not null && !current.IsCancellationRequested) await OpenArchiveAsync(path, entered);
+                    if (entered is not null && !current.IsCancellationRequested) await OpenArchiveAsync(path, entered, nameCodePage);
                 }
             }
         }
@@ -368,6 +384,7 @@ public sealed partial class MainWindow : Window
         languages.IsEnabled = !busy;
         restart.IsEnabled = !busy;
         workCopies.IsEnabled = !busy;
+        filenameEncoding.IsEnabled = !busy && scan?.Format == "ZIP";
         UpdateSelectionActions();
     }
 

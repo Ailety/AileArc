@@ -30,7 +30,7 @@ public sealed class WorkCopyStore
         if (entry.Size > MaxFileBytes) throw new ArchiveOperationException("WorkCopyTooLarge");
         string relative = Path.Combine("content", ArchivePathPolicy.Validate(entry.Path));
         string fullArchive = Path.GetFullPath(archivePath);
-        string key = JsonSerializer.Serialize(new { Path = fullArchive.ToUpperInvariant(), identity, entry.Id });
+        string key = JsonSerializer.Serialize(new { Path = fullArchive.ToUpperInvariant(), identity, entry.Id, EntryPath = entry.Path });
         await gate.WaitAsync(token);
         try
         {

@@ -24,8 +24,9 @@ public sealed class SevenZipEngine : IDisposable
     }
 
     public void Scan(string path, Action<string, ArchiveIdentity> opened, Action<ArchiveEntry[]> batchReady, string? password = null,
-        Func<uint[]?>? selectEntries = null, Action<ScanMessage>? emit = null, ulong byteLimit = 4UL * 1024 * 1024 * 1024)
+        Func<uint[]?>? selectEntries = null, Action<ScanMessage>? emit = null, ulong byteLimit = 4UL * 1024 * 1024 * 1024, int nameCodePage = 0)
     {
+        if (nameCodePage is not (0 or 65001 or 936 or 932)) throw new ArchiveEngineException("EncodingNotSupported");
         // Restrict to a local/UNC file path; never pass user-controlled engine switches.
         using var input = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, FileOptions.RandomAccess);
         var stream = new ArchiveInputStream(input);
@@ -37,12 +38,14 @@ public sealed class SevenZipEngine : IDisposable
             Marshal.ThrowExceptionForHR(createObject(ref classId, ref interfaceId, out var archive));
             try
             {
+                if (format.Name == "ZIP" && nameCodePage != 0) NativeProperties.Set(archive, ("cp", (uint)nameCodePage));
                 var callback = new ArchiveOpenCallback(password);
                 ulong maxSearch = 0; // Probe signatures at file start; extension is not authoritative.
                 int result = archive.Open(stream, ref maxSearch, callback);
                 if (callback.PasswordRequested && password is null) throw new ArchiveEngineException("PasswordRequired");
                 if (callback.PasswordRequested && result != 0) throw new ArchiveEngineException("WrongPasswordOrDamaged");
                 if (result != 0) continue;
+                if (format.Name != "ZIP" && nameCodePage != 0) throw new ArchiveEngineException("EncodingNotSupported");
                 Marshal.ThrowExceptionForHR(archive.GetNumberOfItems(out uint count));
                 if (count > ArchiveProtocol.MaxEntries) throw new ArchiveEngineException("ResourceLimit");
                 opened(format.Name, ArchiveFileIdentity.Read(input.SafeFileHandle));

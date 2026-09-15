@@ -106,4 +106,7 @@
   <data name="CloseCopiesHint"><value>Some working copies have changed or cannot be checked. They will not update the archive or be automatically deleted. Reopen Working copies later to recover or export them.</value></data>
   <data name="KeepCopiesAndExit"><value>Keep copies and exit</value></data>
   <data name="Return"><value>Go back</value></data>
+  <data name="FilenameEncoding"><value>ZIP filename encoding</value></data>
+  <data name="FilenameEncodingAuto"><value>Filename encoding: Auto</value></data>
+  <data name="EncodingNotSupported"><value>This format or code page does not support manual filename decoding. Use Auto.</value></data>
 </root>
