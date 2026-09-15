@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../AileArc.Engine/AileArc.Engine.csproj" />
+    <None Include="../../third_party/7zip/bin/7z.dll" Link="7z.dll" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../third_party/7zip/bin/License.txt" Link="7zip-License.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

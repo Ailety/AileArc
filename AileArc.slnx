@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AileArc.UI/AileArc.UI.csproj" />
+    <Project Path="src/AileArc.Core/AileArc.Core.csproj" />
+    <Project Path="src/AileArc.Shared/AileArc.Shared.csproj" />
+    <Project Path="src/AileArc.Engine/AileArc.Engine.csproj" />
+    <Project Path="src/AileArc.Worker/AileArc.Worker.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AileArc.Tests/AileArc.Tests.csproj" />
+  </Folder>
+</Solution>

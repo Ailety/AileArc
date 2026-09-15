@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net10.0-windows10.0.22621": {
+      "ailearc.engine": {
+        "type": "Project",
+        "dependencies": {
+          "AileArc.Shared": "[1.0.0, )"
+        }
+      },
+      "ailearc.shared": {
+        "type": "Project"
+      }
+    }
+  }
+}

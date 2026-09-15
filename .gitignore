@@ -1,0 +1,9 @@
+.tools/
+.artifacts/
+**/bin/
+**/obj/
+.vs/
+*.user
+*.suo
+TestResults/
+third_party/7zip/bin/

@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../AileArc.Shared/AileArc.Shared.csproj" />
+    <EmbeddedResource Include="Strings/zh-CN/Resources.resw" LogicalName="AileArc.Core.Strings.zh-CN.Resources.resw" WithCulture="false" />
+    <EmbeddedResource Include="Strings/en-US/Resources.resw" LogicalName="AileArc.Core.Strings.en-US.Resources.resw" WithCulture="false" />
+  </ItemGroup>
+</Project>
