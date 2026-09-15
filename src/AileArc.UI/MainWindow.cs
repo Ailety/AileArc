@@ -34,6 +34,7 @@ public sealed partial class MainWindow : Window
     private readonly Button back;
     private readonly Button up;
     private readonly Button open;
+    private readonly Button createArchive;
     private readonly Button cancel;
     private readonly Button extract;
     private readonly Button smartExtract;
@@ -76,11 +77,13 @@ public sealed partial class MainWindow : Window
         header.Children.Add(heading);
         open = Button(text["Open"], async () => await PickArchiveAsync());
         open.VerticalAlignment = VerticalAlignment.Center;
+        createArchive = Button(text["CreateArchive"], CreateArchiveAsync);
         extract = Button(text["ExtractTo"], async () => await ExtractAsync(false));
         smartExtract = Button(text["SmartExtract"], async () => await ExtractAsync(true));
         extractSelected = Button(text["ExtractSelected"], async () => await ExtractAsync(false, selectedOnly: true));
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
         actions.Children.Add(open);
+        actions.Children.Add(createArchive);
         actions.Children.Add(extract);
         actions.Children.Add(smartExtract);
         actions.Children.Add(extractSelected);
@@ -206,6 +209,9 @@ public sealed partial class MainWindow : Window
         var openShortcut = new KeyboardAccelerator { Key = VirtualKey.O, Modifiers = VirtualKeyModifiers.Control };
         openShortcut.Invoked += async (_, e) => { e.Handled = true; await PickArchiveAsync(); };
         root.KeyboardAccelerators.Add(openShortcut);
+        var createShortcut = new KeyboardAccelerator { Key = VirtualKey.N, Modifiers = VirtualKeyModifiers.Control };
+        createShortcut.Invoked += async (_, e) => { e.Handled = true; await CreateArchiveAsync(); };
+        root.KeyboardAccelerators.Add(createShortcut);
         var searchShortcut = new KeyboardAccelerator { Key = VirtualKey.F, Modifiers = VirtualKeyModifiers.Control };
         searchShortcut.Invoked += (_, e) => { e.Handled = true; search.Focus(FocusState.Keyboard); };
         root.KeyboardAccelerators.Add(searchShortcut);
@@ -380,6 +386,7 @@ public sealed partial class MainWindow : Window
         cancel.IsEnabled = busy;
         search.IsEnabled = !busy && index is not null;
         open.IsEnabled = !busy;
+        createArchive.IsEnabled = !busy;
         extract.IsEnabled = smartExtract.IsEnabled = !busy && index is not null;
         languages.IsEnabled = !busy;
         restart.IsEnabled = !busy;

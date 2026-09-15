@@ -53,7 +53,7 @@ public sealed class ArchiveOpenCallback(string? suppliedPassword = null) : IArch
 }
 
 [ComVisible(true), ClassInterface(ClassInterfaceType.None)]
-public sealed class ArchiveInputStream(FileStream stream) : IInStream
+public sealed class ArchiveInputStream(FileStream stream) : IInStream, ISequentialInStream
 {
     private readonly byte[] buffer = new byte[64 * 1024];
     public int Read(IntPtr data, uint size, IntPtr processedSize)
@@ -81,7 +81,7 @@ public sealed class ArchiveInputStream(FileStream stream) : IInStream
 }
 
 [StructLayout(LayoutKind.Explicit, Size = 24)]
-internal struct PropVariant : IDisposable
+public struct PropVariant : IDisposable
 {
     [FieldOffset(0)] public ushort Type;
     [FieldOffset(8)] public IntPtr Pointer;

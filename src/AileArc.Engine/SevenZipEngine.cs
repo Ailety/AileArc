@@ -9,7 +9,7 @@ public sealed class ArchiveEngineException(string code) : Exception(code)
 }
 
 /// <summary>Native read/decode adapter. Must only be instantiated inside an isolated Worker.</summary>
-public sealed class SevenZipEngine : IDisposable
+public sealed partial class SevenZipEngine : IDisposable
 {
     private readonly IntPtr library;
     private readonly CreateObjectDelegate createObject;
@@ -24,7 +24,7 @@ public sealed class SevenZipEngine : IDisposable
     }
 
     public void Scan(string path, Action<string, ArchiveIdentity> opened, Action<ArchiveEntry[]> batchReady, string? password = null,
-        Func<uint[]?>? selectEntries = null, Action<ScanMessage>? emit = null, ulong byteLimit = 4UL * 1024 * 1024 * 1024, int nameCodePage = 0)
+        Func<uint[]?>? selectEntries = null, Action<ScanMessage>? emit = null, ulong byteLimit = 4UL * 1024 * 1024 * 1024, int nameCodePage = 0, bool verify = false)
     {
         if (nameCodePage is not (0 or 65001 or 936 or 932)) throw new ArchiveEngineException("EncodingNotSupported");
         // Restrict to a local/UNC file path; never pass user-controlled engine switches.
@@ -78,6 +78,12 @@ public sealed class SevenZipEngine : IDisposable
                     }
                 }
                 if (batch.Count > 0) batchReady(batch.ToArray());
+                if (verify)
+                {
+                    var checker = new VerificationCallback(password, emit ?? (_ => { }));
+                    if (archive.Extract(null, uint.MaxValue, 1, checker) != 0 || checker.Failed)
+                        throw new ArchiveEngineException("IntegrityFailed");
+                }
                 if (selectEntries is not null && emit is not null)
                 {
                     uint[]? selection = selectEntries();
