@@ -95,3 +95,63 @@ function Update-Shell {
     }
     [AileArcInstaller.Native]::SHChangeNotify(0x08000000, 0, [IntPtr]::Zero, [IntPtr]::Zero)
 }
+
+function New-StartMenuShortcut([string]$Path, [string]$Target, [string]$Directory) {
+    # Use the Unicode shell interface directly. WScript.Shell TargetPath fails on some
+    # Windows Server/locale combinations for the same non-ASCII path that exists on disk.
+    if (!('AileArcInstaller.Shortcut' -as [type])) {
+        Add-Type -TypeDefinition @'
+using System;
+using System.Text;
+using System.Runtime.InteropServices;
+using System.Runtime.InteropServices.ComTypes;
+namespace AileArcInstaller {
+    [ComImport, Guid("00021401-0000-0000-C000-000000000046")]
+    internal class ShellLink { }
+    [ComImport, Guid("000214F9-0000-0000-C000-000000000046"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    internal interface IShellLinkW {
+        void GetPath([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder path, int count, IntPtr data, uint flags);
+        void GetIDList(out IntPtr pidl);
+        void SetIDList(IntPtr pidl);
+        void GetDescription([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder text, int count);
+        void SetDescription([MarshalAs(UnmanagedType.LPWStr)] string text);
+        void GetWorkingDirectory([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder path, int count);
+        void SetWorkingDirectory([MarshalAs(UnmanagedType.LPWStr)] string path);
+        void GetArguments([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder text, int count);
+        void SetArguments([MarshalAs(UnmanagedType.LPWStr)] string text);
+        void GetHotkey(out short key);
+        void SetHotkey(short key);
+        void GetShowCmd(out int command);
+        void SetShowCmd(int command);
+        void GetIconLocation([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder path, int count, out int index);
+        void SetIconLocation([MarshalAs(UnmanagedType.LPWStr)] string path, int index);
+        void SetRelativePath([MarshalAs(UnmanagedType.LPWStr)] string path, uint reserved);
+        void Resolve(IntPtr window, uint flags);
+        void SetPath([MarshalAs(UnmanagedType.LPWStr)] string path);
+    }
+    public static class Shortcut {
+        public static void Save(string path, string target, string directory) {
+            var link = (IShellLinkW)new ShellLink();
+            try {
+                link.SetPath(target);
+                link.SetWorkingDirectory(directory);
+                link.SetDescription("AileArc Development");
+                ((IPersistFile)link).Save(path, true);
+            } finally { Marshal.FinalReleaseComObject(link); }
+        }
+        public static string ReadTarget(string path) {
+            var link = (IShellLinkW)new ShellLink();
+            try {
+                ((IPersistFile)link).Load(path, 0);
+                var value = new StringBuilder(32768);
+                link.GetPath(value, value.Capacity, IntPtr.Zero, 4);
+                return value.ToString();
+            } finally { Marshal.FinalReleaseComObject(link); }
+        }
+    }
+}
+'@
+    }
+    [AileArcInstaller.Shortcut]::Save($Path, $Target, $Directory)
+    if ([AileArcInstaller.Shortcut]::ReadTarget($Path) -ine $Target) { throw 'Start Menu shortcut target did not round-trip correctly.' }
+}

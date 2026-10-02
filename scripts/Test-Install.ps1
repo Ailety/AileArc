@@ -43,6 +43,16 @@ try {
     Assert ($command -ceq ('"' + $firstApp + '" --open -- "%1"')) 'Open With command incorrectly quoted.'
     Assert ((Snapshot-Defaults) -ceq $defaults) 'Installation modified a user default.'
     & (Join-Path $PSScriptRoot 'Test-PackageWorker.ps1') -WorkerExecutable (Join-Path $firstVersion 'Worker/AileArc.Worker.exe')
+    # A late failure after registry/shortcut updates must restore the old installation.
+    $receiptPath = Join-Path $installRoot '.ailearc-install.json'
+    $receiptLock = [IO.File]::Open($receiptPath, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)
+    try {
+        & $ps5 -NoProfile -NonInteractive -File (Join-Path $bundleRoot 'Install.ps1') -InstallDirectory $installRoot 2>&1 | Out-Null
+        Assert ($LASTEXITCODE -ne 0) 'A locked receipt should prevent upgrade commit.'
+    } finally { $receiptLock.Dispose() }
+    Assert ((Read-Receipt $receiptPath).Current -eq $first.Current) 'Failed commit changed the active version.'
+    Assert ((Get-RegistryValue 'Software\Classes\AileArc.Development.Archive\shell\open\command' '') -ceq $command) 'Failed commit did not restore the old launch command.'
+    Assert (Test-Hash $first.Shortcut.Path $first.Shortcut.Sha256) 'Failed commit did not restore the old shortcut.'
     # Integrity failures must not update the current installed version or registrations.
     $manifestPath = Join-Path $bundleRoot 'bundle.json'
     $originalManifest = [IO.File]::ReadAllBytes($manifestPath)

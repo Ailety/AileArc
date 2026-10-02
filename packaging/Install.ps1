@@ -82,10 +82,8 @@ try {
         $packageName = @($result)[-1].ToString().Trim()
     }
     foreach ($entry in $entries) { Set-RegistryValue $entry }
-    $shell = New-Object -ComObject WScript.Shell
-    $link = $shell.CreateShortcut($shortcut)
-    $link.TargetPath = $app; $link.WorkingDirectory = $version; $link.Description = 'AileArc Development'; $link.Save()
     $shortcutWritten = $true
+    New-StartMenuShortcut $shortcut $app $version
     $versions = @()
     if ($old) { $versions = @($old.Versions) }
     $versions += [pscustomobject]@{ Id=$id; Files=@($installedFiles.ToArray()) }
