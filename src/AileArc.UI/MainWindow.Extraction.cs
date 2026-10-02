@@ -147,7 +147,18 @@ public sealed partial class MainWindow
 
     private async Task ConfirmCloseAsync(bool restartApplication = false)
     {
-        if (dialogOpen) return;
+        try
+        {
+            if (restartApplication) await App.Instance.RestartAsync();
+            else if (await PrepareToCloseAsync()) CloseApproved();
+        }
+        catch (Exception) { if (!closed) ShowFailure("OpenFailed"); }
+    }
+
+    public async Task<bool> PrepareToCloseAsync()
+    {
+        if (closed) return true;
+        if (dialogOpen) return false;
         dialogOpen = true;
         try
         {
@@ -155,7 +166,7 @@ public sealed partial class MainWindow
             {
                 var dialog = new ContentDialog { XamlRoot = root.XamlRoot, Title = text["TaskRunning"], Content = text["CloseTaskHint"],
                     PrimaryButtonText = text["CancelAndExit"], CloseButtonText = text["KeepWaiting"] };
-                if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+                if (await dialog.ShowAsync() != ContentDialogResult.Primary) return false;
                 var waiting = idleCompletion.Task;
                 operation?.Cancel();
                 await waiting;
@@ -171,18 +182,11 @@ public sealed partial class MainWindow
             {
                 var warning = new ContentDialog { XamlRoot = root.XamlRoot, Title = text["WorkCopies"], Content = text["CloseCopiesHint"],
                     PrimaryButtonText = text["KeepCopiesAndExit"], CloseButtonText = text["Return"] };
-                if (await warning.ShowAsync() != ContentDialogResult.Primary) return;
+                if (await warning.ShowAsync() != ContentDialogResult.Primary) return false;
             }
-            if (restartApplication)
-            {
-                var start = new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = false };
-                if (archivePath.Length > 0) start.ArgumentList.Add(archivePath);
-                System.Diagnostics.Process.Start(start);
-            }
-            allowClose = true;
-            Close();
+            return true;
         }
-        catch (Exception) { if (!closed) ShowFailure("OpenFailed"); }
+        catch (Exception) { if (!closed) ShowFailure("OpenFailed"); return false; }
         finally { dialogOpen = false; }
     }
 }

@@ -9,7 +9,7 @@ namespace AileArc.UI;
 
 public sealed partial class MainWindow
 {
-    private readonly WorkCopyStore workCopyStore = new();
+    private readonly WorkCopyStore workCopyStore = App.Instance.WorkCopies;
     private readonly Dictionary<string, WorkCopyRecord> openedCopies = [];
     private readonly DispatcherTimer workCopyTimer = new() { Interval = TimeSpan.FromSeconds(10) };
     private WorkCopyRecord? latestCopy;

@@ -1,23 +1,88 @@
 using AileArc.Core;
 using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
+using AileArc.Core.Lifecycle;
+using AileArc.Core.WorkCopies;
+using Microsoft.UI.Dispatching;
 
 namespace AileArc.UI;
 
 public sealed partial class App : Application
 {
-    private readonly string[] args;
-    private MainWindow? window;
-    public App(string[] arguments)
+    private readonly ActivationRequest initial;
+    private readonly DispatcherQueue dispatcher = DispatcherQueue.GetForCurrentThread();
+    private readonly List<MainWindow> windows = [];
+    private readonly WindowCatalog<MainWindow> catalog = new();
+    private readonly Queue<ActivationRequest> pending = new();
+    private readonly SemaphoreSlim routing = new(1, 1);
+    private LanguageService? language;
+    private volatile bool restarting;
+    public WorkCopyStore WorkCopies { get; } = new();
+    public bool AnyTaskRunning => windows.Any(w => w.IsBusy);
+    public void ForgetWorkCopy(string id) { foreach (var window in windows) window.ForgetWorkCopy(id); }
+    public static App Instance => (App)Current;
+    public App(ActivationRequest request)
     {
-        args = arguments;
+        initial = request;
         InitializeComponent();
     }
     protected override async void OnLaunched(LaunchActivatedEventArgs e)
     {
         var settings = await AppSettings.LoadAsync();
-        window = new MainWindow(new LanguageService(settings.Language));
-        window.Activate();
-        if (args.Length == 1) await window.OpenArchiveAsync(args[0]);
+        language = new LanguageService(settings.Language);
+        await HandleActivationAsync(initial);
+        while (pending.TryDequeue(out var request)) await HandleActivationAsync(request);
+    }
+    public bool EnqueueActivation(ActivationRequest request) => !restarting && dispatcher.TryEnqueue(async () =>
+    {
+        if (language is null) pending.Enqueue(request);
+        else await HandleActivationAsync(request);
+    });
+    private async Task HandleActivationAsync(ActivationRequest request)
+    {
+        if (request.Paths.Length == 0)
+        {
+            var window = !request.NewWindow && windows.Count > 0 ? windows[^1] : CreateWindow();
+            window.BringForward();
+            return;
+        }
+        foreach (string path in request.Paths) await OpenArchiveAsync(path, forceNew: request.NewWindow);
+    }
+    private MainWindow CreateWindow()
+    {
+        var window = new MainWindow(language!);
+        windows.Add(window);
+        window.Closed += (_, _) => { windows.Remove(window); catalog.Remove(window); if (windows.Count == 0) Exit(); };
+        return window;
+    }
+    public async Task OpenArchiveAsync(string path, MainWindow? preferred = null, bool forceNew = false)
+    {
+        await routing.WaitAsync();
+        try
+        {
+            string? fileId = await ArchiveWindowIdentity.ReadAsync(path);
+            var existing = forceNew ? null : catalog.Find(path, fileId);
+            if (existing is not null) { existing.BringForward(); return; }
+            var window = preferred is not null && preferred.OpenPath is null && !preferred.IsBusy ? preferred : CreateWindow();
+            catalog.Register(window, path, fileId);
+            window.BringForward();
+            _ = window.OpenArchiveAsync(path);
+        }
+        finally { routing.Release(); }
+    }
+    public async Task RestartAsync()
+    {
+        if (restarting) return;
+        restarting = true;
+        try
+        {
+            var snapshot = windows.ToArray();
+            foreach (var window in snapshot) { window.BringForward(); if (!await window.PrepareToCloseAsync()) return; }
+            var start = new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = false };
+            start.ArgumentList.Add("--restart-from"); start.ArgumentList.Add(Environment.ProcessId.ToString());
+            foreach (string path in snapshot.Select(w => w.OpenPath).OfType<string>().Distinct(StringComparer.OrdinalIgnoreCase)) start.ArgumentList.Add(path);
+            System.Diagnostics.Process.Start(start);
+            foreach (var window in snapshot) window.CloseApproved();
+        }
+        finally { restarting = false; }
     }
 }

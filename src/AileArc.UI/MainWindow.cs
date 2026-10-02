@@ -54,6 +54,14 @@ public sealed partial class MainWindow : Window
     private bool closed;
     private bool changingNavigation;
     private string? sessionPassword;
+    public string? OpenPath => string.IsNullOrEmpty(archivePath) ? null : archivePath;
+    public bool IsBusy => operation is not null;
+    public void BringForward()
+    {
+        if (AppWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter presenter) presenter.Restore();
+        Activate();
+    }
+    public void CloseApproved() { allowClose = true; Close(); }
     private sealed record NavigationState(string Directory, string Search, long? SelectedId);
 
     public MainWindow(LanguageService language)
@@ -240,7 +248,7 @@ public sealed partial class MainWindow : Window
             var picker = new Microsoft.Windows.Storage.Pickers.FileOpenPicker(AppWindow.Id);
             picker.FileTypeFilter.Add("*");
             var file = await picker.PickSingleFileAsync();
-            if (file is not null) await OpenArchiveAsync(file.Path);
+            if (file is not null) await App.Instance.OpenArchiveAsync(file.Path, this);
         }
         catch (Exception) { if (!closed) status.Text = text["OpenFailed"]; }
     }
@@ -262,6 +270,7 @@ public sealed partial class MainWindow : Window
         list.ItemsSource = null;
         empty.Visibility = Visibility.Collapsed;
         archivePath = path;
+        Title = System.IO.Path.GetFileName(path) + " — AileArc";
         sessionPassword = password;
         changingEncoding = true;
         filenameEncoding.SelectedIndex = Array.IndexOf(nameCodePages, nameCodePage);
@@ -398,6 +407,11 @@ public sealed partial class MainWindow : Window
     private void UpdateSelectionActions()
     {
         if (extractSelected is not null) extractSelected.IsEnabled = operation is null && scan is not null && list.SelectedItems.Count > 0;
+    }
+    public void ForgetWorkCopy(string id)
+    {
+        openedCopies.Remove(id);
+        if (latestCopy?.Id == id) latestCopy = null;
     }
 }
 
