@@ -20,8 +20,9 @@ public sealed partial class WorkerTests : IDisposable
 #else
         const string configuration = "Release";
 #endif
-        client = new ArchiveWorkerClient(Path.Combine(root, "src", "AileArc.Worker", "bin", configuration,
-            "net10.0-windows10.0.22621.0", "AileArc.Worker.exe"));
+        string executable = Environment.GetEnvironmentVariable("AILEARC_TEST_WORKER") ?? Path.Combine(root, "src", "AileArc.Worker", "bin", configuration,
+            "net10.0-windows10.0.22621.0", "AileArc.Worker.exe");
+        client = new ArchiveWorkerClient(executable);
         Directory.CreateDirectory(temp);
     }
 

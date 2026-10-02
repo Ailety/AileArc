@@ -1,0 +1,4 @@
+LIBRARY AileArc.Shell
+EXPORTS
+    DllGetClassObject
+    DllCanUnloadNow

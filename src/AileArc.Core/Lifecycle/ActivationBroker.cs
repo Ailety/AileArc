@@ -8,20 +8,40 @@ using AileArc.Shared;
 
 namespace AileArc.Core.Lifecycle;
 
-public sealed record ActivationRequest(string[] Paths, bool NewWindow = false)
+public enum ActivationAction { Open, SmartExtract, ExtractTo, Create }
+
+public sealed record ActivationRequest(string[] Paths, bool NewWindow = false, ActivationAction Action = ActivationAction.Open)
 {
     public static ActivationRequest Parse(string[] args, string workingDirectory)
     {
         bool newWindow = false;
+        bool literal = false;
+        ActivationAction action = ActivationAction.Open;
+        bool actionSet = false;
         var paths = new List<string>();
         foreach (string arg in args)
         {
-            if (arg == "--new-window") { newWindow = true; continue; }
-            if (arg.StartsWith("--", StringComparison.Ordinal)) throw new ArgumentException("Unknown launch option.");
+            if (!literal && arg == "--") { literal = true; continue; }
+            if (!literal && arg == "--new-window") { newWindow = true; continue; }
+            if (!literal && arg.StartsWith("--", StringComparison.Ordinal))
+            {
+                if (actionSet) throw new ArgumentException("Conflicting launch actions.");
+                action = arg switch
+                {
+                    "--open" => ActivationAction.Open,
+                    "--smart-extract" => ActivationAction.SmartExtract,
+                    "--extract-to" => ActivationAction.ExtractTo,
+                    "--create" => ActivationAction.Create,
+                    _ => throw new ArgumentException("Unknown launch option.")
+                };
+                actionSet = true;
+                continue;
+            }
             if (arg.Length > 32768 || paths.Count >= 32) throw new ArgumentException("Too many launch arguments.");
             paths.Add(Path.GetFullPath(arg, workingDirectory));
         }
-        return new(paths.ToArray(), newWindow);
+        if (action != ActivationAction.Open && paths.Count == 0) throw new ArgumentException("This action requires a path.");
+        return new(paths.ToArray(), newWindow, action);
     }
 }
 public sealed record ActivationReply(bool Accepted, int ProcessId);
@@ -60,7 +80,8 @@ public sealed class ActivationBroker : IDisposable
                     timeout.CancelAfter(TimeSpan.FromSeconds(10));
                     await ArchiveProtocol.WriteAsync(server, new ActivationReply(true, Environment.ProcessId), timeout.Token);
                     var request = await ArchiveProtocol.ReadAsync<ActivationRequest>(server, timeout.Token);
-                    bool valid = request.Paths is not null && request.Paths.Length <= 32 &&
+                    bool valid = Enum.IsDefined(request.Action) && request.Paths is not null && request.Paths.Length <= 32 &&
+                        (request.Action == ActivationAction.Open || request.Paths.Length > 0) &&
                         request.Paths.All(ValidPath);
                     bool accepted = valid && accept(request);
                     await ArchiveProtocol.WriteAsync(server, new ActivationReply(accepted, Environment.ProcessId), timeout.Token);

@@ -29,6 +29,12 @@ public sealed partial class App : Application
     {
         var settings = await AppSettings.LoadAsync();
         language = new LanguageService(settings.Language);
+        try
+        {
+            using var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Ailety\AileArc");
+            key.SetValue("ShellLanguage", settings.Language);
+        }
+        catch (Exception error) when (error is UnauthorizedAccessException or System.Security.SecurityException or IOException) { }
         await HandleActivationAsync(initial);
         while (pending.TryDequeue(out var request)) await HandleActivationAsync(request);
     }
@@ -39,13 +45,20 @@ public sealed partial class App : Application
     });
     private async Task HandleActivationAsync(ActivationRequest request)
     {
+        if (request.Action == ActivationAction.Create)
+        {
+            var window = CreateWindow();
+            window.BringForward();
+            _ = window.RunShellActionAsync(request.Action, request.Paths);
+            return;
+        }
         if (request.Paths.Length == 0)
         {
             var window = !request.NewWindow && windows.Count > 0 ? windows[^1] : CreateWindow();
             window.BringForward();
             return;
         }
-        foreach (string path in request.Paths) await OpenArchiveAsync(path, forceNew: request.NewWindow);
+        foreach (string path in request.Paths) await OpenArchiveAsync(path, forceNew: request.NewWindow, action: request.Action);
     }
     private MainWindow CreateWindow()
     {
@@ -54,18 +67,24 @@ public sealed partial class App : Application
         window.Closed += (_, _) => { windows.Remove(window); catalog.Remove(window); if (windows.Count == 0) Exit(); };
         return window;
     }
-    public async Task OpenArchiveAsync(string path, MainWindow? preferred = null, bool forceNew = false)
+    public async Task OpenArchiveAsync(string path, MainWindow? preferred = null, bool forceNew = false, ActivationAction action = ActivationAction.Open)
     {
         await routing.WaitAsync();
         try
         {
             string? fileId = await ArchiveWindowIdentity.ReadAsync(path);
             var existing = forceNew ? null : catalog.Find(path, fileId);
-            if (existing is not null) { existing.BringForward(); return; }
+            if (existing is not null)
+            {
+                existing.BringForward();
+                if (action != ActivationAction.Open) _ = existing.RunShellActionAsync(action, [path]);
+                return;
+            }
             var window = preferred is not null && preferred.OpenPath is null && !preferred.IsBusy ? preferred : CreateWindow();
             catalog.Register(window, path, fileId);
             window.BringForward();
-            _ = window.OpenArchiveAsync(path);
+            if (action == ActivationAction.Open) _ = window.OpenArchiveAsync(path);
+            else _ = window.RunShellActionAsync(action, [path], openFirst: true);
         }
         finally { routing.Release(); }
     }

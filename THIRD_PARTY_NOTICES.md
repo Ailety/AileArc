@@ -19,6 +19,13 @@ This document records development dependencies. AileArc's own code is licensed u
 - Source and license information: https://github.com/microsoft/WindowsAppSDK and https://github.com/microsoft/microsoft-ui-xaml
 - NuGet packages retain their upstream licenses; do not treat all transitive binaries as having one project-wide license.
 
+## Native Shell compiler and runtime
+
+- Build tool: LLVM-MinGW 20260922, https://github.com/mstorsjo/llvm-mingw/releases/tag/20260922.
+- The x64 UCRT toolchain download is SHA-256 pinned and stays under .tools; it is not distributed with AileArc.
+- The native Shell DLL statically links the toolchain's C++/MinGW support libraries. The development bundle copies LLVM LICENSE.TXT and the MinGW COPYING notices beside the DLL in Shell/Notices.
+- The bundle also retains the .NET distribution license/notices and available NuGet package license/NOTICE files in Notices. Own-code MIT does not replace these terms.
+
 ## Test tooling
 
 - xUnit 2.9.3 and xunit.runner.visualstudio 3.1.4: Apache-2.0, https://github.com/xunit/xunit

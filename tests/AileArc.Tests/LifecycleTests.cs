@@ -6,6 +6,18 @@ namespace AileArc.Tests;
 public sealed class LifecycleTests
 {
     [Fact]
+    public void ShellActionsAreExplicitAndPathsAfterSeparatorAreLiteral()
+    {
+        var request = ActivationRequest.Parse(["--create", "--", "--report.txt", "目录/文 件.txt"], @"C:\Sources");
+        Assert.Equal(ActivationAction.Create, request.Action);
+        Assert.Equal(new[] { @"C:\Sources\--report.txt", @"C:\Sources\目录\文 件.txt" }, request.Paths);
+        Assert.Equal(ActivationAction.SmartExtract, ActivationRequest.Parse(["--smart-extract", "a.zip"], @"C:\Sources").Action);
+        Assert.Equal(ActivationAction.ExtractTo, ActivationRequest.Parse(["--extract-to", "a.zip"], @"C:\Sources").Action);
+        Assert.Throws<ArgumentException>(() => ActivationRequest.Parse(["--create"], @"C:\Sources"));
+        Assert.Throws<ArgumentException>(() => ActivationRequest.Parse(["--create", "--open", "a.zip"], @"C:\Sources"));
+        Assert.Throws<ArgumentException>(() => ActivationRequest.Parse(Enumerable.Repeat("a.zip", 33).ToArray(), @"C:\Sources"));
+    }
+    [Fact]
     public void CatalogFindsNormalizedPathsAndHardLinkIdentity()
     {
         var catalog = new WindowCatalog<object>();

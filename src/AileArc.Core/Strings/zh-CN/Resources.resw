@@ -161,4 +161,5 @@
   <data name="CopyCleanupExtraFiles"><value>副本目录含有额外文件，已保留全部内容。</value></data>
   <data name="CopyCleaned"><value>未修改副本已清理，原压缩包保持不变。</value></data>
   <data name="CleanupBusy"><value>其他窗口仍有任务，请等待完成后再清理副本。</value></data>
+  <data name="ShellOpen"><value>用 AileArc 打开</value></data>
 </root>

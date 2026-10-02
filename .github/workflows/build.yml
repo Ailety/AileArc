@@ -10,6 +10,9 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1, Node.js 24
-      - name: Build and test
+      - name: Build, test and create self-contained development bundle
         shell: pwsh
-        run: ./scripts/Build.ps1 -Configuration Release
+        run: ./scripts/Package.ps1 -OutputDirectory .artifacts/ci-package
+      - name: Verify installation, upgrade and uninstall
+        shell: pwsh
+        run: ./scripts/Test-Install.ps1 -BundleDirectory .artifacts/ci-package

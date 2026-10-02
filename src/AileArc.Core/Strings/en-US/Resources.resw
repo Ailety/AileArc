@@ -161,4 +161,5 @@
   <data name="CopyCleanupExtraFiles"><value>The copy folder contains extra files. All contents were retained.</value></data>
   <data name="CopyCleaned"><value>The unchanged copy was cleaned. The original archive is unchanged.</value></data>
   <data name="CleanupBusy"><value>Another window has an active task. Wait before cleaning the copy.</value></data>
+  <data name="ShellOpen"><value>Open with AileArc</value></data>
 </root>

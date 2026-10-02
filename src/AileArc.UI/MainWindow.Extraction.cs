@@ -29,7 +29,7 @@ public sealed partial class MainWindow
         finally { password.Password = ""; dialogOpen = false; }
     }
 
-    private async Task ExtractAsync(bool smart, bool selectedOnly = false)
+    private async Task ExtractAsync(bool smart, bool selectedOnly = false, bool useArchiveDirectory = false)
     {
         if (index is null || operation is not null || dialogOpen) return;
         var snapshot = scan!;
@@ -56,7 +56,7 @@ public sealed partial class MainWindow
             PrimaryButtonText = text["Extract"], CloseButtonText = text["Cancel"] };
         dialogOpen = true;
         ContentDialogResult choice;
-        try { choice = await dialog.ShowAsync(); }
+        try { choice = useArchiveDirectory ? ContentDialogResult.Primary : await dialog.ShowAsync(); }
         finally { dialogOpen = false; }
         if (choice != ContentDialogResult.Primary || string.IsNullOrWhiteSpace(destination.Text)) return;
         string targetDirectory = destination.Text.Trim();

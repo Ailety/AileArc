@@ -40,7 +40,7 @@ Modern archive management for Windows. **Archive should feel like a folder.**
 
 - 所选解压保留完整内部路径；文件按 Entry ID 选择，目录按边界扩展子项。重新解压/准备外部打开时核对文件身份、长度和修改时间，源文件变化需重新打开。
 - 当前解压目标仅支持本地磁盘；符号链接、硬链接、重解析点和不安全名称直接拒绝，尚不支持修复名称。仅大小写不同的目录会停止提取，避免静默合并；普通文件的大小写重名按冲突策略处理。
-- 不启用已有压缩包编辑/自动回写、Shell、安装器或标签页。
+- 不启用已有压缩包编辑/自动回写或标签页。开发安装与 Open With 已接入；现代右键扩展已编译并通过接口测试，实际 Explorer 注册仍需受信任签名包验收。
 - 压缩创建首期限制为 10,000 个源条目、4 GiB 源数据；固定最多 2 个压缩线程，7Z 字典按预设限制在 4/16/32 MiB。拒绝重解析点和目标位于所选源目录内的情况；不删除源文件、不创建分卷。
 - 当前上限：250,000 原始条目、32 Mi 字符的条目路径总量、单 IPC 帧 1 MiB、单次提取 4 GiB、Worker 提交内存 768 MiB。上限是原型的保护预算，不是最终容量承诺。
 - 读取或解码连续 2 分钟没有协议输出会停止；未实现性能基准与百万条目容量验收。
@@ -73,6 +73,7 @@ Modern archive management for Windows. **Archive should feel like a folder.**
 - [长期产品蓝图](docs/AileArc_Development_Specification.md)
 - [架构决策](docs/AileArc_Architecture_Decisions.md)
 - [开发历程](docs/Development_Log.md)
+- [开发安装包与 Shell 验证](docs/Development_Installation.md)
 - [第三方声明](THIRD_PARTY_NOTICES.md)
 
 项目自有代码采用 [MIT 许可证](LICENSE)，第三方组件保留各自许可，见 [第三方声明](THIRD_PARTY_NOTICES.md)。每次 BUG 修复或功能更新在验证后提交并推送，协作规则见 [AGENTS.md](AGENTS.md)。当前不创建官网、不自动发布正式 Release。

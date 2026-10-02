@@ -102,6 +102,7 @@
       "ailearc.shared": {
         "type": "Project"
       }
-    }
+    },
+    "net10.0-windows10.0.22621/win-x64": {}
   }
 }

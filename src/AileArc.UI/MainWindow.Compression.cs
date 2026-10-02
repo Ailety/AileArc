@@ -8,10 +8,12 @@ namespace AileArc.UI;
 
 public sealed partial class MainWindow
 {
-    private async Task CreateArchiveAsync()
+    private Task CreateArchiveAsync() => CreateArchiveAsync([]);
+
+    private async Task CreateArchiveAsync(string[] initialSources)
     {
         if (operation is not null || dialogOpen) return;
-        var sources = new List<string>();
+        var sources = initialSources.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         var selected = new ListView { MaxHeight = 120, MinHeight = 40 };
         var destination = new TextBox { Header = text["ArchiveDestination"], MinWidth = 460 };
         var format = new ComboBox { Header = text["ArchiveFormat"], ItemsSource = new[] { "ZIP", "7Z" }, SelectedIndex = 0, MinWidth = 110 };
@@ -81,6 +83,7 @@ public sealed partial class MainWindow
         panel.Children.Add(parameters); panel.Children.Add(password); panel.Children.Add(encryptNames);
         panel.Children.Add(new TextBlock { Text = text["CreateArchiveHint"], TextWrapping = TextWrapping.Wrap, MaxWidth = 480 });
         dialog.Content = panel;
+        RefreshSources();
         dialogOpen = true;
         ContentDialogResult choice;
         try { choice = await dialog.ShowAsync(); }

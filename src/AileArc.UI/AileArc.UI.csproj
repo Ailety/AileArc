@@ -19,4 +19,12 @@
     <ItemGroup><WorkerFiles Include="../AileArc.Worker/bin/$(Configuration)/$(TargetFramework)/*" /></ItemGroup>
     <Copy SourceFiles="@(WorkerFiles)" DestinationFolder="$(OutDir)Worker" SkipUnchangedFiles="true" />
   </Target>
+  <!-- Unpackaged WinUI builds generate PRI/XBF files outside the normal .NET publish items. -->
+  <Target Name="PublishXamlResources" AfterTargets="Publish">
+    <ItemGroup>
+      <XamlPublishFiles Include="$(OutDir)**/*.xbf" />
+    </ItemGroup>
+    <Copy SourceFiles="$(OutDir)$(AssemblyName).pri" DestinationFolder="$(PublishDir)" />
+    <Copy SourceFiles="@(XamlPublishFiles)" DestinationFiles="@(XamlPublishFiles->'$(PublishDir)%(RecursiveDir)%(Filename)%(Extension)')" />
+  </Target>
 </Project>
