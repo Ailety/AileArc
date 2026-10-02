@@ -76,6 +76,14 @@ public sealed partial class WorkerTests
         }
         finally { if (!process.HasExited) process.Kill(entireProcessTree: true); await process.WaitForExitAsync(); }
         var item = Assert.Single(store.List());
+        // Windows may briefly retain the terminated process's file handles after its exit notification.
+        // Poll the real lease state with a bound; do not weaken the expected recovery result.
+        var releaseDeadline = Stopwatch.StartNew();
+        while (item.State == RecoveryState.Busy && releaseDeadline.Elapsed < TimeSpan.FromSeconds(2))
+        {
+            await Task.Delay(20);
+            item = Assert.Single(store.List());
+        }
         Assert.Equal(RecoveryState.Recoverable, item.State);
         return (store, item.Record);
     }
