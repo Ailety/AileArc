@@ -119,17 +119,22 @@ public sealed partial class MainWindow
             var selector = new ComboBox { MinWidth = 460, MaxWidth = 520, ItemsSource = records.Select(r => $"{r.CreatedUtc.ToLocalTime():g} · {r.EntryPath}").ToArray() };
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(selector, text["WorkCopies"]);
             var description = new TextBlock { TextWrapping = TextWrapping.Wrap, MaxWidth = 520, IsTextSelectionEnabled = true };
+            WorkCopyRecord? cleanup = null;
+            var clean = new Button { Content = text["CleanUnchangedCopy"], IsEnabled = false };
             var content = new StackPanel { Spacing = 12 };
             content.Children.Add(new TextBlock { Text = text["CopiesRetainedHint"], TextWrapping = TextWrapping.Wrap, MaxWidth = 520 });
             content.Children.Add(selector);
             content.Children.Add(description);
+            content.Children.Add(clean);
             var dialog = new ContentDialog { XamlRoot = root.XamlRoot, Title = text["WorkCopies"], Content = content,
                 PrimaryButtonText = text["SaveCopyAs"], SecondaryButtonText = text["OpenCopyFolder"], CloseButtonText = text["Close"] };
+            clean.Click += (_, _) => { cleanup = records[selector.SelectedIndex]; dialog.Hide(); };
             selector.SelectionChanged += async (_, _) =>
             {
                 int selected = selector.SelectedIndex;
                 if (selected < 0) return;
                 dialog.IsPrimaryButtonEnabled = false;
+                clean.IsEnabled = false;
                 description.Text = text["CheckingCopy"];
                 try
                 {
@@ -137,13 +142,30 @@ public sealed partial class MainWindow
                     if (selector.SelectedIndex != selected) return;
                     description.Text = $"{text["CopyState" + state.State]}\n{state.FilePath}";
                     dialog.IsPrimaryButtonEnabled = state.State is WorkCopyState.Modified or WorkCopyState.Unchanged;
+                    clean.IsEnabled = state.State == WorkCopyState.Unchanged && !App.Instance.AnyTaskRunning;
                 }
                 catch (Exception) { description.Text = text["CopyUnavailable"]; }
             };
             selector.SelectedIndex = 0;
             var choice = await dialog.ShowAsync();
             var record = records[selector.SelectedIndex];
-            if (choice == ContentDialogResult.Primary)
+            if (cleanup is not null)
+            {
+                var acknowledgement = new CheckBox { Content = text["EditorsClosed"], MaxWidth = 480 };
+                var warning = new StackPanel { Spacing = 12 };
+                warning.Children.Add(new TextBlock { Text = text["CleanupCopyHint"], TextWrapping = TextWrapping.Wrap, MaxWidth = 480 });
+                warning.Children.Add(acknowledgement);
+                var confirm = new ContentDialog { XamlRoot = root.XamlRoot, Title = text["CleanUnchangedCopy"], Content = warning,
+                    PrimaryButtonText = text["Clean"], CloseButtonText = text["Cancel"], IsPrimaryButtonEnabled = false };
+                acknowledgement.Click += (_, _) => confirm.IsPrimaryButtonEnabled = acknowledgement.IsChecked == true;
+                if (await confirm.ShowAsync() == ContentDialogResult.Primary)
+                {
+                    if (App.Instance.AnyTaskRunning) throw new ArchiveOperationException("CleanupBusy");
+                    dialogOpen = false;
+                    await CleanWorkCopyAsync(cleanup);
+                }
+            }
+            else if (choice == ContentDialogResult.Primary)
             {
                 var picker = new Microsoft.Windows.Storage.Pickers.FileSavePicker(AppWindow.Id) { SuggestedFileName = System.IO.Path.GetFileName(record.EntryPath) };
                 picker.FileTypeChoices.Add(text["AllFiles"], new List<string> { "*" });
@@ -181,6 +203,25 @@ public sealed partial class MainWindow
             if (ReferenceEquals(operation, current)) operation = null;
             if (!closed) SetBusy(false);
             current.Dispose();
+        }
+    }
+
+    private async Task CleanWorkCopyAsync(WorkCopyRecord record)
+    {
+        using var current = new CancellationTokenSource();
+        operation = current;
+        SetBusy(true);
+        try
+        {
+            await Task.Run(() => workCopyStore.RemoveUnchangedAsync(record, current.Token), current.Token);
+            App.Instance.ForgetWorkCopy(record.Id);
+            if (!closed) notice.Text = text["CopyCleaned"];
+        }
+        catch (OperationCanceledException) { if (!closed) status.Text = text["Cancelled"]; }
+        finally
+        {
+            if (ReferenceEquals(operation, current)) operation = null;
+            if (!closed) SetBusy(false);
         }
     }
 }

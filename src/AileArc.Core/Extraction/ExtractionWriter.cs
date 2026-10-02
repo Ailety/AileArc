@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using AileArc.Shared;
+using AileArc.Core.Recovery;
 
 namespace AileArc.Core.Extraction;
 
@@ -23,6 +24,7 @@ internal sealed class ExtractionWriter : IAsyncDisposable
     private DirectoryGuard? guard;
     private DirectoryGuard? destinationGuard;
     private string? temporary;
+    private TrackedTemporaryFile? trackedTemporary;
     private string? target;
     private ArchiveEntry? active;
     private bool replace;
@@ -139,8 +141,9 @@ internal sealed class ExtractionWriter : IAsyncDisposable
             }
         }
         if (ignored) return;
-        temporary = Path.Combine(Path.GetDirectoryName(target)!, $".ailearc-{Guid.NewGuid():N}.partial");
-        stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 64 * 1024, FileOptions.Asynchronous);
+        trackedTemporary = TrackedTemporaryFile.Create(Path.GetDirectoryName(target)!, "Extract");
+        temporary = trackedTemporary.Path;
+        stream = new FileStream(temporary, FileMode.Open, FileAccess.Write, FileShare.None, 64 * 1024, FileOptions.Asynchronous);
     }
 
     public async Task WriteAsync(long id, byte[] bytes, CancellationToken token)
@@ -229,9 +232,9 @@ internal sealed class ExtractionWriter : IAsyncDisposable
         try
         {
             if (stream is not null) { await stream.DisposeAsync(); stream = null; }
-            if (temporary is not null && File.Exists(temporary)) File.Delete(temporary);
+            trackedTemporary?.Dispose();
         }
-        finally { temporary = null; active = null; guard?.Dispose(); guard = null; }
+        finally { trackedTemporary = null; temporary = null; active = null; guard?.Dispose(); guard = null; }
     }
     public async ValueTask DisposeAsync()
     {

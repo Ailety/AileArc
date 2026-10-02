@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
+using AileArc.Core.Storage;
 
 namespace AileArc.Core.Extraction;
 
@@ -8,6 +9,7 @@ namespace AileArc.Core.Extraction;
 internal sealed class DirectoryGuard : IDisposable
 {
     private readonly List<SafeFileHandle> handles = [];
+    public string FileIdentity { get; private set; } = "";
     public static DirectoryGuard Acquire(string path, bool create)
     {
         var guard = new DirectoryGuard();
@@ -29,6 +31,7 @@ internal sealed class DirectoryGuard : IDisposable
                 }
                 guard.Pin(current);
             }
+            guard.FileIdentity = VerifiedFile.IdentityOf(guard.handles[^1]);
             return guard;
         }
         catch { guard.Dispose(); throw; }

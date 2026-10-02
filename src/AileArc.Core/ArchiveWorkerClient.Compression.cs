@@ -3,6 +3,7 @@ using System.Diagnostics;
 using AileArc.Core.Compression;
 using AileArc.Core.Extraction;
 using AileArc.Shared;
+using AileArc.Core.Recovery;
 
 namespace AileArc.Core;
 
@@ -16,8 +17,8 @@ public sealed partial class ArchiveWorkerClient
         using var destinationGuard = DirectoryGuard.Acquire(Path.GetDirectoryName(destination)!, create: true);
         if (Directory.Exists(destination) || (File.Exists(destination) && (!options.Overwrite || (File.GetAttributes(destination) & FileAttributes.ReparsePoint) != 0)))
             throw new ArchiveOperationException("DestinationConflict");
-        string temporary = Path.Combine(Path.GetDirectoryName(destination)!, $".ailearc-{Guid.NewGuid():N}.partial");
-        using (File.Create(temporary)) { }
+        using var trackedTemporary = TrackedTemporaryFile.Create(Path.GetDirectoryName(destination)!, "Compress");
+        string temporary = trackedTemporary.Path;
         try
         {
             var start = new ProcessStartInfo(Path.GetFullPath(workerPath))
@@ -82,6 +83,5 @@ public sealed partial class ArchiveWorkerClient
         }
         catch (EndOfStreamException) { throw new ArchiveOperationException("WorkerFailed"); }
         catch (InvalidDataException) { throw new ArchiveOperationException("ProtocolMismatch"); }
-        finally { if (File.Exists(temporary)) File.Delete(temporary); }
     }
 }

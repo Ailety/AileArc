@@ -8,5 +8,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/AileArc.Tests/AileArc.Tests.csproj" />
+    <Project Path="tests/AileArc.RecoveryProbe/AileArc.RecoveryProbe.csproj" />
   </Folder>
 </Solution>

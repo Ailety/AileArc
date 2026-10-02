@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using AileArc.Core.Extraction;
 using AileArc.Shared;
+using AileArc.Core.Recovery;
 
 namespace AileArc.Core.WorkCopies;
 
@@ -14,7 +15,7 @@ public enum WorkCopyState { Unchanged, Modified, Unavailable, Incomplete }
 public sealed record WorkCopyStatus(WorkCopyRecord Record, string FilePath, WorkCopyState State);
 
 /// <summary>Durable working files, deliberately never automatically deleted after external applications open them.</summary>
-public sealed class WorkCopyStore
+public sealed partial class WorkCopyStore
 {
     public const ulong MaxFileBytes = 256UL * 1024 * 1024;
     public string Root { get; }
@@ -121,11 +122,12 @@ public sealed class WorkCopyStore
         if ((File.GetAttributes(source) & FileAttributes.ReparsePoint) != 0 ||
             (File.Exists(fullDestination) && (File.GetAttributes(fullDestination) & FileAttributes.ReparsePoint) != 0))
             throw new ArchiveOperationException("UnsafePath");
-        string temporary = Path.Combine(Path.GetDirectoryName(fullDestination)!, $".ailearc-{Guid.NewGuid():N}.partial");
+        using var trackedTemporary = TrackedTemporaryFile.Create(Path.GetDirectoryName(fullDestination)!, "Export");
+        string temporary = trackedTemporary.Path;
         try
         {
             await using (var input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read, 65536, FileOptions.Asynchronous))
-            await using (var output = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 65536, FileOptions.Asynchronous))
+            await using (var output = new FileStream(temporary, FileMode.Open, FileAccess.Write, FileShare.None, 65536, FileOptions.Asynchronous))
             {
                 if ((ulong)input.Length > MaxFileBytes) throw new ArchiveOperationException("WorkCopyTooLarge");
                 await input.CopyToAsync(output, token);
@@ -139,7 +141,7 @@ public sealed class WorkCopyStore
             File.Move(temporary, fullDestination, overwrite: true);
             // Baseline stays unchanged: exporting a copy does not update the original archive.
         }
-        finally { if (File.Exists(temporary)) File.Delete(temporary); }
+        finally { trackedTemporary.Dispose(); }
     }
 
     private async Task WriteManifestAsync(WorkCopyRecord record, CancellationToken token)
@@ -147,10 +149,11 @@ public sealed class WorkCopyStore
         string folder = Path.Combine(Root, record.Id);
         using var guard = DirectoryGuard.Acquire(folder, create: false);
         string destination = Path.Combine(folder, "workcopy.json");
-        string temp = destination + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        using var trackedTemporary = TrackedTemporaryFile.Create(folder, "Metadata");
+        string temp = trackedTemporary.Path;
         try
         {
-            await using (var output = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous))
+            await using (var output = new FileStream(temp, FileMode.Open, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous))
             {
                 await JsonSerializer.SerializeAsync(output, record, cancellationToken: token);
                 await output.FlushAsync(token);
@@ -158,7 +161,7 @@ public sealed class WorkCopyStore
             }
             File.Move(temp, destination, overwrite: true);
         }
-        finally { if (File.Exists(temp)) File.Delete(temp); }
+        finally { trackedTemporary.Dispose(); }
     }
     private static async Task<string> HashAsync(string file, CancellationToken token)
     {

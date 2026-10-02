@@ -42,6 +42,7 @@ public sealed partial class MainWindow : Window
     private readonly Button extractSelected;
     private readonly Button errorDetails;
     private readonly Button workCopies;
+    private readonly Button recovery;
     private readonly ArchiveWorkerClient client;
     private readonly Stack<NavigationState> history = new();
     private ArchiveIndex? index;
@@ -195,6 +196,8 @@ public sealed partial class MainWindow : Window
         workCopies = Button(text["WorkCopies"], ShowWorkCopiesAsync);
         var secondaryActions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         secondaryActions.Children.Add(workCopies);
+        recovery = Button(text["Recovery"], ShowRecoveryAsync);
+        secondaryActions.Children.Add(recovery);
         secondaryActions.Children.Add(errorDetails);
         secondaryActions.Children.Add(restart);
         foreach (var label in new[] { text["FilenameEncodingAuto"], "UTF-8 (65001)", "GBK (936)", "Shift-JIS (932)" }) filenameEncoding.Items.Add(label);
@@ -229,6 +232,7 @@ public sealed partial class MainWindow : Window
             if ((operation is not null || openedCopies.Count > 0) && !allowClose) { args.Cancel = true; _ = ConfirmCloseAsync(); }
         };
         InitializeWorkCopyMonitoring();
+        root.Loaded += async (_, _) => await RefreshRecoveryBadgeAsync();
         SetBusy(false);
         UpdateBreadcrumbs();
     }
@@ -400,6 +404,7 @@ public sealed partial class MainWindow : Window
         languages.IsEnabled = !busy;
         restart.IsEnabled = !busy;
         workCopies.IsEnabled = !busy;
+        recovery.IsEnabled = !busy;
         filenameEncoding.IsEnabled = !busy && scan?.Format == "ZIP";
         UpdateSelectionActions();
     }
