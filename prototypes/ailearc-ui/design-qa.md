@@ -2,6 +2,19 @@
 
 final result: passed
 
+## Current refinement — warm graphite selected
+
+- The user selected warm graphite as the default direction. Warm gold is no longer an offered theme; the earlier exploration below is retained as historical evidence.
+- Source baseline: `qa-evidence/graphite-baseline.png`; implementation: `qa-evidence/graphite-refined.png`. Both are 1487 × 1058 at a matching CSS viewport and screenshot density 1, with Getting Started.pdf selected.
+- Inspected full paired evidence `refinement-comparison.png` and focused navigation/list comparison `refinement-detail.png`. The only added persistent toolbar control is Forward; typography, warm tokens, icon library, three-column proportions and list rhythm remain consistent. No new raster assets.
+- Additional evidence: `refined-extract.png` shows two complete target paths; `refined-light.png` verifies the paired light theme at 1024 × 768. Captures taken during transition were replaced with stable-state captures after DOM checks.
+- Browser checks passed: search → folder → Back restores search and selection; Forward restores the folder; Shift+Down extends selection; target preview responds to structure toggle; relative destination is rejected; New is disabled during a running task; cancel preserves an explicit cancelled task result.
+- Creation checks: Windows-reserved name rejected; My-project.zip switched to 7Z previews My-project.7z; removing assets leaves two sources; completed task details retain the correct output name and count. A transient toast wait timed out; the persisted completed task was inspected instead, rather than claiming the timed-out check passed.
+- Cancellation uses a cancellation symbol rather than a success check. Task simulations remain explicitly labelled and do not write files. Four helper tests cover suffix normalization, invalid names, absolute destination and per-item target preview.
+- No remaining actionable P0/P1/P2 findings. Remaining P3: final branding and further user feedback on density. Browser console error query returned no errors during this iteration.
+
+## Historical exploration record
+
 ## Target and evidence
 
 - Visual truth: `reference/layout-option-1.png`, refined by the user's requested simpler top area, visible multiselect controls, and warmer palette; `reference/palette-option-2.png` informs the alternate warm-gold theme.

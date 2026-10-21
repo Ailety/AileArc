@@ -22,5 +22,7 @@ jobs:
         run: |
           npm ci --no-audit --no-fund
           if ($LASTEXITCODE -ne 0) { throw 'Prototype dependency restore failed.' }
+          npm test
+          if ($LASTEXITCODE -ne 0) { throw 'Prototype interaction helper tests failed.' }
           npm run build
           if ($LASTEXITCODE -ne 0) { throw 'Prototype build failed.' }

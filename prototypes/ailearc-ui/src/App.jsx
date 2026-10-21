@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   Archive,
   ArrowLeft,
+  ArrowRight,
   ArrowUp,
   ArrowDown,
   CaretDown,
@@ -23,10 +24,17 @@ import {
   Plus,
   SidebarSimple,
   X,
+  XCircle,
   ArrowSquareOut,
   ClockCounterClockwise,
 } from "@phosphor-icons/react";
 import { files, archives, typeName, size } from "./data";
+import {
+  archiveName,
+  nameError,
+  destinationError,
+  extractionTargets,
+} from "./workflow";
 
 function FileIcon({ file, large = false }) {
   const Icon =
@@ -100,6 +108,7 @@ export function App() {
   const [archive, setArchive] = useState(archives[0]),
     [path, setPath] = useState("docs/"),
     [history, setHistory] = useState([]),
+    [future, setFuture] = useState([]),
     [search, setSearch] = useState("");
   const [selection, setSelection] = useState(["docs/Getting Started.pdf"]),
     [anchor, setAnchor] = useState("docs/Getting Started.pdf"),
@@ -123,6 +132,7 @@ export function App() {
     [sources, setSources] = useState([]),
     [encoding, setEncoding] = useState("自动");
   const searchRef = useRef(),
+    rowRefs = useRef(new Map()),
     toastTimer = useRef(),
     running = useRef();
   const visible = useMemo(
@@ -148,13 +158,29 @@ export function App() {
     file = selected.length === 1 ? selected[0] : null;
   const all =
     visible.length > 0 && visible.every((f) => selection.includes(f.id));
+  const busy = job && job.progress < 100 && !job.cancelled;
+  const previewTargets = extractionTargets(extraction, destination, keepPaths);
+  const outputName = archiveName(createName, format);
+  const currentView = () => ({ path, search, selection, anchor, sort });
+  const restoreView = (view) => {
+    setPath(view.path);
+    setSearch(view.search);
+    setSelection(view.selection);
+    setAnchor(view.anchor);
+    setSort(view.sort);
+    requestAnimationFrame(() =>
+      rowRefs.current.get(view.selection[0])?.focus(),
+    );
+  };
   const notify = (text) => {
     clearTimeout(toastTimer.current);
     setToast(text);
     toastTimer.current = setTimeout(() => setToast(""), 4200);
   };
   const go = (next) => {
-    setHistory((h) => [...h, { path, search }]);
+    if (path === next && !search) return;
+    setHistory((h) => [...h, currentView()]);
+    setFuture([]);
     setPath(next);
     setSearch("");
     setSelection([]);
@@ -164,14 +190,20 @@ export function App() {
     if (!history.length) return;
     const prev = history.at(-1);
     setHistory((h) => h.slice(0, -1));
-    setPath(prev.path);
-    setSearch(prev.search);
-    setSelection([]);
+    setFuture((h) => [...h, currentView()]);
+    restoreView(prev);
+  };
+  const forward = () => {
+    if (!future.length) return;
+    setHistory((h) => [...h, currentView()]);
+    restoreView(future.at(-1));
+    setFuture((h) => h.slice(0, -1));
   };
   const openArchive = (name) => {
     setArchive(name);
     setPath("docs/");
     setHistory([]);
+    setFuture([]);
     setSearch("");
     setSelection([]);
     setModal(null);
@@ -213,23 +245,35 @@ export function App() {
       ? go(f.parent + f.name + "/")
       : notify(`原型演示：将使用 Windows 默认应用打开 ${f.name}`);
   const showExtract = (whole = false) => {
+    if (busy) {
+      notify("请等待当前模拟任务完成，或先取消它。");
+      return;
+    }
     setExtraction(whole ? files.filter((f) => !f.parent) : selected);
     setModal("extract");
     setMenu(false);
   };
-  const runJob = (kind, count) => {
+  const runJob = (kind, count, context) => {
+    if (busy) return;
     setModal(null);
     clearInterval(running.current);
-    setJob({ kind, count, progress: 0 });
+    const task = {
+      kind,
+      count,
+      context,
+      openAfter: kind === "解压" && openAfter,
+      cancelled: false,
+    };
+    setJob({ ...task, progress: 0 });
     let progress = 0;
     running.current = setInterval(() => {
       progress += 20;
-      setJob({ kind, count, progress });
+      setJob({ ...task, progress });
       if (progress >= 100) {
         clearInterval(running.current);
-        notify(`模拟${kind}完成 · ${count} 项，未实际读写文件`);
+        notify(`模拟${kind}完成 · ${context}，未实际读写文件`);
       }
-    }, 320);
+    }, 650);
   };
   useEffect(
     () => () => {
@@ -253,6 +297,19 @@ export function App() {
         setMenu(false);
       }
       if (modal) return;
+      const editing = ["INPUT", "TEXTAREA", "SELECT"].includes(
+        document.activeElement?.tagName,
+      );
+      if (!editing && e.altKey && e.key === "ArrowLeft") {
+        e.preventDefault();
+        back();
+      }
+      if (!editing && e.altKey && e.key === "ArrowRight") {
+        e.preventDefault();
+        forward();
+      }
+      if (!editing && e.key === "Escape" && !appearance && !menu)
+        setSelection([]);
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
         e.preventDefault();
         searchRef.current?.focus();
@@ -270,7 +327,19 @@ export function App() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [visible, modal]);
+  }, [
+    visible,
+    modal,
+    history,
+    future,
+    path,
+    search,
+    selection,
+    anchor,
+    sort,
+    appearance,
+    menu,
+  ]);
   const changeSearch = (value) => {
     setSearch(value);
     setSelection([]);
@@ -303,6 +372,7 @@ export function App() {
             打开
           </button>
           <button
+            disabled={busy}
             onClick={() => {
               setSources([]);
               setModal("create");
@@ -332,8 +402,7 @@ export function App() {
             <section className="appearance popover" aria-label="外观设置">
               <div className="popover-title">选择配色</div>
               {[
-                ["graphite", "暖石墨", "柔和中性色 · 香槟强调"],
-                ["gold", "暖金", "更接近第 2 版的配色"],
+                ["graphite", "暖石墨", "默认主题 · 香槟强调"],
                 ["light", "浅色", "保留相同的布局与层次"],
               ].map(([id, name, desc]) => (
                 <button
@@ -482,6 +551,13 @@ export function App() {
                 <ArrowLeft />
               </IconButton>
               <IconButton
+                label="前进"
+                disabled={!future.length}
+                onClick={forward}
+              >
+                <ArrowRight />
+              </IconButton>
+              <IconButton
                 label="上一级"
                 disabled={!path && !search}
                 onClick={() => {
@@ -518,7 +594,7 @@ export function App() {
             <div className="content-actions">
               <button
                 className="primary"
-                disabled={job && job.progress < 100}
+                disabled={busy}
                 onClick={() => showExtract(!selection.length)}
               >
                 <ArrowUp size={16} />
@@ -543,7 +619,9 @@ export function App() {
                 </IconButton>
                 {menu && (
                   <div className="popover more">
-                    <button onClick={() => showExtract(true)}>解压全部</button>
+                    <button disabled={busy} onClick={() => showExtract(true)}>
+                      解压全部
+                    </button>
                     <button
                       onClick={() => {
                         selectAll();
@@ -559,6 +637,14 @@ export function App() {
                       }}
                     >
                       清除选择
+                    </button>
+                    <button
+                      onClick={() => {
+                        setMenu(false);
+                        setModal("shortcuts");
+                      }}
+                    >
+                      键盘快捷键
                     </button>
                   </div>
                 )}
@@ -613,6 +699,10 @@ export function App() {
                 {visible.map((f) => (
                   <tr
                     key={f.id}
+                    ref={(node) => {
+                      if (node) rowRefs.current.set(f.id, node);
+                      else rowRefs.current.delete(f.id);
+                    }}
                     className={selection.includes(f.id) ? "selected" : ""}
                     aria-selected={selection.includes(f.id)}
                     tabIndex={0}
@@ -620,6 +710,35 @@ export function App() {
                     onDoubleClick={() => openFile(f)}
                     onKeyDown={(e) => {
                       if (e.target !== e.currentTarget) return;
+                      if (
+                        ["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)
+                      ) {
+                        e.preventDefault();
+                        const index = visible.findIndex(
+                          (item) => item.id === f.id,
+                        );
+                        const nextIndex =
+                          e.key === "Home"
+                            ? 0
+                            : e.key === "End"
+                              ? visible.length - 1
+                              : Math.max(
+                                  0,
+                                  Math.min(
+                                    visible.length - 1,
+                                    index + (e.key === "ArrowDown" ? 1 : -1),
+                                  ),
+                                );
+                        const next = visible[nextIndex];
+                        if (next) {
+                          if (e.shiftKey) toggle(next, e, true);
+                          else if (!e.ctrlKey && !e.metaKey) {
+                            setSelection([next.id]);
+                            setAnchor(next.id);
+                          }
+                          rowRefs.current.get(next.id)?.focus();
+                        }
+                      }
                       if (e.key === " ") {
                         e.preventDefault();
                         toggle(f, e);
@@ -794,21 +913,28 @@ export function App() {
         {job && (
           <div className="task-status">
             <span>
-              {job.progress === 100 ? (
+              {job.cancelled ? (
+                <XCircle size={14} />
+              ) : job.progress === 100 ? (
                 <CheckCircle size={14} />
               ) : (
                 <Archive size={14} />
               )}
               模拟{job.kind}
-              {job.progress === 100 ? "完成" : ` ${job.progress}%`}
+              {job.cancelled
+                ? "已取消"
+                : job.progress === 100
+                  ? "完成"
+                  : ` ${job.progress}%`}
             </span>
-            {job.progress < 100 ? (
+            <button onClick={() => setModal("job")}>查看任务</button>
+            {busy ? (
               <>
                 <progress value={job.progress} max="100" />
                 <button
                   onClick={() => {
                     clearInterval(running.current);
-                    setJob(null);
+                    setJob((current) => ({ ...current, cancelled: true }));
                     notify("模拟任务已取消");
                   }}
                 >
@@ -871,7 +997,8 @@ export function App() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              runJob("解压", extraction.length);
+              if (!destinationError(destination))
+                runJob("解压", extraction.length, destination.trim());
             }}
           >
             <p className="dialog-description">
@@ -881,10 +1008,21 @@ export function App() {
               目标文件夹
               <input
                 required
+                aria-invalid={!!destinationError(destination)}
+                aria-describedby={
+                  destinationError(destination)
+                    ? "destination-error"
+                    : undefined
+                }
                 value={destination}
                 onChange={(e) => setDestination(e.target.value)}
               />
             </label>
+            {destinationError(destination) && (
+              <p className="field-error" id="destination-error" role="alert">
+                {destinationError(destination)}
+              </p>
+            )}
             <label className="setting">
               <Checkbox
                 checked={keepPaths}
@@ -912,12 +1050,14 @@ export function App() {
             </label>
             <div className="destination-preview">
               <small>文件将保存到</small>
-              <span>
-                {destination}
-                {keepPaths && extraction.length === 1 && extraction[0].parent
-                  ? "\\" + extraction[0].parent.replaceAll("/", "\\")
-                  : ""}
-              </span>
+              {previewTargets.slice(0, 3).map((target, i) => (
+                <span className="target-path" key={i} title={target}>
+                  {target}
+                </span>
+              ))}
+              {previewTargets.length > 3 && (
+                <small>还有 {previewTargets.length - 3} 个项目</small>
+              )}
             </div>
             <p className="simulation-note">
               仅模拟交互，不会向此位置写入文件。
@@ -926,7 +1066,11 @@ export function App() {
               <button type="button" onClick={() => setModal(null)}>
                 取消
               </button>
-              <button className="primary" type="submit">
+              <button
+                className="primary"
+                type="submit"
+                disabled={!!destinationError(destination) || busy}
+              >
                 开始解压
               </button>
             </div>
@@ -938,7 +1082,8 @@ export function App() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              runJob("创建", sources.length);
+              if (!nameError(createName) && sources.length)
+                runJob("创建", sources.length, outputName);
             }}
           >
             <p className="dialog-description">用示例文件体验创建流程。</p>
@@ -947,12 +1092,25 @@ export function App() {
               <div className="input-suffix">
                 <input
                   required
+                  aria-label="压缩包名称"
+                  aria-invalid={!!nameError(createName)}
+                  aria-describedby={
+                    nameError(createName) ? "name-error" : "output-name"
+                  }
                   value={createName}
                   onChange={(e) => setCreateName(e.target.value)}
                 />
-                <span>.{format}</span>
               </div>
             </label>
+            {nameError(createName) ? (
+              <p className="field-error" id="name-error" role="alert">
+                {nameError(createName)}
+              </p>
+            ) : (
+              <p className="output-name" id="output-name">
+                将创建 <strong>{outputName}</strong>
+              </p>
+            )}
             <label className="field">
               格式
               <select
@@ -969,6 +1127,18 @@ export function App() {
                   <div key={s}>
                     <FileText size={18} />
                     {s}
+                    <button
+                      type="button"
+                      className="icon-button"
+                      aria-label={`移除 ${s}`}
+                      onClick={() =>
+                        setSources((current) =>
+                          current.filter((item) => item !== s),
+                        )
+                      }
+                    >
+                      <X size={14} />
+                    </button>
                   </div>
                 ))
               ) : (
@@ -992,13 +1162,76 @@ export function App() {
               </button>
               <button
                 className="primary"
-                disabled={!sources.length}
+                disabled={!sources.length || !!nameError(createName) || busy}
                 type="submit"
               >
                 创建压缩包
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+      {modal === "job" && job && (
+        <Modal title="模拟任务" onClose={() => setModal(null)}>
+          <div className="job-summary">
+            {job.cancelled ? (
+              <XCircle size={30} />
+            ) : job.progress === 100 ? (
+              <CheckCircle size={30} />
+            ) : (
+              <Archive size={30} />
+            )}
+            <h3>
+              {job.kind}
+              {job.cancelled
+                ? "已取消"
+                : job.progress === 100
+                  ? "已完成"
+                  : "进行中"}
+            </h3>
+            <p>{job.count} 个项目</p>
+          </div>
+          <div className="destination-preview">
+            <small>{job.kind === "创建" ? "输出文件名" : "目标位置"}</small>
+            <span className="target-path">{job.context}</span>
+          </div>
+          {busy && (
+            <progress className="job-progress" value={job.progress} max="100" />
+          )}
+          {job.openAfter && job.progress === 100 && !job.cancelled && (
+            <p className="simulation-note">
+              正式版本将在完成后打开目标文件夹。
+            </p>
+          )}
+          <p className="simulation-note">
+            这里是交互演示，没有创建、修改或删除任何真实文件。
+          </p>
+          <div className="dialog-actions">
+            <button onClick={() => setModal(null)}>返回浏览</button>
+          </div>
+        </Modal>
+      )}
+      {modal === "shortcuts" && (
+        <Modal title="键盘快捷键" onClose={() => setModal(null)}>
+          <dl className="shortcut-list">
+            {[
+              ["搜索压缩包", "Ctrl + F"],
+              ["选择全部可见项", "Ctrl + A"],
+              ["移动选择", "↑ / ↓ · Home / End"],
+              ["连续选择", "Shift + ↑ / ↓"],
+              ["进入目录 / 打开文件", "Enter"],
+              ["切换当前项选择", "Space"],
+              ["后退 / 前进", "Alt + ← / →"],
+              ["关闭对话框 / 清除选择", "Esc"],
+            ].map(([action, key]) => (
+              <div key={action}>
+                <dt>{action}</dt>
+                <dd>
+                  <kbd>{key}</kbd>
+                </dd>
+              </div>
+            ))}
+          </dl>
         </Modal>
       )}
       {modal === "copies" && (

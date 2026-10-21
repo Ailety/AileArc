@@ -1,3 +1,59 @@
+.field-error {
+  color: #df9e8d;
+  font-size: 12px;
+  line-height: 1.6;
+  margin: -8px 0 16px;
+}
+.light .field-error {
+  color: #a33c29;
+}
+.target-path {
+  display: block;
+  overflow-wrap: anywhere;
+  padding: 4px 0;
+}
+.output-name {
+  color: var(--muted);
+  font-size: 12px;
+  margin: -8px 0 18px;
+  overflow-wrap: anywhere;
+}
+.output-name strong {
+  color: var(--text);
+  font-weight: 500;
+}
+.source-list .icon-button {
+  margin-left: auto;
+}
+.job-summary {
+  text-align: center;
+  padding: 18px 0 24px;
+}
+.job-summary svg {
+  color: var(--accent);
+  margin-bottom: 12px;
+}
+.job-summary h3 {
+  font-size: 17px;
+  font-weight: 500;
+}
+.job-summary p {
+  margin-top: 8px;
+  color: var(--muted);
+}
+.job-progress {
+  width: 100%;
+  height: 5px;
+  margin-top: 20px;
+  accent-color: var(--accent);
+}
+.shortcut-list {
+  margin: 24px 0 8px;
+}
+.shortcut-list kbd {
+  font: inherit;
+  color: var(--text);
+}
 :root {
   font-family: Inter, "Segoe UI", "Microsoft YaHei UI", sans-serif;
   font-synthesis: none;
@@ -109,21 +165,6 @@ small {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-}
-.app.gold {
-  --bg: #211e19;
-  --panel: #29251f;
-  --side: #26221c;
-  --input: #2c2821;
-  --hover: #373025;
-  --border: #42392c;
-  --line: #302b23;
-  --text: #eee7db;
-  --muted: #b9ac97;
-  --faint: #9e907a;
-  --accent: #dbb771;
-  --selected: #3e3322;
-  --accent-text: #241c0f;
 }
 .app.light {
   color-scheme: light;
@@ -737,10 +778,6 @@ dd {
   border-radius: 50%;
   border: 6px solid #474239;
   background: #c8b79a;
-}
-.swatch.gold {
-  border-color: #493924;
-  background: #dbb771;
 }
 .swatch.light {
   border-color: #eae4d9;
