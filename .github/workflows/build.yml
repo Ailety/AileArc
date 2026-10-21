@@ -16,3 +16,11 @@ jobs:
       - name: Verify installation, upgrade and uninstall
         shell: pwsh
         run: ./scripts/Test-Install.ps1 -BundleDirectory .artifacts/ci-package
+      - name: Build isolated design prototype
+        shell: pwsh
+        working-directory: prototypes/ailearc-ui
+        run: |
+          npm ci --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'Prototype dependency restore failed.' }
+          npm run build
+          if ($LASTEXITCODE -ne 0) { throw 'Prototype build failed.' }

@@ -1,5 +1,9 @@
 # Third-party notices
 
+## Isolated UI design prototype
+
+`prototypes/ailearc-ui` uses React 19.2.0, Vite 6.4.2, @vitejs/plugin-react 5.0.4 and @phosphor-icons/react 2.1.10 under their MIT licenses. Its npm lockfile records the resolved dependency graph. These tools and icons belong to the isolated browser prototype, not the production archive engine. Upstream: https://github.com/facebook/react, https://github.com/vitejs/vite, https://github.com/vitejs/vite-plugin-react, https://github.com/phosphor-icons/react.
+
 This document records development dependencies. AileArc's own code is licensed under the MIT License in LICENSE; the dependencies below retain their own terms.
 
 ## 7-Zip 26.03
