@@ -1,0 +1,33 @@
+diff --git a/packages/core/src/checker.ts b/packages/core/src/checker.ts
+--- a/packages/core/src/checker.ts
++++ b/packages/core/src/checker.ts
+@@ -922,7 +922,7 @@
+     // consumer one optional field for every register member, even when an
+     // app returns a small override. Partial hand-authored shapes cannot
+     // silently drop a token from generated projection or native validation.
+     if (!helper || returns?.k !== "struct" || returns.name !== "ThemeDesignTokenOverrides" ||
+-        this.table.structs.get(returns.name)?.decl.getSourceFile().fileName !== path.join(path.dirname(sdkCoreModulePath), "theme.ts")) {
++        path.resolve(this.table.structs.get(returns.name)?.decl.getSourceFile().fileName ?? "") !== path.resolve(path.dirname(sdkCoreModulePath), "theme.ts")) {
+       this.report("NS1033", "`tokenOverrides` must be a single-Model helper returning `ThemeDesignTokenOverrides` imported from `@native-sdk/core/theme`.", decl.type ?? decl);
+     }
+diff --git a/packages/core/scripts/stage_external_core.mjs b/packages/core/scripts/stage_external_core.mjs
+--- a/packages/core/scripts/stage_external_core.mjs
++++ b/packages/core/scripts/stage_external_core.mjs
+@@ -92,7 +92,7 @@
+ /// The names of `export type X = ...` declarations in a staged file
+ /// (the dedupe set for the static SDK surface).
+ function exportedAliasNames(text) {
+   const names = [];
+-  for (const line of text.split("\n")) {
++  for (const line of text.split(/\r?\n/)) {
+     const match = /^export type ([A-Za-z0-9_]+) =/.exec(line);
+     if (match) names.push(match[1]);
+@@ -107,7 +107,7 @@
+   const drop = new Set(dropNames);
+   const out = [];
+   let skipping = false;
+-  for (const line of text.split("\n")) {
++  for (const line of text.split(/\r?\n/)) {
+     if (skipping) {
+       if (/;[ \t]*$/.test(line)) skipping = false;
+       continue;

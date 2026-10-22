@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../AileArc.DesktopBridge/AileArc.DesktopBridge.csproj" /></ItemGroup>
+</Project>

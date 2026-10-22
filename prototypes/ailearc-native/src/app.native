@@ -1,0 +1,74 @@
+<virtual-window id="entries" as="window" item-count="{rowCount}" extent-estimate="rowExtent" overscan="3" viewport-fallback="600">
+  <column background="background">
+    <row height="58" padding="16" gap="12" cross="center" background="surface">
+      <icon name="archive" foreground="accent" width="24" height="24" />
+      <text><span weight="bold">{labels.title}</span></text>
+      <text size="sm" foreground="text_muted">{labels.subtitle}</text>
+      <spacer grow="1" />
+      <button size="sm" variant="secondary" icon="folder" on-press="real" disabled="{busy}">{labels.real}</button>
+    </row>
+    <separator />
+    <row grow="1">
+      <column width="210" padding="16" gap="14" background="surface">
+        <text size="sm" foreground="text_muted">{labels.root}</text>
+        <button size="sm" variant="ghost" icon="archive" on-press="root">{archiveName}</button>
+        <button size="sm" variant="ghost" icon="arrow-up" on-press="up">{labels.up}</button>
+        <separator />
+        <text size="sm" foreground="text_muted">{labels.sample}</text>
+        <button size="sm" variant="ghost" on-press="sample:{smallCount}">1,000</button>
+        <button size="sm" variant="ghost" on-press="sample:{largeCount}">100,000</button>
+        <spacer grow="1" />
+        <text size="sm" wrap="true" foreground="text_muted">{labels.readonly}</text>
+      </column>
+      <separator />
+      <column grow="1">
+        <row padding="14" gap="10" cross="center">
+          <text grow="1" size="sm" foreground="text_muted">{location}</text>
+          <button size="sm" variant="ghost" on-press="enter" disabled="{canEnter == false}">{labels.enter}</button>
+        </row>
+        <row padding="12" gap="8" cross="center">
+          <text-field size="sm" grow="1" text="{draft.text}" placeholder="{labels.search}" label="{labels.search}" on-input="edit" on-submit="search" />
+          <button size="sm" on-press="search" disabled="{busy}">{labels.find}</button>
+        </row>
+        <row padding="12" gap="10" cross="center" background="surface">
+          <checkbox key="{selectionKey}" checked="{allSelected}" on-toggle="select_all" label="{labels.select}" />
+          <text grow="1" size="sm" foreground="text_muted">{labels.name}</text>
+          <text width="100" size="sm" foreground="text_muted">{labels.size}</text>
+        </row>
+        <virtual-list window="window" each="visibleRows" as="row" grow="1" label="Archive entries">
+          <list-item key="{row.identity}" height="40" padding="8" selected="{focused == row.id}" on-press="focus:{row.id}" label="{row.name}">
+            <row gap="10" cross="center" grow="1">
+              <!-- SDK 0.11 retains checkbox values across model-driven changes.
+                   Remount only checkbox children after bulk changes; row keys and scroll stay stable. -->
+              <checkbox key="{selectionKey}" checked="{row.selected}" on-toggle="toggle:{row.id}" label="{row.name}" />
+              <if test="{row.folder}"><icon name="folder" width="16" height="16" foreground="accent" /></if>
+              <else><icon name="file-text" width="16" height="16" foreground="accent" /></else>
+              <text grow="1">{row.name}</text>
+              <text width="100" size="sm" foreground="text_muted">{row.size}</text>
+            </row>
+          </list-item>
+        </virtual-list>
+        <if test="{rowCount == 0}"><text padding="16" foreground="text_muted">{labels.empty}</text></if>
+        <row padding="12" gap="8" cross="center">
+          <text grow="1" size="sm" foreground="text_muted">{counter}</text>
+          <button size="sm" variant="ghost" on-press="previous" disabled="{hasPrevious == false}">{labels.previous}</button>
+          <button size="sm" variant="ghost" on-press="next" disabled="{hasNext == false}">{labels.next}</button>
+        </row>
+      </column>
+      <separator />
+      <column width="244" padding="20" gap="18" background="surface">
+        <text size="sm" foreground="text_muted">{labels.details}</text>
+        <icon name="file-text" width="32" height="32" foreground="accent" />
+        <text><span weight="bold">{focusedName}</span></text>
+        <text size="sm" wrap="true" foreground="text_muted">{focusedPath}</text>
+        <separator />
+        <text size="sm" wrap="true" foreground="text_muted">{summary}</text>
+        <button size="sm" variant="secondary" on-press="clear">{labels.clear}</button>
+        <spacer grow="1" />
+        <text size="sm" foreground="text_muted">Native SDK 0.11.0</text>
+      </column>
+    </row>
+    <separator />
+    <status-bar>{status}</status-bar>
+  </column>
+</virtual-window>

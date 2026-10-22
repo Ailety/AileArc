@@ -73,3 +73,17 @@ DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
 THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+## Native SDK validation prototype
+
+The separate `prototypes/ailearc-native` experiment uses Vercel Labs Native SDK
+0.11.0 (Apache-2.0), Zig 0.16.0 and the SDK-pinned scriptc 0.3.0 toolchain.
+Downloaded SDK/compiler/runtime files stay under ignored `.tools` directories.
+The build retains Native SDK and runtime notices in the local validation output.
+The two small Windows build portability changes are recorded in
+`scripts/native-sdk-windows-path.patch`; they do not change upstream licensing.
+
+Noto Sans SC is fetched from the Google Fonts repository with a pinned SHA-256,
+then instantiated at weight 400 with FontTools. Its complete character coverage
+is retained. The font binary is not committed; the SIL Open Font License is at
+`prototypes/ailearc-native/assets/OFL.txt` and accompanies the generated font.
+This experiment does not change AileArc's MIT license or its existing engine.

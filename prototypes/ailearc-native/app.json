@@ -1,0 +1,13 @@
+{
+  "$schema": "https://schema.native-sdk.dev/app/v1.json",
+  "id": "org.ailearc.native-validation", "name": "ailearc-native", "display_name": "AileArc Native Validation",
+  "description": "Warm graphite read-only validation; not the production client.", "version": "0.1.0",
+  "platforms": ["windows"], "permissions": ["view", "command", "clipboard"], "capabilities": ["native_views", "gpu_surfaces"],
+  "theme": "geist", "assets": { "fonts": [{ "id": 64, "path": "assets/NotoSansSC-Regular.ttf" }] },
+  "shell": { "windows": [{ "label": "main", "title": "AileArc - Native SDK validation", "width": 1320, "height": 850,
+    "min_width": 1060, "min_height": 650, "views": [{ "label": "main-canvas", "kind": "gpu_surface", "fill": true,
+      "role": "AileArc archive browser", "accessibility_label": "AileArc Native validation", "gpu_backend": "metal",
+      "gpu_pixel_format": "bgra8_unorm", "gpu_present_mode": "timer", "gpu_alpha_mode": "opaque", "gpu_color_space": "srgb", "gpu_vsync": true }]
+  }] },
+  "security": { "navigation": { "allowed_origins": [], "external_links": { "action": "deny" } } }
+}

@@ -1,0 +1,6 @@
+.native/
+zig-out/
+.zig-cache/
+node_modules/
+assets/*.ttf
+assets/icon.png

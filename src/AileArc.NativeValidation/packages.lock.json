@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net10.0-windows10.0.22621": {
+      "ailearc.core": {
+        "type": "Project",
+        "dependencies": {
+          "AileArc.Shared": "[1.0.0, )"
+        }
+      },
+      "ailearc.desktopbridge": {
+        "type": "Project",
+        "dependencies": {
+          "AileArc.Core": "[1.0.0, )"
+        }
+      },
+      "ailearc.shared": {
+        "type": "Project"
+      }
+    },
+    "net10.0-windows10.0.22621/win-x64": {}
+  }
+}
