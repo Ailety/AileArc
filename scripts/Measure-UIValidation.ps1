@@ -1,17 +1,21 @@
 #requires -Version 7.0
-param([Parameter(Mandatory)][ValidateSet('Native','WebView2')][string]$HostKind,
+param([Parameter(Mandatory)][ValidateSet('Native','WebView2','WPF')][string]$HostKind,
     [Parameter(Mandatory)][string]$Archive, [ValidateRange(10,60)][int]$Seconds = 20,
-    [string]$Label = 'idle')
+    [string]$Label = 'idle', [string]$OutputDirectory = '')
 $ErrorActionPreference = 'Stop'
 $taskRoot = Split-Path -Parent $PSScriptRoot
 $source = (Resolve-Path -LiteralPath $Archive).Path
-$output = Join-Path $taskRoot '.artifacts/ui-comparison'
+$output = if ($OutputDirectory) { [IO.Path]::GetFullPath($OutputDirectory) } else { Join-Path $taskRoot '.artifacts/ui-comparison' }
 New-Item -ItemType Directory -Path $output -Force | Out-Null
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 if ($HostKind -eq 'Native') {
     $base = Join-Path $taskRoot '.artifacts/native-validation'
     $exe = Join-Path $base 'backend/AileArc.NativeValidation.exe'
     $arguments = @('"' + (Join-Path $base 'ailearc-native.exe') + '"', '"' + $source + '"')
+} elseif ($HostKind -eq 'WPF') {
+    $base = Join-Path $taskRoot '.artifacts/wpf-validation/Release'
+    $exe = Join-Path $base 'AileArc.Wpf.Validation.exe'
+    $arguments = @('"' + $source + '"')
 } else {
     $base = Join-Path $taskRoot '.artifacts/desktop-validation/Release'
     $exe = Join-Path $base 'AileArc.Desktop.Validation.exe'

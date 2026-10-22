@@ -1,5 +1,15 @@
 # AileArc 开发历程
 
+## 2026-10-23：纯 WPF 暖石墨原型与三方案同批对照
+
+- 按用户要求新增独立 WPF 原型，使用自定义资源字典/控件模板与 TextBox/DataGrid，直接保留并调用 Core/Worker 和 ArchivePresentation，无浏览器或本地 HTTP 适配器。
+- 真实 200 项分页与另外两版一致，生成 1,000/100,000 项模式单独验证虚拟行。10 项实际控件自检通过，十万项首屏/末尾分别仅创建 15/14 个行控件；现有 98 项 .NET 回归通过。
+- 实机验证中文候选定位、提交和取消、十万项 ZIP 中文搜索末项、复选/半选/全选、Shift 范围选择、翻页清理、拖动滚动条以及 Ctrl+End 末项导航。Windows UI Automation 能识别内部控件；完整 Narrator/多输入法/多 DPI 尚未验收。
+- 自定义 TextBox 初版重复 Padding 导致裁切，修正并补充文本行几何检查；增加滚动滑块最小高度与文件名列有限布局。曾误用另一 UI 框架的 AccessibilityView 属性导致 XAML 构建失败，移除后重新构建通过，未把失败记为通过。
+- Ctrl+方向键保留 DataGrid 边界跳转语义；Ctrl+Space 未在本机输入环境观察到预期切换，仍需按文件管理器习惯适配，不宣称全部键位完备。
+- 三种宿主、两种相同 ZIP、每种两轮，共 12 次独立采样；纯 WPF 私有提交 127.9–128.7 / 164.3–165.1 MiB，Native 336.0–338.3 / 377.3–377.5 MiB，WebView2 349.4–352.3 / 406.3–410.8 MiB。Native 工作集略低于 WPF；不将提交量/工作集/物理驻留混同。
+- 新增构建/控件自检 CI 步骤，测量脚本支持 WPF 和独立输出目录，数据与截图保存到忽略目录。详见 WPF_UI_Validation.md。推荐纯 WPF 为下一阶段主候选，等待设计/技术决策，不替换现有客户端、不创建 Release。
+
 ## 2026-10-22：Native SDK 暖石墨原型与 WebView2 对比
 
 - 按用户要求新增独立 Native SDK 0.11.0 TypeScript/Native markup 原型，保留原客户端及现有 Core/Worker。真实只读适配器复用 ArchivePresentation 的 200 项分页；1,000/100,000 项生成渲染样本单独标识。

@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType><UseWPF>true</UseWPF>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <AssemblyName>AileArc.Wpf.Validation</AssemblyName>
+    <ApplicationManifest>../AileArc.UI/app.manifest</ApplicationManifest>
+  </PropertyGroup>
+  <ItemGroup><ProjectReference Include="../AileArc.DesktopBridge/AileArc.DesktopBridge.csproj" /></ItemGroup>
+</Project>
