@@ -69,6 +69,8 @@ Modern archive management for Windows. **Archive should feel like a folder.**
 
 ## 文档
 
+2026-10-22 新增独立的暖石墨桌面只读验证版，可运行 `./scripts/Build-Desktop.ps1 -Run` 构建并体验真实压缩包浏览。它不替换原客户端，技术路线和资源占用仍在评估，详见 [桌面 UI 验证](docs/Desktop_UI_Validation.md)。
+
 - [M1 实施规范](docs/AileArc_M1_Implementation_Specification.md)
 - [长期产品蓝图](docs/AileArc_Development_Specification.md)
 - [架构决策](docs/AileArc_Architecture_Decisions.md)

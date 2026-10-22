@@ -1,5 +1,11 @@
 # Third-party notices
 
+## Desktop validation WebView2 SDK
+
+- Microsoft.Web.WebView2 1.0.4258.31, pinned in the desktop project's NuGet lockfile.
+- Package: https://www.nuget.org/packages/Microsoft.Web.WebView2/1.0.4258.31 . It retains Microsoft's package license; this is not covered by the project's MIT license.
+- Build-Desktop.ps1 copies the SDK license and notice into the generated validation directory. The system WebView2 Runtime is a separate dependency and is not bundled or installed by this project.
+
 ## Isolated UI design prototype
 
 `prototypes/ailearc-ui` uses React 19.2.0, Vite 6.4.2, @vitejs/plugin-react 5.0.4 and @phosphor-icons/react 2.1.10 under their MIT licenses. Its npm lockfile records the resolved dependency graph. These tools and icons belong to the isolated browser prototype, not the production archive engine. Upstream: https://github.com/facebook/react, https://github.com/vitejs/vite, https://github.com/vitejs/vite-plugin-react, https://github.com/phosphor-icons/react.

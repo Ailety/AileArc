@@ -6,7 +6,7 @@
 - Simplify the top area using option 2: one archive heading and one navigation/action row, no repeated back/up controls.
 - Show row checkboxes, header select-all and multi-selection details.
 - User selected warm graphite as the default visual direction. Keep champagne accents restrained and refine the paired light theme. Warm gold is archived reference material, not a current theme choice.
-- This is an isolated interactive mock with fictional data, not a choice of production UI framework. Do not connect it to the archive engine or real user files.
+- Browser preview remains an isolated mock. On 2026-10-22 the user accepted this interaction baseline and authorized the next stage. A separate .NET/WebView2 desktop validation host may reuse this UI through the strict `desktop.js` bridge for real read-only browsing. Mock extraction/creation must never be presented as real operations in desktop mode. Final UI framework selection remains provisional.
 
 Run the local server yourself and open the preview in the browser available to this environment. Do not give the user server-start instructions when you can run it.
 

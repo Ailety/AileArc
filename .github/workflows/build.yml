@@ -26,3 +26,6 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Prototype interaction helper tests failed.' }
           npm run build
           if ($LASTEXITCODE -ne 0) { throw 'Prototype build failed.' }
+      - name: Build self-contained desktop validation host
+        shell: pwsh
+        run: ./scripts/Build-Desktop.ps1 -SkipRestore

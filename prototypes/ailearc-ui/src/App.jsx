@@ -28,7 +28,8 @@ import {
   ArrowSquareOut,
   ClockCounterClockwise,
 } from "@phosphor-icons/react";
-import { files, archives, typeName, size } from "./data";
+import { files as demoFiles, archives, typeName, size } from "./data";
+import { useDesktop } from "./desktop";
 import {
   archiveName,
   nameError,
@@ -44,7 +45,7 @@ function FileIcon({ file, large = false }) {
         ? FilePdf
         : file.type === "code"
           ? FileCode
-          : file.type === "md"
+          : file.type === "md" || file.type === "text"
             ? FileText
             : File;
   return (
@@ -76,6 +77,7 @@ function Modal({ title, onClose, children }) {
     const before = document.activeElement;
     const el = ref.current;
     el.showModal();
+    el.querySelector("[data-initial-focus]")?.focus();
     return () => {
       el.close();
       before?.focus();
@@ -105,12 +107,18 @@ function Modal({ title, onClose, children }) {
 }
 
 export function App() {
-  const [archive, setArchive] = useState(archives[0]),
-    [path, setPath] = useState("docs/"),
+  const desktop = useDesktop();
+  const files = desktop.enabled ? desktop.page.rows : demoFiles;
+  const [archive, setArchive] = useState(
+      desktop.enabled ? "打开一个压缩包" : archives[0],
+    ),
+    [path, setPath] = useState(desktop.enabled ? "" : "docs/"),
     [history, setHistory] = useState([]),
     [future, setFuture] = useState([]),
     [search, setSearch] = useState("");
-  const [selection, setSelection] = useState(["docs/Getting Started.pdf"]),
+  const [selection, setSelection] = useState(
+      desktop.enabled ? [] : ["docs/Getting Started.pdf"],
+    ),
     [anchor, setAnchor] = useState("docs/Getting Started.pdf"),
     [sort, setSort] = useState({ key: "name", reverse: false });
   const [theme, setTheme] = useState("graphite"),
@@ -131,28 +139,84 @@ export function App() {
     [format, setFormat] = useState("zip"),
     [sources, setSources] = useState([]),
     [encoding, setEncoding] = useState("自动");
+  const [pageOffset, setPageOffset] = useState(0),
+    [pageOffsets, setPageOffsets] = useState([]),
+    [passwordInput, setPasswordInput] = useState("");
+  const archiveSize = desktop.enabled
+    ? desktop.info
+      ? size(desktop.info.bytes / 1024)
+      : "选择 ZIP、7Z 或 RAR"
+    : "18.6 MB";
+  const archiveFormat = desktop.enabled
+    ? desktop.info?.format || ""
+    : archive.endsWith(".7z")
+      ? "7Z"
+      : "ZIP";
+  const queryValues = {
+    directory: path,
+    search,
+    sort: sort.key === "size" ? "size" : "name",
+    descending: sort.reverse,
+    offset: pageOffset,
+  };
+  const pageMatches = desktop.pageKey === JSON.stringify(queryValues);
+  useEffect(() => {
+    if (!desktop.info) return;
+    setArchive(desktop.info.name);
+    setPath("");
+    setSearch("");
+    setSelection([]);
+    setAnchor(null);
+    setHistory([]);
+    setFuture([]);
+    setPageOffset(0);
+    setPageOffsets([]);
+    setEncoding(
+      { 0: "自动", 65001: "UTF-8", 936: "GBK", 932: "Shift-JIS" }[
+        desktop.info.codePage
+      ],
+    );
+  }, [desktop.info?.revision]);
+  useEffect(() => {
+    if (desktop.enabled && desktop.info) {
+      const timer = setTimeout(
+        () => desktop.query(queryValues),
+        search ? 150 : 0,
+      );
+      return () => clearTimeout(timer);
+    }
+  }, [desktop.info?.revision, path, search, sort, pageOffset]);
   const searchRef = useRef(),
     rowRefs = useRef(new Map()),
     toastTimer = useRef(),
     running = useRef();
   const visible = useMemo(
     () =>
-      files
-        .filter((f) =>
-          search
-            ? (f.parent + f.name).toLowerCase().includes(search.toLowerCase())
-            : f.parent === path,
-        )
-        .sort((a, b) => {
-          if (a.type === "folder" && b.type !== "folder") return -1;
-          if (b.type === "folder" && a.type !== "folder") return 1;
-          const v =
-            sort.key === "size"
-              ? a.size - b.size
-              : String(a[sort.key]).localeCompare(String(b[sort.key]), "en");
-          return sort.reverse ? -v : v;
-        }),
-    [search, path, sort],
+      desktop.enabled
+        ? pageMatches
+          ? files
+          : []
+        : files
+            .filter((f) =>
+              search
+                ? (f.parent + f.name)
+                    .toLowerCase()
+                    .includes(search.toLowerCase())
+                : f.parent === path,
+            )
+            .sort((a, b) => {
+              if (a.type === "folder" && b.type !== "folder") return -1;
+              if (b.type === "folder" && a.type !== "folder") return 1;
+              const v =
+                sort.key === "size"
+                  ? a.size - b.size
+                  : String(a[sort.key]).localeCompare(
+                      String(b[sort.key]),
+                      "en",
+                    );
+              return sort.reverse ? -v : v;
+            }),
+    [search, path, sort, files, pageMatches],
   );
   const selected = files.filter((f) => selection.includes(f.id)),
     file = selected.length === 1 ? selected[0] : null;
@@ -161,13 +225,23 @@ export function App() {
   const busy = job && job.progress < 100 && !job.cancelled;
   const previewTargets = extractionTargets(extraction, destination, keepPaths);
   const outputName = archiveName(createName, format);
-  const currentView = () => ({ path, search, selection, anchor, sort });
+  const currentView = () => ({
+    path,
+    search,
+    selection,
+    anchor,
+    sort,
+    pageOffset,
+    pageOffsets,
+  });
   const restoreView = (view) => {
     setPath(view.path);
     setSearch(view.search);
     setSelection(view.selection);
     setAnchor(view.anchor);
     setSort(view.sort);
+    setPageOffset(view.pageOffset || 0);
+    setPageOffsets(view.pageOffsets || []);
     requestAnimationFrame(() =>
       rowRefs.current.get(view.selection[0])?.focus(),
     );
@@ -181,6 +255,8 @@ export function App() {
     if (path === next && !search) return;
     setHistory((h) => [...h, currentView()]);
     setFuture([]);
+    setPageOffset(0);
+    setPageOffsets([]);
     setPath(next);
     setSearch("");
     setSelection([]);
@@ -200,6 +276,10 @@ export function App() {
     setFuture((h) => h.slice(0, -1));
   };
   const openArchive = (name) => {
+    if (desktop.enabled) {
+      desktop.pick();
+      return;
+    }
     setArchive(name);
     setPath("docs/");
     setHistory([]);
@@ -243,8 +323,13 @@ export function App() {
   const openFile = (f) =>
     f.type === "folder"
       ? go(f.parent + f.name + "/")
-      : notify(`原型演示：将使用 Windows 默认应用打开 ${f.name}`);
+      : notify(
+          desktop.enabled
+            ? "桌面验证版目前仅支持浏览，外部打开将在下一步接入。"
+            : `原型演示：将使用 Windows 默认应用打开 ${f.name}`,
+        );
   const showExtract = (whole = false) => {
+    if (desktop.enabled) return;
     if (busy) {
       notify("请等待当前模拟任务完成，或先取消它。");
       return;
@@ -296,7 +381,7 @@ export function App() {
         setAppearance(false);
         setMenu(false);
       }
-      if (modal) return;
+      if (modal || desktop.passwordRequired) return;
       const editing = ["INPUT", "TEXTAREA", "SELECT"].includes(
         document.activeElement?.tagName,
       );
@@ -339,14 +424,23 @@ export function App() {
     sort,
     appearance,
     menu,
+    desktop.passwordRequired,
+    pageOffset,
+    pageOffsets,
   ]);
   const changeSearch = (value) => {
+    setPageOffset(0);
+    setPageOffsets([]);
     setSearch(value);
     setSelection([]);
     setAnchor(null);
   };
-  const sortBy = (key) =>
+  const sortBy = (key) => {
+    setPageOffset(0);
+    setPageOffsets([]);
+    if (desktop.enabled) setSelection([]);
     setSort((s) => ({ key, reverse: s.key === key ? !s.reverse : false }));
+  };
   const copyPath = async () => {
     try {
       await navigator.clipboard.writeText(
@@ -367,12 +461,18 @@ export function App() {
           <strong>AileArc</strong>
         </div>
         <div className="global-actions">
-          <button onClick={() => setModal("open")}>
+          <button
+            disabled={desktop.loading}
+            onClick={() =>
+              desktop.enabled ? desktop.pick() : setModal("open")
+            }
+          >
             <FolderOpen />
             打开
           </button>
           <button
-            disabled={busy}
+            disabled={busy || desktop.enabled}
+            title={desktop.enabled ? "新建尚未接入此桌面验证版" : undefined}
             onClick={() => {
               setSources([]);
               setModal("create");
@@ -383,7 +483,9 @@ export function App() {
           </button>
         </div>
         <span className="prototype-label">
-          交互原型<span> / </span>示例数据
+          {desktop.enabled
+            ? "桌面验证 / 真实文件 · 只读"
+            : "交互原型 / 示例数据"}
         </span>
         <div className="appearance-wrap">
           <button
@@ -461,7 +563,10 @@ export function App() {
           </div>
           {tree && (
             <nav aria-label="压缩包目录">
-              {["assets", "docs", "src", "config"].map((folder) => (
+              {(desktop.enabled
+                ? (desktop.info?.folders || []).map((f) => f.name)
+                : ["assets", "docs", "src", "config"]
+              ).map((folder) => (
                 <button
                   className={`tree-item ${path.startsWith(folder + "/") && !search ? "selected" : ""}`}
                   key={folder}
@@ -472,45 +577,59 @@ export function App() {
                     weight={path === folder + "/" ? "fill" : "regular"}
                   />
                   <span>{folder}</span>
-                  {folder === "docs" && <span className="count">12</span>}
+                  {!desktop.enabled && folder === "docs" && (
+                    <span className="count">12</span>
+                  )}
                 </button>
               ))}
-              <button
-                className="tree-item"
-                onClick={() => {
-                  go("");
-                  setSelection(["README.md"]);
-                }}
-              >
-                <FileText size={19} />
-                README.md
-              </button>
+              {!desktop.enabled && (
+                <button
+                  className="tree-item"
+                  onClick={() => {
+                    go("");
+                    setSelection(["README.md"]);
+                  }}
+                >
+                  <FileText size={19} />
+                  README.md
+                </button>
+              )}
             </nav>
           )}
           <div className="sidebar-bottom">
-            <div className="side-label">
-              最近打开
-              <ClockCounterClockwise size={14} />
-            </div>
-            {archives
-              .filter((name) => name !== archive)
-              .map((name) => (
-                <button
-                  className="recent"
-                  key={name}
-                  onClick={() => openArchive(name)}
-                >
-                  <Archive size={19} />
-                  <span>
-                    {name}
-                    <small>10 月 20 日</small>
-                  </span>
-                </button>
-              ))}
+            {!desktop.enabled && (
+              <div className="side-label">
+                最近打开
+                <ClockCounterClockwise size={14} />
+              </div>
+            )}
+            {!desktop.enabled &&
+              archives
+                .filter((name) => name !== archive)
+                .map((name) => (
+                  <button
+                    className="recent"
+                    key={name}
+                    onClick={() => openArchive(name)}
+                  >
+                    <Archive size={19} />
+                    <span>
+                      {name}
+                      <small>10 月 20 日</small>
+                    </span>
+                  </button>
+                ))}
             <div className="side-divider" />
-            <button className="workcopies" onClick={() => setModal("copies")}>
+            <button
+              className="workcopies"
+              disabled={desktop.enabled}
+              title={
+                desktop.enabled ? "工作副本管理尚未接入此桌面验证版" : undefined
+              }
+              onClick={() => setModal("copies")}
+            >
               <Copy size={18} />
-              工作副本<span className="count">2</span>
+              工作副本{!desktop.enabled && <span className="count">2</span>}
             </button>
           </div>
         </aside>
@@ -519,8 +638,13 @@ export function App() {
             <div>
               <h1>{archive}</h1>
               <span className="archive-meta">
-                {archive.endsWith(".7z") ? "7Z" : "ZIP"} 压缩包<span>·</span>
-                18.6 MB
+                {archiveFormat}{" "}
+                {archiveFormat && (
+                  <>
+                    压缩包<span>·</span>
+                  </>
+                )}
+                {archiveSize}
               </span>
             </div>
             <div className="search">
@@ -528,6 +652,7 @@ export function App() {
               <input
                 ref={searchRef}
                 aria-label="搜索整个压缩包"
+                disabled={desktop.enabled && !desktop.info}
                 placeholder="搜索整个压缩包"
                 value={search}
                 onChange={(e) => changeSearch(e.target.value)}
@@ -594,7 +719,8 @@ export function App() {
             <div className="content-actions">
               <button
                 className="primary"
-                disabled={busy}
+                disabled={busy || desktop.enabled}
+                title={desktop.enabled ? "解压尚未接入此桌面验证版" : undefined}
                 onClick={() => showExtract(!selection.length)}
               >
                 <ArrowUp size={16} />
@@ -619,7 +745,10 @@ export function App() {
                 </IconButton>
                 {menu && (
                   <div className="popover more">
-                    <button disabled={busy} onClick={() => showExtract(true)}>
+                    <button
+                      disabled={busy || desktop.enabled}
+                      onClick={() => showExtract(true)}
+                    >
                       解压全部
                     </button>
                     <button
@@ -651,7 +780,22 @@ export function App() {
               </div>
             </div>
           </div>
-          <div className="table-scroll">
+          {desktop.enabled && (desktop.loading || desktop.error) && (
+            <div className="desktop-notice" role="status">
+              <span>
+                {desktop.loading
+                  ? `正在读取压缩包 · 已读取 ${desktop.count} 项`
+                  : desktop.error}
+              </span>
+              {desktop.loading && (
+                <button onClick={desktop.cancel}>取消读取</button>
+              )}
+            </div>
+          )}
+          <div
+            className="table-scroll"
+            aria-busy={desktop.querying || desktop.loading}
+          >
             <table>
               <thead>
                 <tr>
@@ -682,7 +826,12 @@ export function App() {
                           : "none"
                       }
                     >
-                      <button onClick={() => sortBy(key)}>
+                      <button
+                        disabled={
+                          desktop.enabled && !["name", "size"].includes(key)
+                        }
+                        onClick={() => sortBy(key)}
+                      >
                         {title}
                         {sort.key === key &&
                           (sort.reverse ? (
@@ -777,20 +926,68 @@ export function App() {
             {!visible.length && (
               <div className="empty">
                 <MagnifyingGlass size={30} />
-                <h3>{search ? "没有找到匹配项" : "这个文件夹是空的"}</h3>
+                <h3>
+                  {desktop.enabled && !desktop.info
+                    ? "打开压缩包开始浏览"
+                    : desktop.enabled && !pageMatches
+                      ? desktop.error
+                        ? "列表读取失败"
+                        : "正在加载列表…"
+                      : search
+                        ? "没有找到匹配项"
+                        : "这个文件夹是空的"}
+                </h3>
                 <p>
-                  {search
-                    ? "试试其他名称，或清除搜索查看全部内容。"
-                    : "你可以返回上一级继续浏览。"}
+                  {desktop.enabled && !desktop.info
+                    ? "使用上方“打开”选择真实文件。此桌面版本只读取目录信息。"
+                    : search
+                      ? "试试其他名称，或清除搜索查看全部内容。"
+                      : "你可以返回上一级继续浏览。"}
                 </p>
                 <button
-                  onClick={() => (search ? changeSearch("") : go("docs/"))}
+                  disabled={desktop.enabled && !desktop.info}
+                  onClick={() =>
+                    search
+                      ? changeSearch("")
+                      : go(desktop.enabled ? "" : "docs/")
+                  }
                 >
-                  {search ? "清除搜索" : "返回文档目录"}
+                  {search
+                    ? "清除搜索"
+                    : desktop.enabled
+                      ? "返回根目录"
+                      : "返回文档目录"}
                 </button>
               </div>
             )}
           </div>
+          {desktop.enabled && desktop.info && (
+            <div className="desktop-pager">
+              <span>
+                本页 {visible.length} 项 · 共 {desktop.page.total} 项
+              </span>
+              <button
+                disabled={!pageOffsets.length || !pageMatches}
+                onClick={() => {
+                  setPageOffset(pageOffsets.at(-1));
+                  setPageOffsets((h) => h.slice(0, -1));
+                  setSelection([]);
+                }}
+              >
+                上一页
+              </button>
+              <button
+                disabled={!desktop.page.hasMore || !pageMatches}
+                onClick={() => {
+                  setPageOffsets((h) => [...h, pageOffset]);
+                  setPageOffset(desktop.page.offset + desktop.page.rows.length);
+                  setSelection([]);
+                }}
+              >
+                下一页
+              </button>
+            </div>
+          )}
           {selection.length > 1 && (
             <div className="selection-strip">
               <span>
@@ -842,7 +1039,7 @@ export function App() {
                     ? "—"
                     : selected.length
                       ? size(selected.reduce((n, f) => n + f.size, 0))
-                      : "18.6 MB"}
+                      : archiveSize}
                 </dd>
               </div>
               {file ? (
@@ -859,7 +1056,13 @@ export function App() {
               ) : (
                 <div>
                   <dt>项目</dt>
-                  <dd>{selected.length || files.length} 项</dd>
+                  <dd>
+                    {selected.length ||
+                      (desktop.enabled
+                        ? desktop.info?.entryCount || 0
+                        : files.length)}{" "}
+                    项
+                  </dd>
                 </div>
               )}
             </dl>
@@ -867,6 +1070,7 @@ export function App() {
               <>
                 <button
                   className="outline open-default"
+                  disabled={desktop.enabled && file.type !== "folder"}
                   onClick={() => openFile(file)}
                 >
                   {file.type === "folder" ? <FolderOpen /> : <ArrowSquareOut />}
@@ -894,7 +1098,9 @@ export function App() {
               <span>
                 {file?.type === "folder"
                   ? "双击目录可进入；勾选后可解压整个文件夹。"
-                  : "双击文件，通过默认应用打开。原压缩包保持不变。"}
+                  : desktop.enabled
+                    ? "真实文件只读验证。未接入的操作暂不可用。"
+                    : "双击文件，通过默认应用打开。原压缩包保持不变。"}
               </span>
             </div>
           </aside>
@@ -952,8 +1158,22 @@ export function App() {
           文件名编码
           <select
             aria-label="文件名编码"
+            disabled={
+              desktop.enabled &&
+              (!desktop.info ||
+                desktop.loading ||
+                desktop.info.format !== "ZIP")
+            }
             value={encoding}
             onChange={(e) => {
+              if (desktop.enabled) {
+                desktop.encoding(
+                  { 自动: 0, "UTF-8": 65001, GBK: 936, "Shift-JIS": 932 }[
+                    e.target.value
+                  ],
+                );
+                return;
+              }
               setEncoding(e.target.value);
               notify(`原型演示：编码切换为 ${e.target.value}`);
             }}
@@ -972,6 +1192,57 @@ export function App() {
             <X size={14} />
           </IconButton>
         </div>
+      )}
+      {desktop.passwordRequired && (
+        <Modal
+          title="输入压缩包密码"
+          onClose={() => {
+            setPasswordInput("");
+            desktop.cancel();
+          }}
+        >
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              desktop.password(passwordInput);
+              setPasswordInput("");
+            }}
+          >
+            <p className="dialog-description">
+              密码仅用于当前会话，不保存到磁盘。
+            </p>
+            {desktop.error && (
+              <p className="field-error" role="alert">
+                {desktop.error}
+              </p>
+            )}
+            <label className="field">
+              密码
+              <input
+                type="password"
+                data-initial-focus="true"
+                autoComplete="off"
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                autoFocus
+              />
+            </label>
+            <div className="dialog-actions">
+              <button
+                type="button"
+                onClick={() => {
+                  setPasswordInput("");
+                  desktop.cancel();
+                }}
+              >
+                取消
+              </button>
+              <button className="primary" type="submit">
+                继续读取
+              </button>
+            </div>
+          </form>
+        </Modal>
       )}
       {modal === "open" && (
         <Modal title="打开压缩包" onClose={() => setModal(null)}>

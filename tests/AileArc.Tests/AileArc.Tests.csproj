@@ -5,6 +5,7 @@
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" PrivateAssets="all" />
     <ProjectReference Include="../../src/AileArc.Core/AileArc.Core.csproj" />
+    <ProjectReference Include="../../src/AileArc.DesktopBridge/AileArc.DesktopBridge.csproj" />
     <ProjectReference Include="../../src/AileArc.Worker/AileArc.Worker.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../AileArc.RecoveryProbe/AileArc.RecoveryProbe.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>

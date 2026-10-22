@@ -1,5 +1,7 @@
 # AileArc prototype QA — 2026-10-21
 
+Scope note (2026-10-22): the pass below records the accepted browser prototype iteration. The new read-only desktop host has a separate report in `docs/Desktop_UI_Validation.md`. Browser reloading of an existing internal error page was blocked by browser URL policy this turn; no new browser QA pass is claimed for that attempted reload.
+
 final result: passed
 
 ## Current refinement — warm graphite selected

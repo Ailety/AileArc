@@ -59,6 +59,12 @@ export const typeName = (f) =>
     pdf: "PDF 文档",
     code: "配置与代码",
     image: "图片",
+    file: "文件",
+    text: "文本",
   })[f.type];
 export const size = (n) =>
-  n >= 1024 ? `${(n / 1024).toFixed(1)} MB` : `${n} KB`;
+  n == null
+    ? "未知"
+    : n >= 1024
+      ? `${(n / 1024).toFixed(1)} MB`
+      : `${Number(n.toFixed(2))} KB`;

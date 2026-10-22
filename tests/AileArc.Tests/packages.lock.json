@@ -99,6 +99,12 @@
           "AileArc.Shared": "[1.0.0, )"
         }
       },
+      "ailearc.desktopbridge": {
+        "type": "Project",
+        "dependencies": {
+          "AileArc.Core": "[1.0.0, )"
+        }
+      },
       "ailearc.shared": {
         "type": "Project"
       }
