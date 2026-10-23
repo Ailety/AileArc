@@ -22,6 +22,12 @@ internal static class ClientChecks
                 foreach (string key in zh.Keys.Where(k => k.StartsWith("Client", StringComparison.Ordinal))) Require(en.ContainsKey(key), "missing translation");
                 Require(window.Title == ClientApp.Text["ClientTitle"], "localized window title");
                 Require(window.TestGrid.Items.Count == 0, "formal client starts without generated data");
+                var restored = ClientApp.ParseArguments(["--restore-session", "[{\"Path\":\"C:/测试.zip\",\"CodePage\":936}]"]);
+                Require(restored.Length == 1 && restored[0].CodePage == 936 && restored[0].Path == "C:/测试.zip", "restart preserves filename encoding");
+                bool refused = false;
+                try { ClientApp.ParseArguments(["--restore-session", "[{\"Path\":\"C:/test.zip\",\"CodePage\":999}]"]); }
+                catch (ArgumentException) { refused = true; }
+                Require(refused, "unsupported encoding rejected");
                 using (var zip = ZipFile.Open(temp, ZipArchiveMode.Create))
                 { using var writer = new StreamWriter(zip.CreateEntry("文档/说明.txt").Open(), System.Text.Encoding.UTF8); writer.Write("public test fixture"); }
                 await window.TestOpenAsync(temp);

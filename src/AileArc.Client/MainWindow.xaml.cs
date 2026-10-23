@@ -13,6 +13,7 @@ public partial class MainWindow : Window
     private readonly ArchiveWorkerClient worker = new(Path.Combine(AppContext.BaseDirectory, "Worker", "AileArc.Worker.exe"));
     private static readonly int[] CodePages = [0, 65001, 936, 932];
     private readonly string? initialPath;
+    private readonly int initialCodePage;
     private ArchivePresentation? archive;
     private EntryView[] displayed = [];
     private CancellationTokenSource? operation;
@@ -24,10 +25,12 @@ public partial class MainWindow : Window
     public string? OpenedPath { get; private set; }
     internal string? TargetPath => OpenedPath ?? initialPath;
     public bool IsBusy => operation is not null;
+    internal int CurrentCodePage => codePage;
 
-    public MainWindow(string? path = null)
+    public MainWindow(string? path = null, int initialCodePage = 0)
     {
         initialPath = path;
+        this.initialCodePage = initialCodePage;
         InitializeComponent();
         LanguageBox.ItemsSource = new[] { "简体中文", "English (United States)" };
         LanguageBox.SelectedIndex = Text.Language == "en-US" ? 1 : 0;
@@ -39,7 +42,7 @@ public partial class MainWindow : Window
         SearchBox.LostKeyboardFocus += (_, _) => composing = false;
         EmptyText.Text = Text["WelcomeDetail"]; EmptyText.Visibility = Visibility.Visible;
         configuring = false; SetControls();
-        Loaded += async (_, _) => { if (initialPath is not null) await OpenAsync(initialPath); };
+        Loaded += async (_, _) => { if (initialPath is not null) await OpenAsync(initialPath, this.initialCodePage); };
         Closed += (_, _) => { closed = true; generation++; operation?.Cancel(); password = null; };
     }
     private async Task RunAsync(string status, Func<CancellationToken, Task<Action>> prepare)
