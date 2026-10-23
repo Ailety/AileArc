@@ -6,6 +6,8 @@ Modern archive management for Windows. **Archive should feel like a folder.**
 
 源码仓库：[Ailety/AileArc](https://github.com/Ailety/AileArc)。
 
+**2026-10-23：正式界面方案已确定为纯 WPF 自定义界面，保留暖石墨设计与现有 Core/Worker。** 正按[迁移计划](docs/WPF_Client_Migration.md)分批接入；下方已实现功能主要描述旧客户端，不能视为新 WPF 窗口已全部具备。
+
 ## 已实现
 
 - WinUI 3 原生窗口、目录浏览、面包屑、名称搜索、名称/大小排序。
