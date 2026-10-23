@@ -8,6 +8,8 @@ Modern archive management for Windows. **Archive should feel like a folder.**
 
 **2026-10-23：正式界面方案已确定为纯 WPF 自定义界面，保留暖石墨设计与现有 Core/Worker。** 正按[迁移计划](docs/WPF_Client_Migration.md)分批接入；下方已实现功能主要描述旧客户端，不能视为新 WPF 窗口已全部具备。
 
+WPF 客户端第一批已接入真实浏览、密码、编码、排序与双语资源：运行 `./scripts/Build-Client.ps1 -Test -Run`，或附加 `-Archive 'D:/Archives/example.zip'`。它目前是浏览功能开发预览；解压、创建和工作副本将在后续批次迁移。
+
 ## 已实现
 
 - WinUI 3 原生窗口、目录浏览、面包屑、名称搜索、名称/大小排序。
@@ -71,7 +73,7 @@ Modern archive management for Windows. **Archive should feel like a folder.**
 
 ## 文档
 
-2026-10-22 新增独立的暖石墨桌面只读验证版，可运行 `./scripts/Build-Desktop.ps1 -Run` 构建并体验真实压缩包浏览。它不替换原客户端，技术路线和资源占用仍在评估，详见 [桌面 UI 验证](docs/Desktop_UI_Validation.md)。
+WebView2、Native SDK 和纯 WPF 验证程序保留为历史对照，正式路线与当前接入范围以 [WPF 客户端迁移计划](docs/WPF_Client_Migration.md)为准。历史测量见 [三方案验证](docs/WPF_UI_Validation.md)。
 
 - [M1 实施规范](docs/AileArc_M1_Implementation_Specification.md)
 - [长期产品蓝图](docs/AileArc_Development_Specification.md)

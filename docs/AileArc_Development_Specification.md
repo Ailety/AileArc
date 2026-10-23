@@ -1,5 +1,7 @@
 # AileArc 开发设计文档
 
+> 2026-10-23 更新：正式 UI 已确定为纯 WPF 自定义界面，保留暖石墨设计和 Core/Worker。本文的旧框架设想以 ADR-016 与 WPF_Client_Migration.md 为准，长期功能蓝图不表示当前已实现。
+
 > **Project Codename:** Project Arcana\
 > **Product Name:** AileArc\
 > **Product Positioning:** Modern Archive Manager for Windows\

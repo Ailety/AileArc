@@ -162,4 +162,39 @@
   <data name="CopyCleaned"><value>未修改副本已清理，原压缩包保持不变。</value></data>
   <data name="CleanupBusy"><value>其他窗口仍有任务，请等待完成后再清理副本。</value></data>
   <data name="ShellOpen"><value>用 AileArc 打开</value></data>
+  <data name="ClientTitle" xml:space="preserve"><value>AileArc · 开发预览</value></data>
+  <data name="ClientReadOnly" xml:space="preserve"><value>浏览模式 · 原文件保持不变</value></data>
+  <data name="ClientArchive" xml:space="preserve"><value>当前压缩包</value></data>
+  <data name="ClientEnter" xml:space="preserve"><value>进入目录</value></data>
+  <data name="ClientSearchButton" xml:space="preserve"><value>搜索</value></data>
+  <data name="ClientEntryList" xml:space="preserve"><value>归档文件列表</value></data>
+  <data name="ClientSelectAll" xml:space="preserve"><value>选择当前页全部项目</value></data>
+  <data name="ClientType" xml:space="preserve"><value>类型</value></data>
+  <data name="ClientSize" xml:space="preserve"><value>大小 / KiB</value></data>
+  <data name="ClientEmptySelection" xml:space="preserve"><value>当前 0 项 · 已选 0 项</value></data>
+  <data name="ClientPrevious" xml:space="preserve"><value>上一页</value></data>
+  <data name="ClientNext" xml:space="preserve"><value>下一页</value></data>
+  <data name="ClientDetails" xml:space="preserve"><value>所选项目</value></data>
+  <data name="ClientSelectHint" xml:space="preserve"><value>请选择一个项目</value></data>
+  <data name="ClientCheckboxHint" xml:space="preserve"><value>复选框可独立切换选择</value></data>
+  <data name="ClientClearSelection" xml:space="preserve"><value>清除选择</value></data>
+  <data name="ClientFooter" xml:space="preserve"><value>开发预览 · 浏览模式</value></data>
+  <data name="ClientSelectionHint" xml:space="preserve"><value>Ctrl + 单击：增减选择
+Shift + 单击：连续选择
+Ctrl + A：全选当前页</value></data>
+  <data name="ClientIdle" xml:space="preserve"><value>就绪</value></data>
+  <data name="ClientFolder" xml:space="preserve"><value>文件夹</value></data>
+  <data name="ClientCode" xml:space="preserve"><value>代码 / 配置</value></data>
+  <data name="ClientText" xml:space="preserve"><value>文本文档</value></data>
+  <data name="ClientFile" xml:space="preserve"><value>文件</value></data>
+  <data name="ClientStatus" xml:space="preserve"><value>{0} · 索引 {1:N0} 项 · 浏览模式</value></data>
+  <data name="ClientSummary" xml:space="preserve"><value>索引 {0:N0} 项
+结果 {1:N0} 项 · 起点 {2:N0}</value></data>
+  <data name="ClientSelectionCount" xml:space="preserve"><value>当前 {0:N0} 项 · 已选 {1:N0} 项</value></data>
+  <data name="ClientManySelected" xml:space="preserve"><value>已选择 {0:N0} 个项目</value></data>
+  <data name="ClientPageSelection" xml:space="preserve"><value>页面切换会清除选择</value></data>
+  <data name="ClientFilter" xml:space="preserve"><value>压缩包|*.zip;*.7z;*.rar|所有文件|*.*</value></data>
+  <data name="ClientOpenPending" xml:space="preserve"><value>此开发预览仅支持浏览，文件打开功能暂不可用。</value></data>
+  <data name="ClientLanguageSaved" xml:space="preserve"><value>语言已保存，重启全部窗口后生效。</value></data>
+  <data name="ClientInvalidArguments" xml:space="preserve"><value>此入口仅接受压缩包路径，尚未接入 Shell 动作。</value></data>
 </root>

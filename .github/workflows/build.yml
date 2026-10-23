@@ -32,6 +32,9 @@ jobs:
       - name: Build and test pure WPF validation host
         shell: pwsh
         run: ./scripts/Build-WpfValidation.ps1 -Test
+      - name: Build and test WPF client in both languages
+        shell: pwsh
+        run: ./scripts/Build-Client.ps1 -Test
   native-validation:
     runs-on: windows-2025
     timeout-minutes: 35
