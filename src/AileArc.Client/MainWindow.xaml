@@ -22,6 +22,9 @@
               <Button Content="{Binding Name}" Tag="{Binding Path}" Click="Folder_Click" HorizontalContentAlignment="Left" ToolTip="{Binding Path}" />
             </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
             <Border Height="1" Background="{StaticResource LineBrush}" Margin="0,20" />
+            <Button x:Name="ExtractButton" Content="{local:Text Extract}" Click="Extract_Click" Style="{StaticResource Primary}" Margin="0,0,0,8" />
+            <Button x:Name="CopiesButton" Content="{local:Text WorkCopies}" Click="Copies_Click" Margin="0,0,0,16" />
+            <TextBlock x:Name="CopyNotice" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,8" />
             <TextBlock Text="{local:Text Language}" Style="{StaticResource Muted}" Margin="0,0,0,8" />
             <ComboBox x:Name="LanguageBox" SelectionChanged="Language_Changed" AutomationProperties.Name="{local:Text Language}" />
             <Button x:Name="RestartButton" Content="{local:Text RestartNow}" Click="Restart_Click" Visibility="Collapsed" Margin="0,8,0,0" />
@@ -81,6 +84,7 @@
             <Border Background="{StaticResource LineBrush}" Height="1" />
             <TextBlock x:Name="SummaryText" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,20" />
             <Button Content="{local:Text ClientClearSelection}" Click="Clear_Click" Background="{StaticResource HoverBrush}" />
+            <Button x:Name="OpenFileButton" Content="{local:Text OpenFile}" Click="OpenFile_Click" Margin="0,8,0,0" />
             <TextBlock Text="{local:Text ClientSelectionHint}" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,24,0,0" LineHeight="23" />
           </StackPanel>
         </DockPanel>

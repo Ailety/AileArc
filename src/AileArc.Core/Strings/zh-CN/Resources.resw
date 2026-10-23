@@ -163,7 +163,7 @@
   <data name="CleanupBusy"><value>其他窗口仍有任务，请等待完成后再清理副本。</value></data>
   <data name="ShellOpen"><value>用 AileArc 打开</value></data>
   <data name="ClientTitle" xml:space="preserve"><value>AileArc · 开发预览</value></data>
-  <data name="ClientReadOnly" xml:space="preserve"><value>浏览模式 · 原文件保持不变</value></data>
+  <data name="ClientReadOnly" xml:space="preserve"><value>原压缩包保持不变 · 编辑内容保存在工作副本</value></data>
   <data name="ClientArchive" xml:space="preserve"><value>当前压缩包</value></data>
   <data name="ClientEnter" xml:space="preserve"><value>进入目录</value></data>
   <data name="ClientSearchButton" xml:space="preserve"><value>搜索</value></data>
@@ -178,7 +178,7 @@
   <data name="ClientSelectHint" xml:space="preserve"><value>请选择一个项目</value></data>
   <data name="ClientCheckboxHint" xml:space="preserve"><value>复选框可独立切换选择</value></data>
   <data name="ClientClearSelection" xml:space="preserve"><value>清除选择</value></data>
-  <data name="ClientFooter" xml:space="preserve"><value>开发预览 · 浏览模式</value></data>
+  <data name="ClientFooter" xml:space="preserve"><value>开发预览 · 浏览与解压</value></data>
   <data name="ClientSelectionHint" xml:space="preserve"><value>Ctrl + 单击：增减选择
 Shift + 单击：连续选择
 Ctrl + A：全选当前页</value></data>
@@ -187,7 +187,7 @@ Ctrl + A：全选当前页</value></data>
   <data name="ClientCode" xml:space="preserve"><value>代码 / 配置</value></data>
   <data name="ClientText" xml:space="preserve"><value>文本文档</value></data>
   <data name="ClientFile" xml:space="preserve"><value>文件</value></data>
-  <data name="ClientStatus" xml:space="preserve"><value>{0} · 索引 {1:N0} 项 · 浏览模式</value></data>
+  <data name="ClientStatus" xml:space="preserve"><value>{0} · 索引 {1:N0} 项</value></data>
   <data name="ClientSummary" xml:space="preserve"><value>索引 {0:N0} 项
 结果 {1:N0} 项 · 起点 {2:N0}</value></data>
   <data name="ClientSelectionCount" xml:space="preserve"><value>当前 {0:N0} 项 · 已选 {1:N0} 项</value></data>
@@ -197,4 +197,10 @@ Ctrl + A：全选当前页</value></data>
   <data name="ClientOpenPending" xml:space="preserve"><value>此开发预览仅支持浏览，文件打开功能暂不可用。</value></data>
   <data name="ClientLanguageSaved" xml:space="preserve"><value>语言已保存，重启全部窗口后生效。</value></data>
   <data name="ClientInvalidArguments" xml:space="preserve"><value>此入口仅接受压缩包路径，尚未接入 Shell 动作。</value></data>
+  <data name="ClientExtractMode"><value>解压方式</value></data>
+  <data name="ClientExtractHere"><value>解压到压缩包所在文件夹</value></data>
+  <data name="ClientOpenDestination"><value>成功后打开目标文件夹</value></data>
+  <data name="ClientResult"><value>解压结果</value></data>
+  <data name="ClientCopiesAttention"><value>工作副本有修改或暂时无法读取，请打开“工作副本”检查；原压缩包未修改。</value></data>
+  <data name="ClientAllFilesFilter"><value>所有文件|*.*</value></data>
 </root>

@@ -42,12 +42,15 @@ public partial class MainWindow : Window
         SearchBox.LostKeyboardFocus += (_, _) => composing = false;
         EmptyText.Text = Text["WelcomeDetail"]; EmptyText.Visibility = Visibility.Visible;
         configuring = false; SetControls();
+        InitializeOperations();
         Loaded += async (_, _) => { if (initialPath is not null) await OpenAsync(initialPath, this.initialCodePage); };
         Closed += (_, _) => { closed = true; generation++; operation?.Cancel(); password = null; };
     }
-    private async Task RunAsync(string status, Func<CancellationToken, Task<Action>> prepare)
+    private async Task RunAsync(string status, Func<CancellationToken, Task<Action>> prepare, bool resetStatus = true)
     {
+        if (IsBusy || closingCheck || ((ClientApp)Application.Current).Restarting) return;
         operation?.Cancel();
+        idleCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
         using var cancellation = new CancellationTokenSource(); operation = cancellation;
         int version = ++generation;
         StatusText.Text = status; CancelButton.Visibility = Visibility.Visible; SetControls();
@@ -56,7 +59,7 @@ public partial class MainWindow : Window
             Action commit = await prepare(cancellation.Token);
             if (closed || version != generation || cancellation.IsCancellationRequested) return;
             commit();
-            StatusText.Text = archive is null ? Text["ClientIdle"] : Text.Format("ClientStatus", archive.Scan.Format, archive.Index.Entries.Count);
+            if (resetStatus) StatusText.Text = archive is null ? Text["ClientIdle"] : Text.Format("ClientStatus", archive.Scan.Format, archive.Index.Entries.Count);
         }
         catch (OperationCanceledException) { if (!closed && version == generation) StatusText.Text = Text["Cancelled"]; }
         catch (InvalidOperationException) when (cancellation.IsCancellationRequested) { }
@@ -69,6 +72,7 @@ public partial class MainWindow : Window
             {
                 operation = null;
                 if (!closed) { CancelButton.Visibility = Visibility.Collapsed; SetControls(); }
+                idleCompletion.TrySetResult();
             }
         }
     }
@@ -145,6 +149,8 @@ public partial class MainWindow : Window
         EncodingBox.IsEnabled = idle && archive?.Scan.Format == "ZIP";
         EntryGrid.IsEnabled = idle; RootButton.IsEnabled = idle; Folders.IsEnabled = idle;
         UpdateNavigation(); UpdateSelection();
+        ExtractButton.IsEnabled = idle && archive is not null;
+        CopiesButton.IsEnabled = idle;
     }
     private void UpdateNavigation()
     {
@@ -169,6 +175,7 @@ public partial class MainWindow : Window
         DetailName.Text = count > 1 ? Text.Format("ClientManySelected", count) : row?.Name ?? Text["ClientSelectHint"];
         DetailPath.Text = count > 1 ? Text["ClientPageSelection"] : row?.Path ?? Text["ClientCheckboxHint"];
         EnterButton.IsEnabled = !IsBusy && count == 1 && row?.Row.Type == "folder";
+        OpenFileButton.IsEnabled = !IsBusy && count == 1 && row?.Row.Type != "folder" && archive is not null;
     }
     private void RowCheck_MouseDown(object sender, MouseButtonEventArgs e)
     {
@@ -191,7 +198,7 @@ public partial class MainWindow : Window
         try { await new AppSettings(LanguageBox.SelectedIndex == 1 ? "en-US" : "zh-CN").SaveAsync(); StatusText.Text = Text["ClientLanguageSaved"]; RestartButton.Visibility = Visibility.Visible; }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException) { StatusText.Text = Text["SettingsFailed"]; }
     }
-    private void Restart_Click(object sender, RoutedEventArgs e) { if (Application.Current.Windows.OfType<MainWindow>().Any(w => w.IsBusy)) StatusText.Text = Text["TaskRunning"]; else ((ClientApp)Application.Current).Restart(); }
+    private async void Restart_Click(object sender, RoutedEventArgs e) { if (Application.Current.Windows.OfType<MainWindow>().Any(w => w.IsBusy)) StatusText.Text = Text["TaskRunning"]; else await ((ClientApp)Application.Current).RestartAsync(); }
     private async void Encoding_Changed(object sender, SelectionChangedEventArgs e)
     { if (!configuring && !IsBusy && OpenedPath is { } path && archive?.Scan.Format == "ZIP" && EncodingBox.SelectedIndex >= 0) await OpenAsync(path, CodePages[EncodingBox.SelectedIndex], password); }
     private async void Sort_Changed(object sender, RoutedEventArgs e) { if (!configuring) await QueryAsync(directory, 0); }
@@ -203,7 +210,7 @@ public partial class MainWindow : Window
     {
         if (IsBusy || EntryGrid.SelectedItems.Count != 1 || EntryGrid.SelectedItem is not EntryView row) return Task.CompletedTask;
         if (row.Row.Type == "folder") return QueryAsync(row.Path, 0, true);
-        StatusText.Text = Text["ClientOpenPending"]; return Task.CompletedTask;
+        return OpenExternalAsync(long.Parse(row.Row.Id, System.Globalization.CultureInfo.InvariantCulture));
     }
     private async void Grid_DoubleClick(object sender, MouseButtonEventArgs e) { if (FindAncestor<DataGridRow>(e.OriginalSource as DependencyObject) is not null) await ActivateAsync(); }
     private async void Grid_KeyDown(object sender, KeyEventArgs e)

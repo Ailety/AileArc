@@ -163,7 +163,7 @@
   <data name="CleanupBusy"><value>Another window has an active task. Wait before cleaning the copy.</value></data>
   <data name="ShellOpen"><value>Open with AileArc</value></data>
   <data name="ClientTitle" xml:space="preserve"><value>AileArc · Development preview</value></data>
-  <data name="ClientReadOnly" xml:space="preserve"><value>Browse mode · Original archive unchanged</value></data>
+  <data name="ClientReadOnly" xml:space="preserve"><value>Original archive unchanged · Edits stay in working copies</value></data>
   <data name="ClientArchive" xml:space="preserve"><value>Current archive</value></data>
   <data name="ClientEnter" xml:space="preserve"><value>Open folder</value></data>
   <data name="ClientSearchButton" xml:space="preserve"><value>Search</value></data>
@@ -178,7 +178,7 @@
   <data name="ClientSelectHint" xml:space="preserve"><value>Select an item</value></data>
   <data name="ClientCheckboxHint" xml:space="preserve"><value>Use checkboxes to toggle individual items</value></data>
   <data name="ClientClearSelection" xml:space="preserve"><value>Clear selection</value></data>
-  <data name="ClientFooter" xml:space="preserve"><value>Development preview · Browse mode</value></data>
+  <data name="ClientFooter" xml:space="preserve"><value>Development preview · Browse and extract</value></data>
   <data name="ClientSelectionHint" xml:space="preserve"><value>Ctrl + click: toggle selection
 Shift + click: select a range
 Ctrl + A: select this page</value></data>
@@ -187,7 +187,7 @@ Ctrl + A: select this page</value></data>
   <data name="ClientCode" xml:space="preserve"><value>Code / config</value></data>
   <data name="ClientText" xml:space="preserve"><value>Text</value></data>
   <data name="ClientFile" xml:space="preserve"><value>File</value></data>
-  <data name="ClientStatus" xml:space="preserve"><value>{0} · {1:N0} indexed items · Browse mode</value></data>
+  <data name="ClientStatus" xml:space="preserve"><value>{0} · {1:N0} indexed items</value></data>
   <data name="ClientSummary" xml:space="preserve"><value>{0:N0} indexed items
 {1:N0} results · Offset {2:N0}</value></data>
   <data name="ClientSelectionCount" xml:space="preserve"><value>{0:N0} items · {1:N0} selected</value></data>
@@ -197,4 +197,10 @@ Ctrl + A: select this page</value></data>
   <data name="ClientOpenPending" xml:space="preserve"><value>This development preview supports browsing. Opening files is not available yet.</value></data>
   <data name="ClientLanguageSaved" xml:space="preserve"><value>Language saved. Restart all windows to apply.</value></data>
   <data name="ClientInvalidArguments" xml:space="preserve"><value>This entry point accepts archive paths only. Shell actions are not connected yet.</value></data>
+  <data name="ClientExtractMode"><value>Extraction mode</value></data>
+  <data name="ClientExtractHere"><value>Extract to archive folder</value></data>
+  <data name="ClientOpenDestination"><value>Open destination folder after success</value></data>
+  <data name="ClientResult"><value>Extraction results</value></data>
+  <data name="ClientCopiesAttention"><value>Working copies have changes or cannot be read. Check Working copies; the archive is unchanged.</value></data>
+  <data name="ClientAllFilesFilter"><value>All files|*.*</value></data>
 </root>

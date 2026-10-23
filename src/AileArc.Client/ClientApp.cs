@@ -10,6 +10,8 @@ namespace AileArc.Client;
 
 public sealed class ClientApp : Application
 {
+    internal AileArc.Core.WorkCopies.WorkCopyStore WorkCopies { get; set; } = new();
+    internal bool Restarting { get; private set; }
     public static LanguageService Text { get; internal set; } = new(LanguageService.DefaultLanguage);
     [STAThread]
     public static int Main(string[] args)
@@ -47,6 +49,7 @@ public sealed class ClientApp : Application
     }
     public void OpenPath(string path, int codePage = 0)
     {
+        if (Restarting) return;
         try
         {
             path = Path.GetFullPath(path);
@@ -57,17 +60,25 @@ public sealed class ClientApp : Application
         catch (Exception error) when (error is IOException or ArgumentException or UnauthorizedAccessException)
         { MessageBox.Show(Text["OpenFailed"], "AileArc"); }
     }
-    public void Restart()
+    public async Task RestartAsync()
     {
-        if (Windows.OfType<MainWindow>().Any(w => w.IsBusy)) return;
-        var start = new ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = false };
-        var archives = Windows.OfType<MainWindow>().Where(w => w.OpenedPath is not null).Select(w => new StartupArchive(w.OpenedPath!, w.CurrentCodePage)).ToArray();
-        string json = JsonSerializer.Serialize(archives);
-        // Paths and encoding only: passwords never cross this process boundary.
-        if (json.Length > 24000 || archives.Length > 64) { MessageBox.Show(Text["OpenFailed"], "AileArc"); return; }
-        start.ArgumentList.Add("--restore-session"); start.ArgumentList.Add(json);
-        try { Process.Start(start); Shutdown(); }
-        catch (Exception error) when (error is IOException or System.ComponentModel.Win32Exception or ArgumentException) { MessageBox.Show(Text["OpenFailed"], "AileArc"); }
+        if (Restarting || Windows.OfType<MainWindow>().Any(w => w.IsBusy)) return;
+        Restarting = true;
+        var windows = Windows.OfType<MainWindow>().ToArray();
+        foreach (var window in windows) window.IsEnabled = false;
+        try
+        {
+            foreach (var window in windows) if (!await window.PrepareCloseAsync()) return;
+            var start = new ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = false };
+            var archives = windows.Where(w => w.OpenedPath is not null).Select(w => new StartupArchive(w.OpenedPath!, w.CurrentCodePage)).ToArray();
+            string json = JsonSerializer.Serialize(archives);
+            // Paths and encoding only: passwords never cross this process boundary.
+            if (json.Length > 24000 || archives.Length > 64) { MessageBox.Show(Text["OpenFailed"], "AileArc"); return; }
+            start.ArgumentList.Add("--restore-session"); start.ArgumentList.Add(json);
+            try { Process.Start(start); foreach (var window in windows) window.ApproveClose(); Shutdown(); }
+            catch (Exception error) when (error is IOException or System.ComponentModel.Win32Exception or ArgumentException) { MessageBox.Show(Text["OpenFailed"], "AileArc"); }
+        }
+        finally { Restarting = false; foreach (var window in windows) window.IsEnabled = true; }
     }
 }
 
