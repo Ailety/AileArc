@@ -1,5 +1,15 @@
 # AileArc 架构决策记录
 
+## ADR-018：默认入口切换到 WPF（2026-10-24）
+
+状态：默认构建/运行/普通安装/Shell 命令链路迁移完成；现代 Explorer 注册仍受签名条件限制。
+
+- 正式 WPF 输出使用稳定名称 AileArc.exe，安装协议与原生 Shell 相对路径保持兼容；旧收据升级无需更改用户关联设置。
+- Build/Run/Package 只面向 WPF。默认构建发布自包含客户端与 Worker，包内不再携带 WinUI、Windows App SDK、WebView2 或 PRI/XBF；MakeAppx 来自独立锁定的 packaging 工具项目。
+- WPF 统一处理显式 Shell 激活动作，创建动作带入源列表；忙碌窗口不被新动作取消。重启和清理互斥涵盖排队的 Shell 动作。
+- 在入口、双语、真实提取、旧包升级/回滚/卸载验证通过后退役旧 WinUI 源码工程。旧实现可由 Git 历史恢复；实验验证宿主不作为生产依赖。
+- 当前未签名 sparse package 仍被 Windows 以 0x80073D2B 拒绝，不能以宿主切换代替签名环境验收，不自动更改系统信任。
+
 ## ADR-017：WPF 创建、恢复与生命周期接入（2026-10-24）
 
 状态：P3 基础迁移已实现，P4 部署入口未切换。

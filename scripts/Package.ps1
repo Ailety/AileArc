@@ -10,10 +10,13 @@ if (Test-Path -LiteralPath $OutputDirectory) { throw 'Package output must be a n
 $dotnet = Join-Path $taskRoot '.tools/dotnet/dotnet.exe'
 $payload = Join-Path $OutputDirectory 'payload'
 New-Item -ItemType Directory -Path $payload -Force | Out-Null
-& $dotnet publish (Join-Path $taskRoot 'src/AileArc.UI/AileArc.UI.csproj') -c Release -r win-x64 --self-contained true -p:RestoreLockedMode=true -o $payload -v minimal
+& $dotnet publish (Join-Path $taskRoot 'src/AileArc.Client/AileArc.Client.csproj') -c Release -r win-x64 --self-contained true -p:RestoreLockedMode=true -o $payload -v minimal
 if ($LASTEXITCODE -ne 0) { throw 'UI publish failed.' }
-foreach ($required in @('AileArc.pri', 'App.xbf', 'coreclr.dll', 'Microsoft.UI.Xaml.dll')) {
+foreach ($required in @('AileArc.exe', 'AileArc.dll', 'coreclr.dll', 'PresentationFramework.dll')) {
     if (!(Test-Path -LiteralPath (Join-Path $payload $required))) { throw "Published UI resource missing: $required" }
+}
+foreach ($forbidden in @('Microsoft.UI.Xaml.dll', 'Microsoft.Web.WebView2.Core.dll', 'AileArc.pri', 'App.xbf')) {
+    if (Test-Path -LiteralPath (Join-Path $payload $forbidden)) { throw "Legacy UI dependency in WPF bundle: $forbidden" }
 }
 & $dotnet publish (Join-Path $taskRoot 'src/AileArc.Worker/AileArc.Worker.csproj') -c Release -r win-x64 --self-contained true -p:RestoreLockedMode=true -o (Join-Path $payload 'Worker') -v minimal
 if ($LASTEXITCODE -ne 0) { throw 'Worker publish failed.' }
@@ -28,7 +31,7 @@ $notices = Join-Path $payload 'Notices'
 New-Item -ItemType Directory -Path (Join-Path $notices 'dotnet') -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $taskRoot '.tools/dotnet/LICENSE.txt'), (Join-Path $taskRoot '.tools/dotnet/ThirdPartyNotices.txt') -Destination (Join-Path $notices 'dotnet')
 $nugetRoot = if ($env:NUGET_PACKAGES) { $env:NUGET_PACKAGES } else { Join-Path $env:USERPROFILE '.nuget/packages' }
-$dependencies = (Get-Content -LiteralPath (Join-Path $taskRoot 'src/AileArc.UI/packages.lock.json') -Raw -Encoding utf8 | ConvertFrom-Json -AsHashtable).dependencies.Values
+$dependencies = (Get-Content -LiteralPath (Join-Path $taskRoot 'src/AileArc.Client/packages.lock.json') -Raw -Encoding utf8 | ConvertFrom-Json -AsHashtable).dependencies.Values
 foreach ($target in $dependencies) {
     foreach ($entry in $target.GetEnumerator()) {
         if (!$entry.Value.resolved) { continue }
@@ -62,8 +65,10 @@ try {
     $graphics.FillRectangle([Drawing.Brushes]::White, 66, 25, 18, 80)
     $bitmap.Save((Join-Path $identity 'Assets/Logo.png'), [Drawing.Imaging.ImageFormat]::Png)
 } finally { $brush.Dispose(); $graphics.Dispose(); $bitmap.Dispose() }
+& $dotnet restore (Join-Path $taskRoot 'packaging/AileArc.Packaging.csproj') -p:RestoreLockedMode=true -v minimal
+if ($LASTEXITCODE -ne 0) { throw 'Packaging tools restore failed.' }
 $sdkTools = Join-Path $nugetRoot 'microsoft.windows.sdk.buildtools/10.0.26100.4654/bin/10.0.26100.0/x64/makeappx.exe'
-if (!(Test-Path -LiteralPath $sdkTools)) { throw 'Pinned Windows SDK MakeAppx tool not found after UI restore.' }
+if (!(Test-Path -LiteralPath $sdkTools)) { throw 'Pinned Windows SDK MakeAppx tool not found after packaging restore.' }
 & $sdkTools pack /o /nv /d $identity /p (Join-Path $payload 'AileArc.Identity.msix')
 if ($LASTEXITCODE -ne 0) { throw 'Identity package creation failed.' }
 if ($SigningCertificateThumbprint) {

@@ -6,13 +6,13 @@ Modern archive management for Windows. **Archive should feel like a folder.**
 
 源码仓库：[Ailety/AileArc](https://github.com/Ailety/AileArc)。
 
-**2026-10-23：正式界面方案已确定为纯 WPF 自定义界面，保留暖石墨设计与现有 Core/Worker。** 正按[迁移计划](docs/WPF_Client_Migration.md)分批接入；下方已实现功能主要描述旧客户端，不能视为新 WPF 窗口已全部具备。
+**正式客户端采用纯 WPF 自定义界面，保留暖石墨设计与现有 Core/Worker。** 默认构建、运行和开发安装包已切换到 WPF `AileArc.exe`；原 WinUI 生产宿主已退役，源码可从 Git 历史查看。[迁移记录](docs/WPF_Client_Migration.md)区分已完成接入与尚待验收的项目。
 
-WPF 客户端已完成 P1–P3 基础接入：浏览、解压、默认应用打开、工作副本保护，以及 ZIP/7Z 创建、恢复清理、单实例多窗口身份去重与统一语言重启。运行 `./scripts/Build-Client.ps1 -Test -Run`，或附加 `-Archive 'D:/Archives/example.zip'`。它仍是开发预览；默认安装/Shell 入口切换和旧宿主退役留待 P4，M1 尚未全部验收。
+WPF 客户端支持浏览、解压、默认应用打开、工作副本保护、ZIP/7Z 创建、恢复清理、单实例多窗口身份去重与统一语言重启。标准入口为 `./scripts/Build.ps1` 和 `./scripts/Run.ps1`。原生 Shell 命令已接入 WPF；Explorer 现代菜单注册仍需受信任签名包，M1 尚未全部验收。
 
 ## 已实现
 
-- WinUI 3 原生窗口、目录浏览、面包屑、名称搜索、名称/大小排序。
+- WPF 暖石墨自定义界面、目录浏览、路径显示、名称搜索、名称/大小排序。
 - 同一安装位置使用一个主进程管理多个窗口；打开不同压缩包新建窗口，重复路径或文件身份激活已有窗口。语言重启统一检查并恢复已打开的压缩包。
 - 旧式 ZIP 文件名编码：自动、UTF-8、GBK、Shift-JIS；解压和工作副本沿用当前选择。
 - 独立 Worker + 完整 7-Zip 26.03 引擎，ZIP/7Z/RAR 读取；按签名识别，不信任扩展名。
@@ -38,7 +38,7 @@ WPF 客户端已完成 P1–P3 基础接入：浏览、解压、默认应用打�
 ./scripts/Run.ps1 -Archive 'D:\Archives\example.zip'
 ```
 
-构建脚本包含自动测试。Release 构建使用 `./scripts/Build.ps1 -Configuration Release`。初次下载可能较慢。常规复现入口是 Build.ps1；AileArc.slnx 供 IDE 打开工程。
+构建脚本发布自包含 WPF 客户端和 Worker，并运行核心测试及中英文客户端自检。默认输出 `.artifacts/client/Debug/AileArc.exe`；Release 使用 `./scripts/Build.ps1 -Configuration Release`，运行时也指定 `./scripts/Run.ps1 -Configuration Release`。开发安装包使用 `./scripts/Package.ps1`，包内程序仍名为 `AileArc.exe`。初次下载可能较慢；AileArc.slnx 供 IDE 打开工程。
 
 ## 当前边界
 

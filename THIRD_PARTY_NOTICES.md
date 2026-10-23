@@ -23,9 +23,13 @@ This document records development dependencies. AileArc's own code is licensed u
 - The upstream License.txt is copied beside the Worker as 7zip-License.txt. A future binary release must retain the corresponding notices and meet the applicable distribution obligations.
 - The unRAR code must not be used to recreate the proprietary RAR compression algorithm.
 
-## Windows App SDK / WinUI
+## Windows SDK packaging tools
 
-- Package: Microsoft.WindowsAppSDK 1.8.260804001; transitive versions are pinned in packages.lock.json.
+- Microsoft.Windows.SDK.BuildTools 10.0.26100.4654 is pinned in packaging/packages.lock.json and used only for MakeAppx/signing tools. Its Microsoft license remains applicable; the tools are not included in the application payload.
+
+## Historical Windows App SDK / WinUI host
+
+- Earlier WinUI development bundles used Microsoft.WindowsAppSDK 1.8.260804001. The host and its lockfile remain in Git history; the production WPF bundle no longer includes Windows App SDK or WinUI binaries.
 - Source and license information: https://github.com/microsoft/WindowsAppSDK and https://github.com/microsoft/microsoft-ui-xaml
 - NuGet packages retain their upstream licenses; do not treat all transitive binaries as having one project-wide license.
 

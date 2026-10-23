@@ -8,8 +8,7 @@ $env:DOTNET_ROOT = Split-Path -Parent $dotnet
 $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
 Push-Location -LiteralPath $taskRoot
 try {
-    & $dotnet build 'src/AileArc.UI/AileArc.UI.csproj' -c $Configuration -p:RestoreLockedMode=true -v minimal
-    if ($LASTEXITCODE -ne 0) { throw 'UI build failed.' }
+    & (Join-Path $PSScriptRoot 'Build-Client.ps1') -Configuration $Configuration -Test:(!$SkipTests)
     if (-not $SkipTests) {
         & $dotnet test 'tests/AileArc.Tests/AileArc.Tests.csproj' -c $Configuration -p:RestoreLockedMode=true -v minimal
         if ($LASTEXITCODE -ne 0) { throw 'Tests failed.' }

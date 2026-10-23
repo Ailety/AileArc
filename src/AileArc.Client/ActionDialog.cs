@@ -13,6 +13,7 @@ internal sealed class ActionDialog : Window
         Owner = owner; Title = ClientApp.Text[title]; Width = 560; MaxHeight = 700;
         SizeToContent = SizeToContent.Height; ResizeMode = ResizeMode.NoResize;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        if (Application.Current is ClientApp { HideTestWindows: true }) { Opacity = 0; ShowInTaskbar = false; ShowActivated = false; }
         Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("WarmGraphite.xaml", UriKind.Relative) });
         Background = (Brush)FindResource("SurfaceBrush"); Foreground = (Brush)FindResource("TextBrush");
         FontFamily = new FontFamily("Microsoft YaHei UI, Segoe UI"); FontSize = 14;

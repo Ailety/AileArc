@@ -1,7 +1,6 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/AileArc.Client/AileArc.Client.csproj" />
-    <Project Path="src/AileArc.UI/AileArc.UI.csproj" />
     <Project Path="src/AileArc.Desktop/AileArc.Desktop.csproj" />
     <Project Path="src/AileArc.DesktopBridge/AileArc.DesktopBridge.csproj" />
     <Project Path="src/AileArc.Core/AileArc.Core.csproj" />

@@ -24,7 +24,7 @@ public sealed class ClientApp : Application
     private MainWindow? cleanupOwner;
     private readonly object activationGate = new();
     private bool exiting;
-    internal bool AnyTaskRunning => Windows.OfType<MainWindow>().Any(w => w.IsBusy);
+    internal bool AnyTaskRunning => Windows.OfType<MainWindow>().Any(w => w.IsBusy || w.ShellActionPending);
     internal bool CanStart(MainWindow window) => !Restarting && (cleanupOwner is null || cleanupOwner == window);
     internal bool TryBeginCleanup(MainWindow window)
     {
@@ -52,9 +52,13 @@ public sealed class ClientApp : Application
             args = ["--restore-session", session];
         }
         Text = new(AppSettings.LoadAsync().GetAwaiter().GetResult().Language);
-        StartupArchive[] archives;
-        bool newWindow = args is ["--new-window"];
-        try { archives = ParseArguments(args); }
+        StartupArchive[] archives = [];
+        ActivationRequest? launch = null;
+        try
+        {
+            if (args is ["--restore-session", _]) archives = ParseArguments(args);
+            else launch = ActivationRequest.Parse(args, Environment.CurrentDirectory);
+        }
         catch (Exception error) when (error is JsonException or ArgumentException)
         { MessageBox.Show(Text["ClientInvalidArguments"], "AileArc"); return 2; }
         string key = ActivationBroker.ApplicationKey(Environment.ProcessPath!);
@@ -63,7 +67,8 @@ public sealed class ClientApp : Application
         {
             try
             {
-                if (archives.Length == 0) ActivationBroker.ForwardAsync(key, new([], newWindow)).GetAwaiter().GetResult();
+                if (launch is not null) ActivationBroker.ForwardAsync(key, launch).GetAwaiter().GetResult();
+                else if (archives.Length == 0) ActivationBroker.ForwardAsync(key, new([])).GetAwaiter().GetResult();
                 else foreach (var item in archives)
                 {
                     var request = item.Empty ? new ActivationRequest([], true) : new ActivationRequest([Path.GetFullPath(item.Path)], CodePages: [item.CodePage]);
@@ -80,7 +85,14 @@ public sealed class ClientApp : Application
         {
             try
             {
-                if (archives.Length == 0) app.CreateWindow().Show();
+                try
+                {
+                    using var languageKey = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Ailety\AileArc");
+                    languageKey.SetValue("ShellLanguage", Text.Language);
+                }
+                catch (Exception error) when (error is UnauthorizedAccessException or System.Security.SecurityException or IOException) { }
+                if (launch is not null) await app.HandleActivationAsync(launch);
+                else if (archives.Length == 0) app.CreateWindow().Show();
                 else foreach (var archive in archives)
                     if (archive.Empty) app.CreateWindow().Show(); else await app.OpenPathAsync(archive.Path, archive.CodePage);
             }
@@ -112,7 +124,7 @@ public sealed class ClientApp : Application
     {
         lock (activationGate)
         {
-            if (request.Action != ActivationAction.Open || Dispatcher.HasShutdownStarted || Restarting || exiting || cleanupOwner is not null || pendingActivations >= 64) return false;
+            if (Dispatcher.HasShutdownStarted || Restarting || exiting || cleanupOwner is not null || pendingActivations >= 64) return false;
             Interlocked.Increment(ref pendingActivations);
             try
             {
@@ -120,12 +132,7 @@ public sealed class ClientApp : Application
                 {
                     try
                     {
-                        if (request.Paths.Length == 0)
-                        {
-                            var window = !request.NewWindow ? Windows.OfType<MainWindow>().LastOrDefault() : null;
-                            (window ?? CreateWindow()).BringForward();
-                        }
-                        else for (int i = 0; i < request.Paths.Length; i++) await OpenPathAsync(request.Paths[i], request.CodePages?[i] ?? 0);
+                        await HandleActivationAsync(request);
                     }
                     finally { Interlocked.Decrement(ref pendingActivations); ExitIfIdle(); }
                 }));
@@ -134,6 +141,20 @@ public sealed class ClientApp : Application
             catch (InvalidOperationException) { }
             Interlocked.Decrement(ref pendingActivations); return false;
         }
+    }
+    internal async Task HandleActivationAsync(ActivationRequest request)
+    {
+        if (request.Action == ActivationAction.Create)
+        {
+            var window = CreateWindow(); window.BringForward(); window.QueueShellAction(request.Action, request.Paths); return;
+        }
+        if (request.Paths.Length == 0)
+        {
+            var window = !request.NewWindow ? Windows.OfType<MainWindow>().LastOrDefault() : null;
+            (window ?? CreateWindow()).BringForward(); return;
+        }
+        for (int i = 0; i < request.Paths.Length; i++)
+            await OpenPathAsync(request.Paths[i], request.CodePages?[i] ?? 0, action: request.Action, forceNew: request.NewWindow);
     }
     private void ExitIfIdle()
     {
@@ -154,7 +175,7 @@ public sealed class ClientApp : Application
     internal void RegisterOpened(MainWindow window, string path, string? fileId)
     { catalog.Remove(window); catalog.Register(window, path, fileId); }
     internal void Unregister(MainWindow window) => catalog.Remove(window);
-    public async Task OpenPathAsync(string path, int codePage = 0, MainWindow? preferred = null)
+    public async Task OpenPathAsync(string path, int codePage = 0, MainWindow? preferred = null, ActivationAction action = ActivationAction.Open, bool forceNew = false)
     {
         if (Restarting || cleanupOwner is not null) return;
         await routing.WaitAsync();
@@ -163,11 +184,17 @@ public sealed class ClientApp : Application
             path = Path.GetFullPath(path);
             string? fileId = await ArchiveWindowIdentity.ReadAsync(path);
             if (Restarting) return;
-            var existing = catalog.Find(path, fileId);
-            if (existing is not null) { existing.BringForward(); return; }
+            var existing = forceNew ? null : catalog.Find(path, fileId);
+            if (existing is not null)
+            {
+                existing.BringForward();
+                if (action != ActivationAction.Open) existing.QueueShellAction(action, [path]);
+                return;
+            }
             var window = preferred is not null && preferred.OpenedPath is null && !preferred.IsBusy ? preferred : CreateWindow();
             window.BringForward();
             await window.OpenArchiveAsync(path, codePage);
+            if (window.OpenedPath is not null && action != ActivationAction.Open) window.QueueShellAction(action, [path]);
         }
         catch (Exception error) when (error is IOException or ArgumentException or UnauthorizedAccessException)
         { MessageBox.Show(Text["OpenFailed"], "AileArc"); }

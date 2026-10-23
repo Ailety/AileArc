@@ -53,6 +53,7 @@ internal static partial class ClientChecks
                 Require(window.OpenedPath == temp && window.TestGrid.Items.Count == 1, "failed open retains previous session");
                 await CheckOperationsAsync(window, app, temp, testRoot);
                 await CheckP3Async(window, app, testRoot);
+                await CheckShellAsync(window, app, testRoot);
                 var empty = new MainWindow { Opacity = 0, ShowActivated = false, ShowInTaskbar = false };
                 empty.Show(); empty.Close();
                 await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);

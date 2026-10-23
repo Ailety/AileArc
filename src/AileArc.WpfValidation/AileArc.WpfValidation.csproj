@@ -3,7 +3,7 @@
     <OutputType>WinExe</OutputType><UseWPF>true</UseWPF>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <AssemblyName>AileArc.Wpf.Validation</AssemblyName>
-    <ApplicationManifest>../AileArc.UI/app.manifest</ApplicationManifest>
+    <ApplicationManifest>../../packaging/app.manifest</ApplicationManifest>
   </PropertyGroup>
   <ItemGroup><ProjectReference Include="../AileArc.DesktopBridge/AileArc.DesktopBridge.csproj" /></ItemGroup>
 </Project>

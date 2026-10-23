@@ -1,5 +1,5 @@
 #requires -Version 7.0
-param([Parameter(Mandatory=$true)][string]$BundleDirectory)
+param([Parameter(Mandatory=$true)][string]$BundleDirectory, [string]$PreviousBundleDirectory = '')
 $ErrorActionPreference = 'Stop'
 $taskRoot = Split-Path -Parent $PSScriptRoot
 $bundleRoot = [IO.Path]::GetFullPath($BundleDirectory)
@@ -33,7 +33,8 @@ Set-Content -LiteralPath (Join-Path $foreign 'keep.txt') -Value 'keep' -Encoding
 Assert ($LASTEXITCODE -ne 0) 'Nonempty foreign folder should be refused.'
 Assert (Test-Path -LiteralPath (Join-Path $foreign 'keep.txt')) 'Foreign file was removed.'
 try {
-    & $ps5 -NoProfile -NonInteractive -File (Join-Path $bundleRoot 'Install.ps1') -InstallDirectory $installRoot
+    $initialBundle = if ($PreviousBundleDirectory) { [IO.Path]::GetFullPath($PreviousBundleDirectory) } else { $bundleRoot }
+    & $ps5 -NoProfile -NonInteractive -File (Join-Path $initialBundle 'Install.ps1') -InstallDirectory $installRoot
     Assert ($LASTEXITCODE -eq 0) 'Initial installation failed.'
     $first = Read-Receipt (Join-Path $installRoot '.ailearc-install.json')
     $firstVersion = Join-Path $installRoot ('versions/' + $first.Current)
@@ -69,6 +70,17 @@ try {
     $second = Read-Receipt (Join-Path $installRoot '.ailearc-install.json')
     Assert ($second.Current -ne $first.Current -and $second.Versions.Count -eq 2) 'Upgrade did not stage a new version.'
     $secondVersion = Join-Path $installRoot ('versions/' + $second.Current)
+    Assert (Test-Path -LiteralPath (Join-Path $secondVersion 'PresentationFramework.dll')) 'WPF runtime missing after upgrade.'
+    foreach ($legacyFile in @('Microsoft.UI.Xaml.dll','App.xbf','AileArc.pri','Microsoft.Web.WebView2.Core.dll')) {
+        Assert (!(Test-Path -LiteralPath (Join-Path $secondVersion $legacyFile))) "Legacy UI file shipped: $legacyFile"
+    }
+    $secondApp = Join-Path $secondVersion 'AileArc.exe'
+    Assert ((Get-RegistryValue 'Software\Classes\AileArc.Development.Archive\shell\open\command' '') -ceq ('"' + $secondApp + '" --open -- "%1"')) 'Upgrade did not select the WPF executable.'
+    foreach ($language in @('zh-CN','en-US')) {
+        $client = Start-Process -FilePath $secondApp -ArgumentList @('--self-test',$language) -WindowStyle Hidden -PassThru
+        if (!$client.WaitForExit(90000)) { $client.Kill($true); throw "Installed client timed out: $language" }
+        Assert ($client.ExitCode -eq 0) "Installed WPF client failed: $language"
+    }
     $extra = Join-Path $secondVersion 'user-note.txt'
     $modified = Join-Path $secondVersion 'LICENSE'
     Set-Content -LiteralPath $extra -Value 'User-added content' -Encoding utf8
@@ -82,7 +94,7 @@ try {
     Assert ($null -eq (Get-RegistryValue 'Software\Classes\AileArc.Development.Archive\shell\open\command' '')) 'Open With launch command remains.'
     Assert ($null -eq (Get-RegistryValue 'Software\RegisteredApplications' 'AileArc.Development')) 'Registered application remains.'
     Assert ((Snapshot-Defaults) -ceq $defaults) 'Upgrade/uninstall changed user defaults.'
-    Write-Host 'Installer tests passed: paths, integrity, custom directory, Open With, upgrade, uninstall, defaults and file preservation.'
+    Write-Host 'Installer tests passed: paths, integrity, custom directory, WPF/Shell action checks in both languages, Open With, upgrade, uninstall, defaults and file preservation.'
 } finally {
     if (Test-Path -LiteralPath (Join-Path $installRoot '.ailearc-install.json')) {
         $remaining = Read-Receipt (Join-Path $installRoot '.ailearc-install.json')

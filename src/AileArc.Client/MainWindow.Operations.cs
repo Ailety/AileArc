@@ -58,7 +58,7 @@ public partial class MainWindow
     internal void ApproveClose() => allowClose = true;
     internal async Task<bool> PrepareCloseAsync()
     {
-        if (closingCheck || OwnedWindows.Count > 0) return false;
+        if (closingCheck || OwnedWindows.Count > 0 || (ShellActionPending && operation is null)) return false;
         closingCheck = true;
         bool enabled = IsEnabled; IsEnabled = false;
         try
@@ -110,7 +110,8 @@ public partial class MainWindow
         return new ConflictDecision(accepted ? choice.SelectedIndex switch { 1 => ConflictChoice.Skip, 2 => ConflictChoice.Replace, _ => ConflictChoice.Rename } : ConflictChoice.Cancel, all.IsChecked == true);
     }).Task;
 
-    private async void Extract_Click(object sender, RoutedEventArgs e)
+    private async void Extract_Click(object sender, RoutedEventArgs e) => await ShowExtractDialogAsync();
+    internal async Task ShowExtractDialogAsync()
     {
         if (IsBusy || archive is null || OpenedPath is null) return;
         var dialog = new ActionDialog(this, "Extract", "Extract");

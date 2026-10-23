@@ -9,7 +9,8 @@ namespace AileArc.Client;
 public partial class MainWindow
 {
     internal CompressionResult? LastCreated { get; private set; }
-    private async void Create_Click(object sender, RoutedEventArgs e)
+    private async void Create_Click(object sender, RoutedEventArgs e) => await ShowCreateDialogAsync([]);
+    internal async Task ShowCreateDialogAsync(string[] initialSources)
     {
         if (IsBusy || !((ClientApp)Application.Current).CanStart(this)) return;
         var dialog = new ActionDialog(this, "CreateArchive", "Create");
@@ -58,6 +59,7 @@ public partial class MainWindow
         secret.PasswordChanged += (_, _) => Refresh();
         format.SelectionChanged += (_, _) => { if (destination.Text.Length > 0) destination.Text = Path.ChangeExtension(destination.Text, format.SelectedIndex == 0 ? ".zip" : ".7z"); Refresh(); };
         Refresh();
+        Add(initialSources);
         try
         {
             if (dialog.ShowDialog() != true) return;
