@@ -8,7 +8,7 @@ using AileArc.Core.WorkCopies;
 
 namespace AileArc.Client;
 
-internal static class ClientChecks
+internal static partial class ClientChecks
 {
     public static int Run(ClientApp app)
     {
@@ -16,6 +16,7 @@ internal static class ClientChecks
         int result = 1;
         string testRoot = Path.Combine(Path.GetTempPath(), "ailearc-p2-" + Guid.NewGuid().ToString("N"));
         app.WorkCopies = new WorkCopyStore(Path.Combine(testRoot, "copies"));
+        app.HideTestWindows = true;
         var window = new MainWindow { Opacity = 0, ShowActivated = false, ShowInTaskbar = false };
         window.ContentRendered += async (_, _) =>
         {
@@ -51,6 +52,7 @@ internal static class ClientChecks
                 await window.TestOpenAsync(temp + ".missing");
                 Require(window.OpenedPath == temp && window.TestGrid.Items.Count == 1, "failed open retains previous session");
                 await CheckOperationsAsync(window, app, temp, testRoot);
+                await CheckP3Async(window, app, testRoot);
                 var empty = new MainWindow { Opacity = 0, ShowActivated = false, ShowInTaskbar = false };
                 empty.Show(); empty.Close();
                 await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);

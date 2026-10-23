@@ -58,4 +58,17 @@ public sealed class LifecycleTests
         using var replacement = ActivationBroker.TryRegister(key);
         Assert.NotNull(replacement);
     }
+    [Fact]
+    public async Task BrokerValidatesRestoredEncodingAlongsidePaths()
+    {
+        string key = "AileArc-encoding-test-" + Guid.NewGuid().ToString("N");
+        var received = new System.Collections.Concurrent.ConcurrentQueue<ActivationRequest>();
+        using var broker = ActivationBroker.TryRegister(key)!;
+        broker.Listen(request => { received.Enqueue(request); return true; });
+        await ActivationBroker.ForwardAsync(key, new([@"C:\test.zip"], CodePages: [936]));
+        Assert.Equal(936, Assert.Single(received).CodePages![0]);
+        using var stop = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => ActivationBroker.ForwardAsync(key, new([@"C:\test.zip"], CodePages: [123]), stop.Token));
+        Assert.Single(received);
+    }
 }

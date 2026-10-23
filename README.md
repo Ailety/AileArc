@@ -8,7 +8,7 @@ Modern archive management for Windows. **Archive should feel like a folder.**
 
 **2026-10-23：正式界面方案已确定为纯 WPF 自定义界面，保留暖石墨设计与现有 Core/Worker。** 正按[迁移计划](docs/WPF_Client_Migration.md)分批接入；下方已实现功能主要描述旧客户端，不能视为新 WPF 窗口已全部具备。
 
-WPF 客户端已接入真实浏览、密码、编码、排序、双语资源，以及 P2 解压全部/所选/智能解压、默认应用打开、工作副本检测/另存和关闭保护：运行 `./scripts/Build-Client.ps1 -Test -Run`，或附加 `-Archive 'D:/Archives/example.zip'`。它仍是开发预览；创建、恢复清理、完整多窗口身份激活和安装/Shell 入口继续按后续批次迁移。
+WPF 客户端已完成 P1–P3 基础接入：浏览、解压、默认应用打开、工作副本保护，以及 ZIP/7Z 创建、恢复清理、单实例多窗口身份去重与统一语言重启。运行 `./scripts/Build-Client.ps1 -Test -Run`，或附加 `-Archive 'D:/Archives/example.zip'`。它仍是开发预览；默认安装/Shell 入口切换和旧宿主退役留待 P4，M1 尚未全部验收。
 
 ## 已实现
 

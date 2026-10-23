@@ -10,7 +10,7 @@ namespace AileArc.Core.Lifecycle;
 
 public enum ActivationAction { Open, SmartExtract, ExtractTo, Create }
 
-public sealed record ActivationRequest(string[] Paths, bool NewWindow = false, ActivationAction Action = ActivationAction.Open)
+public sealed record ActivationRequest(string[] Paths, bool NewWindow = false, ActivationAction Action = ActivationAction.Open, int[]? CodePages = null)
 {
     public static ActivationRequest Parse(string[] args, string workingDirectory)
     {
@@ -82,6 +82,7 @@ public sealed class ActivationBroker : IDisposable
                     var request = await ArchiveProtocol.ReadAsync<ActivationRequest>(server, timeout.Token);
                     bool valid = Enum.IsDefined(request.Action) && request.Paths is not null && request.Paths.Length <= 32 &&
                         (request.Action == ActivationAction.Open || request.Paths.Length > 0) &&
+                        (request.CodePages is null || (request.Action == ActivationAction.Open && request.CodePages.Length == request.Paths.Length && request.CodePages.All(cp => cp is 0 or 65001 or 936 or 932))) &&
                         request.Paths.All(ValidPath);
                     bool accepted = valid && accept(request);
                     await ArchiveProtocol.WriteAsync(server, new ActivationReply(accepted, Environment.ProcessId), timeout.Token);

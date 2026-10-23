@@ -44,11 +44,11 @@ public partial class MainWindow : Window
         configuring = false; SetControls();
         InitializeOperations();
         Loaded += async (_, _) => { if (initialPath is not null) await OpenAsync(initialPath, this.initialCodePage); };
-        Closed += (_, _) => { closed = true; generation++; operation?.Cancel(); password = null; };
+        Closed += (_, _) => { closed = true; generation++; operation?.Cancel(); password = null; ((ClientApp)Application.Current).Unregister(this); };
     }
     private async Task RunAsync(string status, Func<CancellationToken, Task<Action>> prepare, bool resetStatus = true)
     {
-        if (IsBusy || closingCheck || ((ClientApp)Application.Current).Restarting) return;
+        if (IsBusy || closingCheck || !((ClientApp)Application.Current).CanStart(this)) return;
         operation?.Cancel();
         idleCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
         using var cancellation = new CancellationTokenSource(); operation = cancellation;
@@ -64,7 +64,7 @@ public partial class MainWindow : Window
         catch (OperationCanceledException) { if (!closed && version == generation) StatusText.Text = Text["Cancelled"]; }
         catch (InvalidOperationException) when (cancellation.IsCancellationRequested) { }
         catch (ArchiveOperationException error) { if (!closed && version == generation) StatusText.Text = Text[error.Code]; }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException)
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException or System.ComponentModel.Win32Exception)
         { if (!closed && version == generation) StatusText.Text = Text["OpenFailed"]; }
         finally
         {
@@ -106,6 +106,7 @@ public partial class MainWindow : Window
             return () =>
             {
                 archive = result.presentation; archiveName = Path.GetFileName(fullPath); OpenedPath = fullPath; password = candidatePassword;
+                ((ClientApp)Application.Current).RegisterOpened(this, fullPath, scan.Identity?.FileId);
                 directory = ""; codePage = requestedCodePage;
                 RootButton.Content = archiveName; Title = archiveName + " — AileArc";
                 SearchBox.Clear(); Folders.ItemsSource = result.folders; ApplyPage(result.page);
@@ -142,7 +143,7 @@ public partial class MainWindow : Window
     }
     private void SetControls()
     {
-        bool idle = !IsBusy;
+        bool idle = !IsBusy && ((ClientApp)Application.Current).CanStart(this);
         OpenButton.IsEnabled = idle; LanguageBox.IsEnabled = idle; RestartButton.IsEnabled = idle;
         SearchBox.IsEnabled = idle && archive is not null; SortBox.IsEnabled = DescendingBox.IsEnabled = SearchBox.IsEnabled;
         configuring = true; EncodingBox.SelectedIndex = Array.IndexOf(CodePages, codePage); configuring = false;
@@ -151,6 +152,7 @@ public partial class MainWindow : Window
         UpdateNavigation(); UpdateSelection();
         ExtractButton.IsEnabled = idle && archive is not null;
         CopiesButton.IsEnabled = idle;
+        CreateButton.IsEnabled = RecoveryButton.IsEnabled = idle;
     }
     private void UpdateNavigation()
     {
@@ -190,7 +192,7 @@ public partial class MainWindow : Window
     {
         var dialog = new Microsoft.Win32.OpenFileDialog { Title = Text["Open"], Filter = Text["ClientFilter"], CheckFileExists = true, RestoreDirectory = true };
         if (dialog.ShowDialog(this) != true) return;
-        if (archive is null) await OpenAsync(dialog.FileName); else ((ClientApp)Application.Current).OpenPath(dialog.FileName);
+        await ((ClientApp)Application.Current).OpenPathAsync(dialog.FileName, preferred: this);
     }
     private async void Language_Changed(object sender, SelectionChangedEventArgs e)
     {
@@ -227,4 +229,13 @@ public partial class MainWindow : Window
     internal bool? TestAllState => SelectAllBox.IsChecked;
     internal async Task TestOpenAsync(string path) => await OpenAsync(path);
     internal bool TestHasArchive => archive is not null;
+    internal void RefreshControls() => SetControls();
+    internal Task OpenArchiveAsync(string path, int codePage) => OpenAsync(path, codePage);
+    internal void BringForward()
+    {
+        if (!IsVisible) Show();
+        if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+        Activate();
+        OwnedWindows.OfType<Window>().LastOrDefault()?.Activate();
+    }
 }

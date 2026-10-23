@@ -23,7 +23,9 @@
             </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
             <Border Height="1" Background="{StaticResource LineBrush}" Margin="0,20" />
             <Button x:Name="ExtractButton" Content="{local:Text Extract}" Click="Extract_Click" Style="{StaticResource Primary}" Margin="0,0,0,8" />
+            <Button x:Name="CreateButton" Content="{local:Text CreateArchive}" Click="Create_Click" Margin="0,0,0,8" />
             <Button x:Name="CopiesButton" Content="{local:Text WorkCopies}" Click="Copies_Click" Margin="0,0,0,16" />
+            <Button x:Name="RecoveryButton" Content="{local:Text Recovery}" Click="Recovery_Click" Margin="0,0,0,8" />
             <TextBlock x:Name="CopyNotice" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,8" />
             <TextBlock Text="{local:Text Language}" Style="{StaticResource Muted}" Margin="0,0,0,8" />
             <ComboBox x:Name="LanguageBox" SelectionChanged="Language_Changed" AutomationProperties.Name="{local:Text Language}" />

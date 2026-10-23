@@ -203,4 +203,6 @@ Ctrl + A: select this page</value></data>
   <data name="ClientResult"><value>Extraction results</value></data>
   <data name="ClientCopiesAttention"><value>Working copies have changes or cannot be read. Check Working copies; the archive is unchanged.</value></data>
   <data name="ClientAllFilesFilter"><value>All files|*.*</value></data>
+  <data name="ClientActivationFailed"><value>The running AileArc cannot accept this request or is restarting. Please retry shortly.</value></data>
+  <data name="ClientChooseOutput"><value>Choose output location…</value></data>
 </root>

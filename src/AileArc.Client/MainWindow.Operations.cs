@@ -202,22 +202,35 @@ public partial class MainWindow
         var selector = dialog.Choices(Text["WorkCopies"], records.Select(r => $"{r.CreatedUtc.ToLocalTime():g} · {r.EntryPath}").ToArray());
         var description = new TextBox { IsReadOnly = true, TextWrapping = TextWrapping.Wrap, Height = 120 }; dialog.Body.Children.Add(description);
         var folder = new Button { Content = Text["OpenCopyFolder"] }; dialog.Body.Children.Add(folder);
+        WorkCopyRecord? cleanup = null;
+        var clean = new Button { Content = Text["CleanUnchangedCopy"], IsEnabled = false }; dialog.Body.Children.Add(clean);
+        clean.Click += (_, _) => { cleanup = records[selector.SelectedIndex]; dialog.Close(); };
         folder.Click += (_, _) => LaunchFolder(Path.GetDirectoryName(Copies.FilePath(records[selector.SelectedIndex]))!);
         async Task Inspect()
         {
-            int selected = selector.SelectedIndex; dialog.Accept.IsEnabled = false;
+            int selected = selector.SelectedIndex; dialog.Accept.IsEnabled = clean.IsEnabled = false;
             try
             {
                 var state = await Task.Run(() => Copies.InspectAsync(records[selected]));
                 if (selector.SelectedIndex != selected) return;
                 description.Text = Text["CopyState" + state.State] + Environment.NewLine + state.FilePath;
                 dialog.Accept.IsEnabled = state.State is WorkCopyState.Unchanged or WorkCopyState.Modified;
+                clean.IsEnabled = state.State == WorkCopyState.Unchanged && !((ClientApp)Application.Current).AnyTaskRunning;
             }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArchiveOperationException) { description.Text = Text["CopyUnavailable"]; }
         }
         selector.SelectionChanged += async (_, _) => await Inspect();
         dialog.Loaded += async (_, _) => await Inspect();
-        if (dialog.ShowDialog() != true) return;
+        bool export = dialog.ShowDialog() == true;
+        if (cleanup is not null)
+        {
+            var confirm = new ActionDialog(this, "CleanUnchangedCopy", "Clean"); confirm.Explain(Text["CleanupCopyHint"]);
+            var editorsClosed = new CheckBox { Content = Text["EditorsClosed"] }; confirm.Body.Children.Add(editorsClosed);
+            confirm.Accept.IsEnabled = false; editorsClosed.Click += (_, _) => confirm.Accept.IsEnabled = editorsClosed.IsChecked == true;
+            if (confirm.ShowDialog() == true) await CleanupCopyAsync(cleanup);
+            return;
+        }
+        if (!export) return;
         var record = records[selector.SelectedIndex];
         var picker = new Microsoft.Win32.SaveFileDialog { FileName = Path.GetFileName(record.EntryPath), Filter = Text["ClientAllFilesFilter"], OverwritePrompt = true };
         if (picker.ShowDialog(this) == true) await ExportCopyAsync(record, picker.FileName);

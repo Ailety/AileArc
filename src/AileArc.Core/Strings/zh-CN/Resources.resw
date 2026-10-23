@@ -203,4 +203,6 @@ Ctrl + A：全选当前页</value></data>
   <data name="ClientResult"><value>解压结果</value></data>
   <data name="ClientCopiesAttention"><value>工作副本有修改或暂时无法读取，请打开“工作副本”检查；原压缩包未修改。</value></data>
   <data name="ClientAllFilesFilter"><value>所有文件|*.*</value></data>
+  <data name="ClientActivationFailed"><value>已有 AileArc 暂时无法接收打开请求，或正在重启。请稍后重试。</value></data>
+  <data name="ClientChooseOutput"><value>选择输出位置…</value></data>
 </root>
