@@ -74,7 +74,7 @@ public sealed class ExtractionCallback(Action<ScanMessage> emit, string? passwor
             {
                 if (owner.written + size > owner.limit || owner.current is null)
                 {
-                    owner.ErrorCode = "ResourceLimit";
+                    owner.ErrorCode = owner.current is null ? "ProtocolMismatch" : "ExtractionByteLimit";
                     return unchecked((int)0x80004004);
                 }
                 uint offset = 0;

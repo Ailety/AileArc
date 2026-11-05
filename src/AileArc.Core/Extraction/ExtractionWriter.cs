@@ -70,7 +70,7 @@ internal sealed class ExtractionWriter : IAsyncDisposable
         }
         if (entries.Count == 0) return;
         var total = entries.Values.Aggregate(0UL, (sum, e) => checked(sum + (e.Size ?? 0)));
-        if (total > options.ByteLimit) throw new ArchiveOperationException("ResourceLimit");
+        if (total > options.ByteLimit) throw new ArchiveOperationException("ExtractionByteLimit");
         token.ThrowIfCancellationRequested();
         destinationGuard = DirectoryGuard.Acquire(Destination, create: true);
         try
@@ -155,7 +155,8 @@ internal sealed class ExtractionWriter : IAsyncDisposable
         if (active?.Id != id || bytes.Length > 32 * 1024 || active.IsDirectory) throw new ArchiveOperationException("ProtocolMismatch");
         Bytes = checked(Bytes + (uint)bytes.Length);
         currentBytes += (uint)bytes.Length;
-        if (Bytes > options.ByteLimit || (active.Size is { } size && currentBytes > size)) throw new ArchiveOperationException("ResourceLimit");
+        if (Bytes > options.ByteLimit) throw new ArchiveOperationException("ExtractionByteLimit");
+        if (active.Size is { } size && currentBytes > size) throw new ArchiveOperationException("IntegrityFailed");
         if (stream is not null) await stream.WriteAsync(bytes, token);
     }
 

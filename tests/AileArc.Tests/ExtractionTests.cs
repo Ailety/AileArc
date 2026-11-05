@@ -125,7 +125,7 @@ public sealed partial class WorkerTests
     {
         string destination = Path.Combine(temp, "output");
         var error = await Assert.ThrowsAsync<ArchiveOperationException>(() => client.ExtractAsync(MakeZip("a.txt"), new(destination, ByteLimit: 1)));
-        Assert.Equal("ResourceLimit", error.Code);
+        Assert.Equal("ExtractionByteLimit", error.Code);
         Assert.False(Directory.Exists(destination));
     }
 

@@ -55,6 +55,37 @@ public sealed partial class WorkerTests
     }
 
     [Fact]
+    public async Task CreateCollapsesOverlappingSourcesButIncludesDistinctSiblingPrefixes()
+    {
+        string parent = Directory.CreateDirectory(Path.Combine(temp, "Project")).FullName;
+        string child = Path.Combine(parent, "子项.txt");
+        string sibling = Path.Combine(temp, "Project2.txt");
+        await File.WriteAllTextAsync(child, "first");
+        await File.WriteAllTextAsync(sibling, "second");
+        string zip = Path.Combine(temp, "overlap.zip");
+        await client.CreateAsync(new([child, sibling, parent, child.ToUpperInvariant()], zip));
+        var scan = await client.ScanAsync(zip);
+        Assert.Equal(new[] { "Project/子项.txt", "Project2.txt" }, scan.Entries.Where(e => !e.IsDirectory)
+            .Select(e => e.Path.Replace('\\', '/')).Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public async Task CreationDistinguishesSourceCountAndByteBudgetsBeforeWriting()
+    {
+        string output = Path.Combine(temp, "existing.zip");
+        await File.WriteAllTextAsync(output, "keep");
+        var many = Enumerable.Range(0, 10_001).Select(i => Path.Combine(temp, $"source-{i}")).ToArray();
+        var count = await Assert.ThrowsAsync<ArchiveOperationException>(() => client.CreateAsync(new(many, output, Overwrite: true)));
+        Assert.Equal("CompressionManifestLimit", count.Code);
+        string one = Path.Combine(temp, "one.txt");
+        await File.WriteAllTextAsync(one, "sample");
+        var bytes = await Assert.ThrowsAsync<ArchiveOperationException>(() => client.CreateAsync(new([one], output, Overwrite: true, ByteLimit: 1)));
+        Assert.Equal("CompressionByteLimit", bytes.Code);
+        Assert.Equal("keep", await File.ReadAllTextAsync(output));
+        Assert.Empty(Directory.GetFiles(temp, "*.partial"));
+    }
+
+    [Fact]
     public async Task CreateRefusesExistingDestinationUnlessExplicitlyRequested()
     {
         string source = Path.Combine(temp, "a.txt");

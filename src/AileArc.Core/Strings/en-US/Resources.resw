@@ -36,7 +36,10 @@
   <data name="WorkerUnavailable"><value>The reader component is missing. Rebuild or check the application files.</value></data>
   <data name="EngineUnavailable"><value>The archive engine is unavailable. Check the application files.</value></data>
   <data name="ProtocolMismatch"><value>The reader component is incompatible. Rebuild the complete solution.</value></data>
-  <data name="TimedOut"><value>Reading timed out and the background process was stopped. You can retry.</value></data>
+  <data name="TimedOut"><value>The background task stopped responding and was closed. Retry or open another archive.</value></data>
+  <data name="ExtractionByteLimit"><value>The unpacked selection exceeds the size limit for this operation. Extract fewer items at a time.</value></data>
+  <data name="CompressionByteLimit"><value>The selected sources exceed the size limit for this operation. Select fewer files or create separate archives.</value></data>
+  <data name="CompressionManifestLimit"><value>The source list exceeds 10,000 items or its paths are too long in total. Select fewer sources or create separate archives.</value></data>
   <data name="OpenFailed"><value>This operation could not be completed. Please try again.</value></data>
   <data name="FileDetails"><value>Size: {0} · Path: {1}</value></data>
   <data name="UnknownSize"><value>Unknown</value></data>

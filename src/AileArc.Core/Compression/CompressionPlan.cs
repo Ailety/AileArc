@@ -27,10 +27,31 @@ internal sealed class CompressionPlan : IDisposable
         var plan = new CompressionPlan();
         try
         {
-            var sources = options.Sources.Select(p => Path.TrimEndingDirectorySeparator(Path.GetFullPath(p))).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-            sources = sources.Where(p => !sources.Any(other => other != p && p.StartsWith(other + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))).ToArray();
+            var selected = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var sources = new List<string>();
+            foreach (string path in options.Sources)
+            {
+                token.ThrowIfCancellationRequested();
+                string full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
+                if (selected.Add(full)) sources.Add(full);
+            }
+            sources.RemoveAll(source =>
+            {
+                token.ThrowIfCancellationRequested();
+                string? parent = Path.GetDirectoryName(source);
+                while (parent is not null && !selected.Contains(parent)) parent = Path.GetDirectoryName(parent);
+                return parent is not null;
+            });
+            if (sources.Count > 10_000) throw new ArchiveOperationException("CompressionManifestLimit");
             var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            int discovered = 0;
             long characters = 0;
+            void Reserve(string sourcePath, string entryPath)
+            {
+                characters += sourcePath.Length + entryPath.Length;
+                if (++discovered > 10_000 || characters > 4 * 1024 * 1024)
+                    throw new ArchiveOperationException("CompressionManifestLimit");
+            }
             foreach (string source in sources)
             {
                 token.ThrowIfCancellationRequested();
@@ -39,6 +60,7 @@ internal sealed class CompressionPlan : IDisposable
                 string rootName = ArchivePathPolicy.Validate(Path.GetFileName(source));
                 if (!names.Add(rootName)) throw new ArchiveOperationException("CompressionNameConflict");
                 var pending = new Stack<(string Source, string Entry)>();
+                Reserve(source, rootName);
                 pending.Push((source, rootName));
                 while (pending.TryPop(out var candidate))
                 {
@@ -50,13 +72,19 @@ internal sealed class CompressionPlan : IDisposable
                     plan.Pin(directory ? candidate.Source : Path.GetDirectoryName(candidate.Source)!);
                     long size = directory ? 0 : new FileInfo(candidate.Source).Length;
                     plan.Total = checked(plan.Total + (ulong)size);
-                    characters += candidate.Source.Length + entryName.Length;
-                    if (plan.Items.Count >= 10000 || plan.Total > options.ByteLimit || characters > 4 * 1024 * 1024)
-                        throw new ArchiveOperationException("ResourceLimit");
+                    if (plan.Total > options.ByteLimit) throw new ArchiveOperationException("CompressionByteLimit");
                     plan.Items.Add(new(candidate.Source, entryName, directory, size, File.GetLastWriteTimeUtc(candidate.Source).ToFileTimeUtc()));
-                    if (directory)
-                        foreach (string child in Directory.EnumerateFileSystemEntries(candidate.Source).Order(StringComparer.Ordinal))
-                            pending.Push((child, Path.Combine(entryName, Path.GetFileName(child))));
+                    if (!directory) continue;
+                    var children = new List<(string Source, string Entry)>();
+                    foreach (string child in Directory.EnumerateFileSystemEntries(candidate.Source))
+                    {
+                        token.ThrowIfCancellationRequested();
+                        string childName = Path.Combine(entryName, Path.GetFileName(child));
+                        Reserve(child, childName);
+                        children.Add((child, childName));
+                    }
+                    children.Sort((a, b) => StringComparer.Ordinal.Compare(a.Source, b.Source));
+                    foreach (var child in children) pending.Push(child);
                 }
             }
             return plan;
