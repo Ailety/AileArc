@@ -120,7 +120,13 @@ public partial class MainWindow
                 StatusText.Text = p.Phase == "verifying" ? Text["VerifyingArchive"] : Text.Format("CompressionProgress", p.Completed / 1048576.0, p.Total / 1048576.0);
             });
             var result = await Task.Run(() => worker.CreateAsync(options, report, token), token);
-            return () => { LastCreated = result; StatusText.Text = Text.Format("ArchiveCreated", result.Entries, result.Destination); };
+            // A successful return means the file was already published, even if
+            // a cancellation arrived while the UI continuation was queued.
+            if (!closed && version == generation)
+            {
+                LastCreated = result; StatusText.Text = Text.Format("ArchiveCreated", result.Entries, result.Destination);
+            }
+            return () => { };
         }, false);
     }
 

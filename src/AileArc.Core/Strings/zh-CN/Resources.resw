@@ -3,6 +3,8 @@
   <data name="AppSubtitle"><value>压缩包浏览器 · 开发预览</value></data>
   <data name="Open"><value>打开压缩包</value></data>
   <data name="Cancel"><value>取消</value></data>
+  <data name="ClientCancelling"><value>正在取消…</value></data>
+  <data name="ClientCancelShortcut"><value>取消当前任务（Esc）</value></data>
   <data name="Back"><value>后退</value></data>
   <data name="Up"><value>上一级</value></data>
   <data name="Root"><value>根目录</value></data>

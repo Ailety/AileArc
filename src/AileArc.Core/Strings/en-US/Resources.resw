@@ -3,6 +3,8 @@
   <data name="AppSubtitle"><value>Archive browser · Development preview</value></data>
   <data name="Open"><value>Open archive</value></data>
   <data name="Cancel"><value>Cancel</value></data>
+  <data name="ClientCancelling"><value>Cancelling…</value></data>
+  <data name="ClientCancelShortcut"><value>Cancel current task (Esc)</value></data>
   <data name="Back"><value>Back</value></data>
   <data name="Up"><value>Up one level</value></data>
   <data name="Root"><value>Root</value></data>

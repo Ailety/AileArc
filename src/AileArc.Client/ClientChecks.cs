@@ -1,5 +1,7 @@
 using System.IO;
 using System.IO.Compression;
+using System.Windows;
+using System.Windows.Input;
 using System.Windows.Threading;
 using AileArc.Core;
 using AileArc.DesktopBridge;
@@ -129,6 +131,28 @@ internal static partial class ClientChecks
         Require(await window.PrepareCloseAsync() && !window.IsBusy, "cancel-and-close awaits worker cleanup");
         await running;
         Require(window.LastExtraction is { Cancelled: true }, "active cancellation result retained");
+        var waiting = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var finish = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        window.ConflictOverride = async (_, token) =>
+        {
+            waiting.TrySetResult();
+            await finish.Task;
+            token.ThrowIfCancellationRequested();
+            return new(ConflictChoice.Skip);
+        };
+        var escapeTask = window.ExtractToAsync(extracted, false, false);
+        await waiting.Task.WaitAsync(TimeSpan.FromSeconds(15));
+        try
+        {
+            var key = new KeyEventArgs(Keyboard.PrimaryDevice, PresentationSource.FromVisual(window)!, 0, Key.Escape)
+                { RoutedEvent = Keyboard.PreviewKeyDownEvent };
+            window.RaiseEvent(key);
+            Require(key.Handled && window.IsBusy && !window.CancelButton.IsEnabled && window.StatusText.Text == ClientApp.Text["ClientCancelling"],
+                "Escape acknowledges cancellation once while cleanup is pending");
+        }
+        finally { finish.TrySetResult(); }
+        await escapeTask;
+        Require(window.LastExtraction is { Cancelled: true } && !window.IsBusy, "Escape returns to an idle window");
         window.ConflictOverride = null;
         await window.ExtractToAsync(Path.Combine(root, "smart"), true, false);
         Require(File.Exists(Path.Combine(root, "smart", "文档", "说明.txt")), "smart extraction preserves sole root folder");

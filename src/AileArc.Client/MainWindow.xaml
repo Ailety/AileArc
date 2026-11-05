@@ -187,7 +187,7 @@
       </Border>
     </Grid>
     <Border Grid.Row="1" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0" Background="{StaticResource SurfaceBrush}"><DockPanel Margin="16,0">
-      <Button x:Name="CancelButton" DockPanel.Dock="Right" Content="{local:Text Cancel}" Click="Cancel_Click" Visibility="Collapsed" Padding="8,0" MinHeight="24" />
+      <Button x:Name="CancelButton" DockPanel.Dock="Right" Content="{local:Text Cancel}" Click="Cancel_Click" ToolTip="{local:Text ClientCancelShortcut}" AutomationProperties.AcceleratorKey="Esc" Visibility="Collapsed" Padding="8,0" MinHeight="24" />
       <Button x:Name="ResultButton" DockPanel.Dock="Right" Content="{local:Text ClientResult}" Click="Result_Click" Visibility="Collapsed" Padding="8,0" MinHeight="24" />
       <Button x:Name="CreatedFolderButton" DockPanel.Dock="Right" Content="{local:Text ClientCreatedFolder}" Click="ShowCreatedFolder_Click" Visibility="Collapsed" Padding="8,0" MinHeight="24" />
       <CheckBox x:Name="CompactList" DockPanel.Dock="Right" Content="{local:Text ClientCompact}" Click="Density_Click" VerticalAlignment="Center" Margin="8,0"/>

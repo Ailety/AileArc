@@ -75,6 +75,8 @@ public partial class MainWindow
         : Task.CompletedTask;
     private async void NavigationKey(object sender, KeyEventArgs e)
     {
+        if (e.Key == Key.Escape && Keyboard.Modifiers == ModifierKeys.None && IsBusy && !composing && OwnedWindows.Count == 0)
+        { e.Handled = true; RequestCancel(); return; }
         if (e.Key == Key.F5 && Keyboard.Modifiers == ModifierKeys.None && !composing && archive is not null && !IsBusy)
         { e.Handled = true; await RefreshArchiveAsync(); return; }
         if (Keyboard.Modifiers != ModifierKeys.Alt || archive is null || IsBusy) return;

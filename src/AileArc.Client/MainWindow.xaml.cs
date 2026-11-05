@@ -61,11 +61,16 @@ public partial class MainWindow : Window
         idleCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
         using var cancellation = new CancellationTokenSource(); operation = cancellation;
         int version = ++generation;
-        StatusText.Text = status; CancelButton.Visibility = Visibility.Visible; SetControls();
+        StatusText.Text = status; CancelButton.IsEnabled = true; CancelButton.Visibility = Visibility.Visible; SetControls();
         try
         {
             Action commit = await prepare(cancellation.Token);
-            if (closed || version != generation || cancellation.IsCancellationRequested) return;
+            if (closed || version != generation) return;
+            if (cancellation.IsCancellationRequested)
+            {
+                if (StatusText.Text == Text["ClientCancelling"]) StatusText.Text = Text["Cancelled"];
+                return;
+            }
             commit();
             if (resetStatus) StatusText.Text = archive is null ? Text["ClientIdle"] : Text.Format("ClientStatus", archive.Scan.Format, archive.Index.Entries.Count);
         }
@@ -369,7 +374,14 @@ public partial class MainWindow : Window
     private async void Next_Click(object sender, RoutedEventArgs e) => await QueryAsync(directory, offset + displayed.Length);
     private async void Back_Click(object sender, RoutedEventArgs e) => await QueryAsync(directory, 0, back: true);
     private void Scope_Click(object sender, RoutedEventArgs e) => ScheduleSearch(immediate: true);
-    private void Cancel_Click(object sender, RoutedEventArgs e) => operation?.Cancel();
+    private void Cancel_Click(object sender, RoutedEventArgs e) => RequestCancel();
+    private void RequestCancel()
+    {
+        if (operation is not { IsCancellationRequested: false } active) return;
+        CancelButton.IsEnabled = false;
+        StatusText.Text = Text["ClientCancelling"];
+        active.Cancel();
+    }
     private static T? FindAncestor<T>(DependencyObject? element) where T : DependencyObject
     { while (element is not null) { if (element is T result) return result; element = element is Visual ? VisualTreeHelper.GetParent(element) : LogicalTreeHelper.GetParent(element); } return null; }
     internal DataGrid TestGrid => EntryGrid;
