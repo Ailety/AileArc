@@ -41,20 +41,20 @@ internal sealed class ExtractionWriter : IAsyncDisposable
     public uint[] EntryIds => entries.Keys.Order().Select(id => checked((uint)id)).ToArray();
     public bool IsComplete => active is null && processed.Count == entries.Count;
 
-    public ExtractionWriter(string archivePath, IReadOnlyList<ArchiveEntry> source, ExtractionOptions options,
-        Func<string, CancellationToken, Task<ConflictDecision>>? conflict)
+    public ExtractionWriter(string archivePath, IReadOnlyList<ArchiveEntry> selectedEntries, ExtractionOptions options,
+        Func<string, CancellationToken, Task<ConflictDecision>>? conflict, CancellationToken token)
     {
         this.options = options;
         this.conflict = conflict;
         zoneIdentifier = ReadZone(archivePath);
         policy = options.ConflictPolicy;
-        entries = source.Where(e => options.SelectedIds is null || options.SelectedIds.Contains(e.Id)).ToDictionary(e => e.Id);
+        entries = selectedEntries.ToDictionary(e => e.Id);
         Destination = Path.GetFullPath(options.Destination);
-        if (options.SelectedIds?.Length > 100000) throw new ArchiveOperationException("ResourceLimit");
         // Validate the entire selection before creating any output.
         var directoryNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var entry in entries.Values)
         {
+            token.ThrowIfCancellationRequested();
             string relative = ArchivePathPolicy.Validate(entry.Path);
             if (entry.IsLink) throw new ArchiveOperationException("LinksNotSupported");
             for (string? directory = entry.IsDirectory ? relative : Path.GetDirectoryName(relative);
@@ -68,6 +68,7 @@ internal sealed class ExtractionWriter : IAsyncDisposable
         if (entries.Count == 0) return;
         var total = entries.Values.Aggregate(0UL, (sum, e) => checked(sum + (e.Size ?? 0)));
         if (total > options.ByteLimit) throw new ArchiveOperationException("ResourceLimit");
+        token.ThrowIfCancellationRequested();
         destinationGuard = DirectoryGuard.Acquire(Destination, create: true);
         try
         {

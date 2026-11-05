@@ -9,6 +9,33 @@ namespace AileArc.Tests;
 public sealed partial class WorkerTests
 {
     [Fact]
+    public async Task SelectedExtractionRejectsStaleIdsAndWritesOnlyDistinctRequestedEntries()
+    {
+        string archive = MakeZip("a.txt", "b.txt", "c.txt");
+        var scan = await client.ScanAsync(archive);
+        string output = Path.Combine(temp, "selected");
+        var selected = new ExtractionOptions(output, Smart: false, ExpectedIdentity: scan.Identity,
+            SelectedIds: [scan.Entries[1].Id, scan.Entries[1].Id, long.MaxValue]);
+        var error = await Assert.ThrowsAsync<ArchiveOperationException>(() => client.ExtractAsync(archive, selected));
+        Assert.Equal("ArchiveChanged", error.Code);
+        Assert.False(Directory.Exists(output));
+        var result = await client.ExtractAsync(archive, selected with { SelectedIds = [scan.Entries[1].Id, scan.Entries[1].Id] });
+        Assert.Empty(result.Failures);
+        Assert.Equal("b.txt", Path.GetFileName(Assert.Single(Directory.GetFiles(output))));
+    }
+
+    [Fact]
+    public void FolderSelectionMatchesWholeCaseSensitiveAncestorsAndCanBeCancelled()
+    {
+        var names = new[] { "D/x", "D\\nested\\y", "D/nested/y", "D2/z", "d/u", "D/", "D", "d/u" };
+        var entries = names.Select((name, id) => new AileArc.Shared.ArchiveEntry(id, name, id == 5, 0, false)).ToArray();
+        var index = new ArchiveIndex(entries);
+        var selected = index.Entries.Where(r => (r.IsDirectory && r.Path is "D" or "D/nested") || r.Id == 7);
+        Assert.Equal(new long[] { 0, 1, 2, 5, 7 }, ArchiveSelection.Expand(selected, entries));
+        Assert.Throws<OperationCanceledException>(() => ArchiveSelection.Expand(selected, entries, new CancellationToken(true)));
+    }
+
+    [Fact]
     public async Task ExtractsVerifiedContentAndPreservesStructure()
     {
         string archive = MakeZip("中文/说明.txt", "README.md");

@@ -5,16 +5,33 @@ namespace AileArc.Core;
 public static class ArchiveSelection
 {
     /// <summary>Directory selections include descendants; file selections use IDs, never ambiguous paths.</summary>
-    public static long[] Expand(IEnumerable<BrowserEntry> selected, IReadOnlyList<ArchiveEntry> entries)
+    public static long[] Expand(IEnumerable<BrowserEntry> selected, IReadOnlyList<ArchiveEntry> entries, CancellationToken token = default)
     {
-        var selection = selected.ToArray();
-        var files = selection.Where(e => !e.IsDirectory).Select(e => e.Id).ToHashSet();
-        string[] directories = selection.Where(e => e.IsDirectory).Select(e => e.Path.TrimEnd('/')).Distinct(StringComparer.Ordinal).ToArray();
-        return entries.Where(entry =>
+        token.ThrowIfCancellationRequested();
+        var files = new HashSet<long>();
+        var directories = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var row in selected)
         {
-            if (files.Contains(entry.Id)) return true;
-            string path = entry.Path.Replace('\\', '/').TrimEnd('/');
-            return directories.Any(directory => (entry.IsDirectory && path == directory) || path.StartsWith(directory + "/", StringComparison.Ordinal));
-        }).Select(e => e.Id).Distinct().Order().ToArray();
+            token.ThrowIfCancellationRequested();
+            if (row.IsDirectory) directories.Add(row.Path.TrimEnd('/'));
+            else files.Add(row.Id);
+        }
+        var matches = new HashSet<long>();
+        var folders = directories.GetAlternateLookup<ReadOnlySpan<char>>();
+        foreach (var entry in entries)
+        {
+            token.ThrowIfCancellationRequested();
+            if (files.Contains(entry.Id)) { matches.Add(entry.Id); continue; }
+            if (directories.Count == 0) continue;
+            var path = entry.Path.Replace('\\', '/').AsSpan().TrimEnd('/');
+            if (entry.IsDirectory && folders.Contains(path)) { matches.Add(entry.Id); continue; }
+            for (int i = 0; i < path.Length; i++)
+            {
+                if (path[i] != '/' || !folders.Contains(path[..i])) continue;
+                matches.Add(entry.Id);
+                break;
+            }
+        }
+        return matches.Order().ToArray();
     }
 }

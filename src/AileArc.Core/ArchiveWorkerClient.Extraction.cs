@@ -12,6 +12,8 @@ public sealed partial class ArchiveWorkerClient
         IProgress<ExtractionProgress>? progress = null, CancellationToken cancellationToken = default, string? password = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (options.SelectedIds?.Length > 100_000) throw new ArchiveOperationException("ResourceLimit");
+        var selectedIds = options.SelectedIds?.ToHashSet();
         var start = new ProcessStartInfo(Path.GetFullPath(workerPath))
         {
             UseShellExecute = false, CreateNoWindow = true,
@@ -53,18 +55,18 @@ public sealed partial class ArchiveWorkerClient
                             if (entry.Path is null || entry.Id < 0 || entry.Id > uint.MaxValue || !ids.Add(entry.Id))
                                 throw new ArchiveOperationException("ProtocolMismatch");
                             characters += entry.Path.Length;
-                            if (metadata.Count >= ArchiveProtocol.MaxEntries || characters > ArchiveProtocol.MaxMetadataCharacters)
+                            if (ids.Count > ArchiveProtocol.MaxEntries || characters > ArchiveProtocol.MaxMetadataCharacters)
                                 throw new ArchiveOperationException("ResourceLimit");
-                            metadata.Add(entry);
+                            if (selectedIds is null || selectedIds.Contains(entry.Id)) metadata.Add(entry);
                         }
                         break;
                     case "ready" when opened && writer is null:
-                        if (password is null && metadata.Any(e => e.Encrypted && (options.SelectedIds is null || options.SelectedIds.Contains(e.Id))))
-                            throw new ArchiveOperationException("PasswordRequired");
                         // Selection IDs only make sense for this fresh metadata snapshot.
-                        if (options.SelectedIds is not null && options.SelectedIds.Any(id => !ids.Contains(id)))
+                        if (selectedIds is not null && metadata.Count != selectedIds.Count)
                             throw new ArchiveOperationException("ArchiveChanged");
-                        writer = new ExtractionWriter(path, metadata, options, conflict);
+                        if (password is null && metadata.Any(e => e.Encrypted))
+                            throw new ArchiveOperationException("PasswordRequired");
+                        writer = new ExtractionWriter(path, metadata, options, conflict, cancellationToken);
                         await ArchiveProtocol.WriteAsync(process.StandardInput.BaseStream,
                             new ExtractionCommand(options.SelectedIds is null ? null : writer.EntryIds), cancellationToken);
                         process.StandardInput.Close();
