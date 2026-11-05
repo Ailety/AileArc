@@ -10,6 +10,7 @@ internal sealed class DirectoryGuard : IDisposable
 {
     private readonly List<SafeFileHandle> handles = [];
     public string FileIdentity { get; private set; } = "";
+    internal AileArc.Shared.ArchiveIdentity Snapshot() => AileArc.Shared.ArchiveFileIdentity.Read(handles[^1]);
     public static DirectoryGuard Acquire(string path, bool create)
     {
         var guard = new DirectoryGuard();

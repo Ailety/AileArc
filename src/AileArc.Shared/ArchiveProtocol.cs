@@ -8,7 +8,7 @@ public sealed record ArchiveEntry(long Id, string Path, bool IsDirectory, ulong?
 public sealed record ArchiveIdentity(string FileId, long Length, long LastWriteTime, long? ChangeTime = null);
 public sealed record ScanRequest(int Version, string Path, string Operation = "scan", string? Password = null, ulong ByteLimit = 4UL * 1024 * 1024 * 1024, int NameCodePage = 0,
     string? CompressionFormat = null, string? CompressionPreset = null, int CompressionCount = 0, bool EncryptNames = false,
-    ArchiveIdentity? ExpectedIdentity = null);
+    ArchiveIdentity? ExpectedIdentity = null, long? OutputHandle = null);
 public sealed record ExtractionCommand(uint[]? EntryIds = null);
 public sealed record CheckedEntry(long Id, int Result, ulong Bytes);
 public sealed record ScanMessage(string Kind, string? Format = null, ArchiveEntry[]? Entries = null, string? ErrorCode = null,
@@ -18,7 +18,7 @@ public sealed record ScanMessage(string Kind, string? Format = null, ArchiveEntr
 /// <summary>Length-prefixed JSON over the child process's private redirected pipes.</summary>
 public static class ArchiveProtocol
 {
-    public const int Version = 8;
+    public const int Version = 9;
     public const int MaxFrameBytes = 1024 * 1024;
     public const int MaxEntries = 250_000;
     public const long MaxMetadataCharacters = 32 * 1024 * 1024;

@@ -100,6 +100,173 @@ public sealed partial class WorkerTests
     }
 
     [Fact]
+    public async Task SameLengthReplacementSourceWithRestoredTimeCannotSupplyArchiveBytes()
+    {
+        string source = Path.Combine(temp, "source.txt"), destination = Path.Combine(temp, "keep.zip");
+        await File.WriteAllTextAsync(source, "aaaa"); await File.WriteAllTextAsync(destination, "keep");
+        var writeTime = File.GetLastWriteTimeUtc(source);
+        bool changed = false;
+        var error = await Assert.ThrowsAsync<ArchiveOperationException>(() => client.CreateAsync(new([source], destination, Overwrite: true),
+            new InlineProgress<CompressionProgress>(_ =>
+            {
+                if (changed) return;
+                string other = Path.Combine(temp, "other");
+                File.WriteAllText(other, "bbbb"); File.SetLastWriteTimeUtc(other, writeTime);
+                File.Move(other, source, true); changed = true;
+            })));
+        Assert.True(changed); Assert.Equal("SourceChanged", error.Code);
+        Assert.Equal(source, error.AffectedPath);
+        Assert.Equal("keep", await File.ReadAllTextAsync(destination));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task TargetAppearingOrChangingDuringVerificationIsPreserved(bool originallyExisted)
+    {
+        string source = Path.Combine(temp, "source.txt"), destination = Path.Combine(temp, "output.zip");
+        await File.WriteAllTextAsync(source, "archive this");
+        if (originallyExisted) await File.WriteAllTextAsync(destination, "original");
+        bool changed = false;
+        var error = await Assert.ThrowsAsync<ArchiveOperationException>(() => client.CreateAsync(new([source], destination, Overwrite: true),
+            new InlineProgress<CompressionProgress>(p =>
+            {
+                if (changed || p.Phase != "verifying") return;
+                string other = Path.Combine(temp, "other");
+                File.WriteAllText(other, "external"); File.Move(other, destination, true); changed = true;
+            })));
+        Assert.True(changed); Assert.Equal("CompressionTargetChanged", error.Code);
+        Assert.Equal("external", await File.ReadAllTextAsync(destination));
+        Assert.Empty(Directory.GetFiles(temp, "*.partial"));
+    }
+
+    [Fact]
+    public async Task ChangeDuringVerificationStopsPublicationEvenAfterWorkerReadTheSources()
+    {
+        string source = Path.Combine(temp, "empty.txt"), destination = Path.Combine(temp, "keep.zip");
+        await File.WriteAllTextAsync(source, ""); await File.WriteAllTextAsync(destination, "keep");
+        bool changed = false;
+        var error = await Assert.ThrowsAsync<ArchiveOperationException>(() => client.CreateAsync(new([source], destination, Overwrite: true),
+            new InlineProgress<CompressionProgress>(p =>
+            {
+                if (changed || p.Phase != "verifying") return;
+                File.WriteAllText(source, "new external contents"); changed = true;
+            })));
+        Assert.True(changed); Assert.Equal("SourceChanged", error.Code);
+        Assert.Equal("keep", await File.ReadAllTextAsync(destination));
+        Assert.Equal("new external contents", await File.ReadAllTextAsync(source));
+        Assert.Empty(Directory.GetFiles(temp, "*.partial"));
+    }
+
+    [Fact]
+    public async Task TwoCreationsConfirmedAgainstTheSameFileCannotBothReplaceIt()
+    {
+        string target = Path.Combine(temp, "shared.zip");
+        await File.WriteAllTextAsync(target, "original");
+        var agreed = CompressionDestination.Capture(target);
+        using var barrier = new Barrier(2);
+        async Task<bool> AttemptAsync(string name)
+        {
+            string source = Path.Combine(temp, name);
+            await File.WriteAllTextAsync(source, name);
+            bool met = false;
+            try
+            {
+                await client.CreateAsync(new([source], target, Overwrite: true, ConfirmedDestination: agreed),
+                    new InlineProgress<CompressionProgress>(p =>
+                    {
+                        if (met || p.Phase != "verifying") return;
+                        met = true;
+                        Assert.True(barrier.SignalAndWait(TimeSpan.FromSeconds(15)));
+                    }));
+                return true;
+            }
+            catch (ArchiveOperationException error) when (error.Code == "CompressionTargetChanged") { return false; }
+        }
+        var outcomes = await Task.WhenAll(Task.Run(() => AttemptAsync("one.txt")), Task.Run(() => AttemptAsync("two.txt")));
+        Assert.Equal(1, outcomes.Count(success => success));
+        Assert.Equal(outcomes[0] ? "one.txt" : "two.txt", Assert.Single((await client.ScanAsync(target)).Entries).Path);
+        Assert.Empty(Directory.GetFiles(temp, "*.partial"));
+    }
+
+    [Fact]
+    public async Task StagingFileIsExclusiveUntilItIsPublished()
+    {
+        string source = Path.Combine(temp, "source.txt"), target = Path.Combine(temp, "archive.zip");
+        await File.WriteAllTextAsync(source, "original input");
+        bool checkedStage = false;
+        var result = await client.CreateAsync(new([source], target), new InlineProgress<CompressionProgress>(p =>
+        {
+            if (p.Phase != "verifying" || checkedStage) return;
+            string stage = Assert.Single(Directory.GetFiles(temp, "*.partial"));
+            Assert.Throws<IOException>(() => { using var file = File.OpenWrite(stage); });
+            Assert.Throws<IOException>(() => File.Move(stage, stage + ".moved"));
+            checkedStage = true;
+        }));
+        Assert.True(checkedStage);
+        Assert.Equal(1, result.Entries);
+        Assert.Empty((await client.TestAsync(target, await client.ScanAsync(target))).Failures);
+    }
+
+    [Fact]
+    public async Task DirectoryMembershipChangeDuringVerificationDoesNotSilentlyDropNewFiles()
+    {
+        string folder = Directory.CreateDirectory(Path.Combine(temp, "selected")).FullName, target = Path.Combine(temp, "out.zip");
+        await File.WriteAllTextAsync(Path.Combine(folder, "first.txt"), "one");
+        bool added = false;
+        var error = await Assert.ThrowsAsync<ArchiveOperationException>(() => client.CreateAsync(new([folder], target),
+            new InlineProgress<CompressionProgress>(p =>
+            {
+                if (added || p.Phase != "verifying") return;
+                File.WriteAllText(Path.Combine(folder, "second.txt"), "two"); added = true;
+            })));
+        Assert.True(added); Assert.Equal("SourceChanged", error.Code);
+        Assert.False(File.Exists(target));
+        Assert.Equal(2, Directory.GetFiles(folder).Length);
+    }
+
+    [Theory]
+    [InlineData("changed-stage", "CompressionOutputChanged")]
+    [InlineData("unverified-stage", "ProtocolMismatch")]
+    public async Task OnlyTheExactVerifiedStagingVersionCanBePublished(string fixture, string expectedError)
+    {
+        string source = Path.Combine(temp, fixture), target = Path.Combine(temp, "out.zip");
+        await File.WriteAllTextAsync(source, "input"); await File.WriteAllTextAsync(target, "original");
+        var error = await Assert.ThrowsAsync<ArchiveOperationException>(() => SlowWorker().CreateAsync(new([source], target, Overwrite: true)));
+        Assert.Equal(expectedError, error.Code);
+        Assert.Equal("original", await File.ReadAllTextAsync(target));
+        Assert.Empty(Directory.GetFiles(temp, "*.partial"));
+    }
+
+    [Fact]
+    public async Task DestinationCaptureRejectsJunctionBeforeInspectingTheOutsideFile()
+    {
+        string outside = Directory.CreateDirectory(Path.Combine(temp, "outside")).FullName;
+        string original = Path.Combine(outside, "file.zip"), link = Path.Combine(temp, "redirect");
+        await File.WriteAllTextAsync(original, "keep");
+        JunctionFixture.Create(link, outside);
+        try
+        {
+            var error = Assert.Throws<ArchiveOperationException>(() => CompressionDestination.Capture(Path.Combine(link, "file.zip")));
+            Assert.Equal("UnsafePath", error.Code);
+            Assert.Equal("keep", await File.ReadAllTextAsync(original));
+        }
+        finally { Directory.Delete(link); }
+    }
+
+    [Fact]
+    public async Task DestinationAliasOfSelectedSourceIsPreserved()
+    {
+        string source = Path.Combine(temp, "source.txt"), target = Path.Combine(temp, "alias.zip");
+        await File.WriteAllTextAsync(source, "keep both names");
+        Assert.True(CreateCopyTestLink(target, source, IntPtr.Zero));
+        var error = await Assert.ThrowsAsync<ArchiveOperationException>(() => client.CreateAsync(new([source], target, Overwrite: true)));
+        Assert.Equal("DestinationInsideSource", error.Code);
+        Assert.Equal("keep both names", await File.ReadAllTextAsync(target));
+        Assert.Equal("keep both names", await File.ReadAllTextAsync(source));
+    }
+
+    [Fact]
     public async Task CancelledCreationKeepsExistingArchiveAndRemovesStagingFile()
     {
         string source = Path.Combine(temp, "a.txt");
@@ -142,6 +309,16 @@ public sealed partial class WorkerTests
         string destination = Path.Combine(temp, "deduplicated.zip");
         await client.CreateAsync(new([source, file, source], destination));
         Assert.Equal(2, (await client.ScanAsync(destination)).Entries.Count);
+    }
+
+    [Fact]
+    public async Task DisappearedInputIsIdentifiedWithoutCreatingTheOutputDirectory()
+    {
+        string missing = Path.Combine(temp, "removed.txt"), folder = Path.Combine(temp, "output");
+        var error = await Assert.ThrowsAsync<ArchiveOperationException>(() => client.CreateAsync(new([missing], Path.Combine(folder, "new.zip"))));
+        Assert.Equal("SourceChanged", error.Code);
+        Assert.Equal(missing, error.AffectedPath);
+        Assert.False(Directory.Exists(folder));
     }
 
     [Fact]

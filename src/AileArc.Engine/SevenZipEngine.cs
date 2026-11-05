@@ -3,9 +3,10 @@ using AileArc.Shared;
 
 namespace AileArc.Engine;
 
-public sealed class ArchiveEngineException(string code) : Exception(code)
+public sealed class ArchiveEngineException(string code, long? entryId = null) : Exception(code)
 {
     public string Code { get; } = code;
+    public long? EntryId { get; } = entryId;
 }
 
 /// <summary>Native read/decode adapter. Must only be instantiated inside an isolated Worker.</summary>
@@ -65,6 +66,13 @@ public sealed partial class SevenZipEngine : IDisposable
         if (nameCodePage is not (0 or 65001 or 936 or 932)) throw new ArchiveEngineException("EncodingNotSupported");
         // Restrict to a local/UNC file path; never pass user-controlled engine switches.
         using var input = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, FileOptions.RandomAccess);
+        ScanStream(input, opened, batchReady, password, selectEntries, emit, byteLimit, nameCodePage, verify, checkOnly, expectedIdentity);
+    }
+
+    private void ScanStream(FileStream input, Action<string, ArchiveIdentity> opened, Action<ArchiveEntry[]> batchReady, string? password,
+        Func<uint[]?>? selectEntries = null, Action<ScanMessage>? emit = null, ulong byteLimit = 4UL * 1024 * 1024 * 1024, int nameCodePage = 0,
+        bool verify = false, bool checkOnly = false, ArchiveIdentity? expectedIdentity = null)
+    {
         var identity = ArchiveFileIdentity.Read(input.SafeFileHandle);
         if (expectedIdentity is not null && identity != expectedIdentity) throw new ArchiveEngineException("ArchiveChanged");
         var stream = new ArchiveInputStream(input);

@@ -55,6 +55,11 @@
   <data name="EntryUnexpectedEnd"><value>压缩数据提前结束，此条目不完整。</value></data>
   <data name="CompressionByteLimit"><value>所选源文件的总大小超过本次创建上限。请减少来源或分包创建。</value></data>
   <data name="CompressionManifestLimit"><value>来源清单超过 10,000 项或包内路径清单过长。请减少来源或分包创建。</value></data>
+  <data name="CompressionTargetChanged"><value>目标文件在创建期间发生了变化。请检查保存位置并重新确认。</value></data>
+  <data name="CompressionTargetUnavailable"><value>无法检查目标文件。请关闭占用它的程序或选择其他位置。</value></data>
+  <data name="CompressionOutputChanged"><value>暂存文件与校验的版本不符，已停止保存。请重试。</value></data>
+  <data name="ClientCreatedFolder"><value>打开新包所在文件夹</value></data>
+  <data name="ClientIssueAtPath"><value>{0} · {1}</value></data>
   <data name="OpenFailed"><value>无法完成此操作，请重试。</value></data>
   <data name="FileDetails"><value>大小：{0} · 路径：{1}</value></data>
   <data name="UnknownSize"><value>未知</value></data>

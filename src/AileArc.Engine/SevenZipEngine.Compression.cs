@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using AileArc.Shared;
+using Microsoft.Win32.SafeHandles;
 
 namespace AileArc.Engine;
 
@@ -8,11 +9,16 @@ public sealed partial class SevenZipEngine
     [UnmanagedFunctionPointer(CallingConvention.StdCall)]
     private delegate int CreateOutDelegate(ref Guid classId, ref Guid interfaceId, [MarshalAs(UnmanagedType.Interface)] out IOutArchive archive);
 
-    public void CreateArchive(ScanRequest request, IReadOnlyList<CompressionItem> items, Action<ScanMessage> report)
+    public ArchiveIdentity CreateArchive(ScanRequest request, IReadOnlyList<CompressionItem> items, Action<ScanMessage> report)
     {
         if (request.CompressionFormat is not ("ZIP" or "7Z") || request.CompressionPreset is not ("Fast" or "Balanced" or "Maximum"))
             throw new ArchiveEngineException("CompressionOptionsInvalid");
         if (request.ByteLimit > 4UL * 1024 * 1024 * 1024 || items.Count > 10000) throw new ArchiveEngineException("ResourceLimit");
+        if (request.OutputHandle is not > 0 || request.ExpectedIdentity is null) throw new ArchiveEngineException("ProtocolMismatch");
+        using var handle = new SafeFileHandle(new IntPtr(request.OutputHandle.Value), ownsHandle: true);
+        using var file = new FileStream(handle, FileAccess.ReadWrite, 64 * 1024);
+        if (file.Length != 0 || ArchiveFileIdentity.Read(handle) != request.ExpectedIdentity)
+            throw new ArchiveEngineException("CompressionOutputChanged");
         uint level = request.CompressionPreset switch { "Fast" => 1, "Maximum" => 9, _ => 5 };
         var classId = new Guid(request.CompressionFormat == "ZIP" ? "23170F69-40C1-278A-1000-000110010000" : "23170F69-40C1-278A-1000-000110070000");
         var iid = typeof(IOutArchive).GUID;
@@ -36,19 +42,17 @@ public sealed partial class SevenZipEngine
             }
             NativeProperties.Set(archive, options.ToArray());
             using var callback = new CompressionCallback(items, request.Password, report);
-            using (var file = new FileStream(request.Path, FileMode.Open, FileAccess.ReadWrite, FileShare.Read))
-            {
-                if (file.Length != 0) throw new ArchiveEngineException("CompressionOptionsInvalid");
-                var output = new CompressionOutput(file, request.ByteLimit + 64UL * 1024 * 1024);
-                int result = archive.UpdateItems(output, (uint)items.Count, callback);
-                if (callback.ErrorCode is not null) throw new ArchiveEngineException(callback.ErrorCode);
-                if (result != 0) throw new ArchiveEngineException("CompressionFailed");
-                file.Flush(flushToDisk: true);
-                GC.KeepAlive(output);
-            }
+            var output = new CompressionOutput(file, request.ByteLimit + 64UL * 1024 * 1024);
+            int result = archive.UpdateItems(output, (uint)items.Count, callback);
+            if (callback.ErrorCode is not null) throw new ArchiveEngineException(callback.ErrorCode, callback.FailedIndex);
+            if (result != 0) throw new ArchiveEngineException("CompressionFailed");
+            file.Flush(flushToDisk: true);
+            GC.KeepAlive(output);
         }
         finally { Marshal.FinalReleaseComObject(archive); }
         report(new ScanMessage("verifying"));
-        Scan(request.Path, (_, _) => { }, _ => { }, request.Password, emit: report, verify: true);
+        ArchiveIdentity? verified = null;
+        ScanStream(file, (_, identity) => verified = identity, _ => { }, request.Password, emit: report, verify: true);
+        return verified ?? throw new ArchiveEngineException("IntegrityFailed");
     }
 }

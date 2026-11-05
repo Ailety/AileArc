@@ -3,9 +3,10 @@ using AileArc.Shared;
 
 namespace AileArc.Core;
 
-public sealed class ArchiveOperationException(string code) : Exception(code)
+public sealed class ArchiveOperationException(string code, string? affectedPath = null) : Exception(code)
 {
     public string Code { get; } = code;
+    public string? AffectedPath { get; } = affectedPath;
 }
 
 public sealed record ArchiveScan(string Format, IReadOnlyList<ArchiveEntry> Entries, ArchiveIdentity? Identity = null, int NameCodePage = 0);

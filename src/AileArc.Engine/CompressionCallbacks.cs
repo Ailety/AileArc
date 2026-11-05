@@ -13,6 +13,7 @@ public sealed class CompressionCallback(IReadOnlyList<CompressionItem> items, st
     private ulong total;
     private long lastReport;
     public string? ErrorCode { get; private set; }
+    public long? FailedIndex { get; private set; }
     public int SetTotal(ulong value) { total = value; return 0; }
     public int SetCompleted(IntPtr completed)
     {
@@ -51,7 +52,7 @@ public sealed class CompressionCallback(IReadOnlyList<CompressionItem> items, st
                 if (!GetFileInformationByHandleEx(handle, 9, out var attributes, 8) || (attributes.Attributes & (0x400 | 0x10)) != 0)
                     throw new IOException();
                 var identity = ArchiveFileIdentity.Read(handle);
-                if (identity.Length != item.Length || identity.LastWriteTime != item.LastWriteTime) throw new IOException();
+                if (identity != item.Snapshot) throw new IOException();
                 current = new FileStream(handle, FileAccess.Read);
                 opened.Add(current);
             }
@@ -60,9 +61,9 @@ public sealed class CompressionCallback(IReadOnlyList<CompressionItem> items, st
             return 0;
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
-        { ErrorCode = "SourceChanged"; return unchecked((int)0x80004004); }
+        { ErrorCode = "SourceChanged"; FailedIndex = index; return unchecked((int)0x80004004); }
     }
-    public int SetOperationResult(int result) { if (result != 0) ErrorCode = "CompressionFailed"; return 0; }
+    public int SetOperationResult(int result) { if (result != 0) ErrorCode ??= "CompressionFailed"; return 0; }
     public int CryptoGetTextPassword2(out int defined, out string? value) { value = password; defined = password is null ? 0 : 1; return 0; }
     public void Dispose() { foreach (var file in opened) file.Dispose(); }
     [StructLayout(LayoutKind.Sequential)] private struct AttributeInfo { public uint Attributes, ReparseTag; }

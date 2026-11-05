@@ -41,8 +41,8 @@ try
                 items.Add(item);
             }
         }
-        engine.CreateArchive(request, items, Send);
-        Send(new("completed"));
+        var verified = engine.CreateArchive(request, items, Send);
+        Send(new("completed", Identity: verified));
         return 0;
     }
     engine.Scan(request.Path,
@@ -66,7 +66,7 @@ catch (Exception error)
         COMException => "UnsupportedOrDamaged",
         _ => "WorkerFailed"
     };
-    try { Send(new("error", ErrorCode: code)); }
+    try { Send(new("error", ErrorCode: code, EntryId: (error as ArchiveEngineException)?.EntryId)); }
     catch (IOException) { /* The parent cancelled and closed its pipes. */ }
     return 1;
 }

@@ -136,6 +136,7 @@ public sealed class TrackedTemporaryFile : IDisposable
     private readonly FileStream lease;
     private RecoveryRecord record;
     public string Path => record.Path;
+    internal string? FileId => record.FileId;
     public string Id => record.Id;
     private bool disposed;
     private TrackedTemporaryFile(RecoveryStore store, FileStream lease, RecoveryRecord record)

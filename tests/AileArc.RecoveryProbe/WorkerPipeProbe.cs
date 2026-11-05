@@ -12,8 +12,21 @@ internal static class WorkerPipeProbe
         if (request.Operation == "create")
         {
             if (request.CompressionCount > 32) await Task.Delay(Timeout.Infinite);
-            await ArchiveProtocol.ReadAsync<CompressionBatch>(input);
+            var batch = await ArchiveProtocol.ReadAsync<CompressionBatch>(input);
             await Send(new("verifying"));
+            if (batch.Items[0].EntryPath is "changed-stage" or "unverified-stage")
+            {
+                ArchiveIdentity? checkedVersion = null;
+                if (batch.Items[0].EntryPath == "changed-stage")
+                {
+                    using var handle = new Microsoft.Win32.SafeHandles.SafeFileHandle(new IntPtr(request.OutputHandle!.Value), true);
+                    checkedVersion = ArchiveFileIdentity.Read(handle);
+                    using var changed = new FileStream(handle, FileAccess.ReadWrite);
+                    changed.WriteByte(42);
+                }
+                await Send(new("completed", Identity: checkedVersion));
+                return 0;
+            }
             await Send(new("completed"));
             await Task.Delay(Timeout.Infinite);
         }
