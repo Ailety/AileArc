@@ -227,16 +227,7 @@ public partial class MainWindow
         {
             if (result.Failures.Any(f => f.Code is "PasswordRequired" or "WrongPasswordOrDamaged"))
                 dialog.Explain(Text["ClientPasswordRetryHint"]);
-            var failures = new ListBox { ItemsSource = result.Failures, Height = 140, Background = Background, Foreground = Foreground,
-                ItemTemplate = (DataTemplate)FindResource("ExtractionFailureTemplate") };
-            var reason = new TextBox { IsReadOnly = true, TextWrapping = TextWrapping.Wrap, MaxHeight = 100, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-            failures.SelectionChanged += (_, _) =>
-            {
-                if (failures.SelectedItem is ExtractionFailure failure)
-                    reason.Text = string.IsNullOrEmpty(failure.Path) ? Text[failure.Code] : failure.Path + Environment.NewLine + Text[failure.Code];
-            };
-            failures.SelectedIndex = 0;
-            dialog.Body.Children.Add(failures); dialog.Body.Children.Add(reason);
+            AddFailureDetails(dialog, result.Failures);
             if (CanRetryFailures(result))
             {
                 var button = new Button { Content = Text.Format("ClientRetryFailures", result.Failures.Count) };
@@ -289,6 +280,20 @@ public partial class MainWindow
             return () => { if (openFolder && result.Completed > 0 && !result.Cancelled && result.Failures.Count == 0) LaunchFolder(result.Destination); };
         }, false);
     }
+    private void AddFailureDetails(ActionDialog dialog, IReadOnlyList<ExtractionFailure> items)
+    {
+        var failures = new ListBox { ItemsSource = items, Height = 140, Background = Background, Foreground = Foreground,
+            ItemTemplate = (DataTemplate)FindResource("ExtractionFailureTemplate") };
+        var reason = new TextBox { IsReadOnly = true, TextWrapping = TextWrapping.Wrap, MaxHeight = 100, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        failures.SelectionChanged += (_, _) =>
+        {
+            if (failures.SelectedItem is ExtractionFailure failure)
+                reason.Text = string.IsNullOrEmpty(failure.Path) ? Text[failure.Code] : failure.Path + Environment.NewLine + Text[failure.Code];
+        };
+        failures.SelectedIndex = 0;
+        dialog.Body.Children.Add(failures); dialog.Body.Children.Add(reason);
+    }
+
     private void LaunchFolder(string folder)
     {
         try { OpenFolder(folder); }

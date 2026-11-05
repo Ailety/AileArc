@@ -23,6 +23,15 @@ internal static class WorkerPipeProbe
             for (int i = 0; i < 9; i++) { await Task.Delay(500); await Send(new("activity")); }
         }
         await Send(new("opened", Format: "ZIP", Identity: new("fixture", 0, 0)));
+        if (request.Operation == "test")
+        {
+            await Send(new("ready"));
+            await ArchiveProtocol.ReadAsync<ExtractionCommand>(input);
+            if (mode == "duplicate-check") await Send(new("checked", Checked: [new(0, 0, 1), new(0, 0, 1)]));
+            if (mode == "test-sends-data") await Send(new("data", EntryId: 0, Data: [42]));
+            await Send(new("completed"));
+            return 0;
+        }
         switch (mode)
         {
             case "invalid-json": await output.WriteAsync(new byte[] { 1, 0, 0, 0, 123 }); return 0;

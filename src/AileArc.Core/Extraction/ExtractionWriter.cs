@@ -11,6 +11,15 @@ public sealed record ExtractionOptions(string Destination, bool Smart = true, Co
 public sealed record ExtractionFailure(string Path, string Code)
 {
     public long? EntryId { get; init; }
+    internal static ExtractionFailure ForEntry(ArchiveEntry entry, int result) => new(entry.Path, result switch
+    {
+        1 => "EntryMethodUnsupported",
+        4 => "EntryDataUnavailable",
+        5 => "EntryUnexpectedEnd",
+        9 => "WrongPasswordOrDamaged",
+        2 or 3 when entry.Encrypted => "WrongPasswordOrDamaged",
+        _ => "IntegrityFailed"
+    }) { EntryId = entry.Id };
 }
 public sealed record ExtractionProgress(int Completed, int Skipped, ulong Bytes, string? CurrentPath);
 public sealed record ExtractionResult(string Destination, int Completed, int Skipped, IReadOnlyList<ExtractionFailure> Failures, bool Cancelled);
@@ -169,8 +178,7 @@ internal sealed class ExtractionWriter : IAsyncDisposable
             if (nativeResult != 0 || (!active.IsDirectory && active.Size is { } size && currentBytes != size))
             {
                 // Some encrypted formats report a data or CRC error for a wrong key.
-                bool passwordOrDamage = nativeResult == 9 || active.Encrypted && nativeResult is 2 or 3;
-                failures.Add(new(active.Path, passwordOrDamage ? "WrongPasswordOrDamaged" : "IntegrityFailed") { EntryId = active.Id });
+                failures.Add(ExtractionFailure.ForEntry(active, nativeResult));
                 return;
             }
             if (stream is not null)

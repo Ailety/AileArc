@@ -41,6 +41,7 @@
           <StackPanel DockPanel.Dock="Bottom">
             <Border Height="1" Background="{StaticResource LineBrush}" Margin="0,20" />
             <Button x:Name="CreateButton" Content="{local:Text CreateArchive}" Click="Create_Click" Margin="0,0,0,8" />
+            <Button x:Name="TestArchiveButton" Content="{local:Text TestArchive}" Click="TestArchive_Click" ToolTip="{local:Text TestArchiveHint}" Margin="0,0,0,8" />
             <Button x:Name="CopiesButton" Content="{local:Text WorkCopies}" Click="Copies_Click" Margin="0,0,0,16" />
             <Button x:Name="RecoveryButton" Content="{local:Text Recovery}" Click="Recovery_Click" Margin="0,0,0,8" />
             <TextBlock x:Name="CopyNotice" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,8" />

@@ -59,7 +59,7 @@ public sealed partial class SevenZipEngine : IDisposable
     }
 
     public void Scan(string path, Action<string, ArchiveIdentity> opened, Action<ArchiveEntry[]> batchReady, string? password = null,
-        Func<uint[]?>? selectEntries = null, Action<ScanMessage>? emit = null, ulong byteLimit = 4UL * 1024 * 1024 * 1024, int nameCodePage = 0, bool verify = false)
+        Func<uint[]?>? selectEntries = null, Action<ScanMessage>? emit = null, ulong byteLimit = 4UL * 1024 * 1024 * 1024, int nameCodePage = 0, bool verify = false, bool checkOnly = false)
     {
         if (nameCodePage is not (0 or 65001 or 936 or 932)) throw new ArchiveEngineException("EncodingNotSupported");
         // Restrict to a local/UNC file path; never pass user-controlled engine switches.
@@ -124,10 +124,11 @@ public sealed partial class SevenZipEngine : IDisposable
                     uint[]? selection = selectEntries();
                     if (selection?.Length != 0)
                     {
-                        var extraction = new ExtractionCallback(emit, password, byteLimit);
+                        var extraction = new ExtractionCallback(emit, password, byteLimit, checkOnly);
                         int extractionResult = archive.Extract(selection, selection is null ? uint.MaxValue : (uint)selection.Length, 0, extraction);
                         if (extraction.ErrorCode is not null) throw new ArchiveEngineException(extraction.ErrorCode);
                         if (extractionResult != 0) throw new ArchiveEngineException("ReadFailed");
+                        extraction.FlushChecks();
                     }
                 }
                 return;

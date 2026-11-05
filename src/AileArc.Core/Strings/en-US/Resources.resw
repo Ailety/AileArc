@@ -38,6 +38,16 @@
   <data name="ProtocolMismatch"><value>The reader component is incompatible. Rebuild the complete solution.</value></data>
   <data name="TimedOut"><value>The background task stopped responding and was closed. Retry or open another archive.</value></data>
   <data name="ExtractionByteLimit"><value>The unpacked selection exceeds the size limit for this operation. Extract fewer items at a time.</value></data>
+  <data name="TestArchive"><value>Test archive</value></data>
+  <data name="TestArchiveHint"><value>Check all archive entries without saving extracted files.</value></data>
+  <data name="TestArchiveProgress"><value>Tested {0:N0} of {1:N0} entries · Decoded {2:N1} MiB</value></data>
+  <data name="TestArchiveOk"><value>Archive test passed · {0:N0} entries checked.</value></data>
+  <data name="TestArchiveErrors"><value>Tested {0:N0} entries · {1:N0} failed.</value></data>
+  <data name="TestArchiveEmpty"><value>This archive is empty. There are no entries to test.</value></data>
+  <data name="TestByteLimit"><value>The unpacked content exceeds the 4 GiB limit for an archive test.</value></data>
+  <data name="EntryMethodUnsupported"><value>The archive engine does not support this entry’s compression method.</value></data>
+  <data name="EntryDataUnavailable"><value>The data for this entry is unavailable.</value></data>
+  <data name="EntryUnexpectedEnd"><value>The compressed data ends before this entry is complete.</value></data>
   <data name="CompressionByteLimit"><value>The selected sources exceed the size limit for this operation. Select fewer files or create separate archives.</value></data>
   <data name="CompressionManifestLimit"><value>The source list exceeds 10,000 items or its paths are too long in total. Select fewer sources or create separate archives.</value></data>
   <data name="OpenFailed"><value>This operation could not be completed. Please try again.</value></data>
@@ -72,7 +82,7 @@
   <data name="LinksNotSupported"><value>This version does not extract symbolic links, hard links or reparse points.</value></data>
   <data name="DestinationNotSupported"><value>Extraction currently supports local drive destinations. Network destinations will be validated later.</value></data>
   <data name="DestinationConflict"><value>Could not allocate an available destination name.</value></data>
-  <data name="IntegrityFailed"><value>File integrity verification failed. The file was not committed.</value></data>
+  <data name="IntegrityFailed"><value>The file data failed its integrity check.</value></data>
   <data name="WrongPasswordOrDamaged"><value>The password is incorrect or the archive data is damaged.</value></data>
   <data name="WriteFailed"><value>Could not write to the destination. Check permissions, free space or the device connection.</value></data>
   <data name="ArchiveChanged"><value>The archive has changed. Reopen it before continuing.</value></data>

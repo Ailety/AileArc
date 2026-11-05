@@ -32,6 +32,11 @@ internal static partial class ClientChecks
             var matches = window.TestGrid.Items.Cast<EntryView>().ToArray();
             Require(matches.Length == 2, "search finds both matching paths");
             window.TestGrid.SelectAll(); string? copied = null; window.CopyText = value => copied = value;
+            Require(window.TestArchiveButton.IsEnabled, "archive test available with a partial selection");
+            await window.TestCurrentArchiveAsync();
+            Require(window.SearchBox.Text == "config" && window.TestGrid.SelectedItems.Count == 2 &&
+                window.StatusText.Text == ClientApp.Text.Format("TestArchiveOk", 204 + 215 + 4),
+                "whole-archive test preserves the active search and multiple selection");
             window.CopySelectedPaths();
             Require(copied == string.Join(Environment.NewLine, matches.Select(r => r.Path)), "multiselect copies visible paths in list order");
             window.TestGrid.UnselectAll();

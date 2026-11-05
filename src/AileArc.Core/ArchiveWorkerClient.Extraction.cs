@@ -14,15 +14,7 @@ public sealed partial class ArchiveWorkerClient
         cancellationToken.ThrowIfCancellationRequested();
         if (options.SelectedIds?.Length > 100_000) throw new ArchiveOperationException("ResourceLimit");
         var selectedIds = options.SelectedIds?.ToHashSet();
-        var start = new ProcessStartInfo(Path.GetFullPath(workerPath))
-        {
-            UseShellExecute = false, CreateNoWindow = true,
-            RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true,
-            WorkingDirectory = Path.GetDirectoryName(Path.GetFullPath(workerPath))!
-        };
-        using var process = new Process { StartInfo = start };
-        try { if (!process.Start()) throw new ArchiveOperationException("WorkerFailed"); }
-        catch (Win32Exception) { throw new ArchiveOperationException("WorkerUnavailable"); }
+        using var process = StartWorker();
         using var job = WorkerJob.Attach(process);
         await using var pipe = new WorkerPipe(process, job, idleTimeout, cancellationToken);
         ExtractionWriter? writer = null;

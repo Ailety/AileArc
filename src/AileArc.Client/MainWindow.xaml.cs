@@ -225,6 +225,7 @@ public partial class MainWindow : Window
         EntryGrid.IsEnabled = idle; Folders.IsEnabled = idle && archive is not null;
         UpdateNavigation(); UpdateSelection();
         ExtractButton.IsEnabled = ExtractMore.IsEnabled = idle && archive is not null;
+        TestArchiveButton.IsEnabled = idle && archive is not null;
         ResultButton.Visibility = idle && LastExtraction is not null ? Visibility.Visible : Visibility.Collapsed;
         CopiesButton.IsEnabled = idle;
         CreateButton.IsEnabled = RecoveryButton.IsEnabled = idle;

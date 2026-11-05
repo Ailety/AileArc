@@ -195,6 +195,9 @@ public sealed partial class WorkerTests
         var scan = await client.ScanAsync(archive);
         Assert.Equal("RAR", scan.Format);
         Assert.Equal(5, scan.Entries.Count);
+        var tested = await client.TestAsync(archive, scan);
+        Assert.Equal(5, tested.Checked);
+        Assert.Empty(tested.Failures);
         Assert.Contains(scan.Entries, e => e.IsLink);
         var file = Assert.Single(scan.Entries, e => e.Path == "test.txt");
         var result = await client.ExtractAsync(archive, new(Path.Combine(temp, "rar-output"), Smart: false, SelectedIds: [file.Id]));

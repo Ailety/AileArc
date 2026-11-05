@@ -17,7 +17,7 @@ try
     using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
     var request = await ArchiveProtocol.ReadAsync<ScanRequest>(input, timeout.Token);
     if (request.Version != ArchiveProtocol.Version) throw new ArchiveEngineException("ProtocolMismatch");
-    if (request.Operation is not ("scan" or "extract" or "create")) throw new ArchiveEngineException("ProtocolMismatch");
+    if (request.Operation is not ("scan" or "extract" or "create" or "test")) throw new ArchiveEngineException("ProtocolMismatch");
     uint[]? SelectEntries()
     {
         Send(new("ready"));
@@ -47,9 +47,9 @@ try
     }
     engine.Scan(request.Path,
         (format, identity) => Send(new("opened", Format: format, Identity: identity)),
-        batch => Send(new("entries", Entries: batch)),
-        request.Password, request.Operation == "extract" ? SelectEntries : null,
-        Send, request.ByteLimit, request.NameCodePage);
+        batch => { if (request.Operation != "test") Send(new("entries", Entries: batch)); else Send(new("activity")); },
+        request.Password, request.Operation is "extract" or "test" ? SelectEntries : null,
+        Send, request.ByteLimit, request.NameCodePage, checkOnly: request.Operation == "test");
     Send(new("completed"));
     return 0;
 }

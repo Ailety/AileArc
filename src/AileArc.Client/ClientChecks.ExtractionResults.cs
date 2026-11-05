@@ -90,6 +90,13 @@ internal static partial class ClientChecks
         bytes[at] ^= 1;
         await File.WriteAllBytesAsync(damaged, bytes);
         await window.TestOpenAsync(damaged);
+        await ObserveDialogAsync(app, ClientApp.Text["TestArchive"], window.TestCurrentArchiveAsync, report =>
+        {
+            var failed = report.Body.Children.OfType<ListBox>().Single().Items.Cast<ExtractionFailure>().Single();
+            Require(failed.EntryId == 0 && failed.Path == "bad.bin", "archive test identifies only the damaged namesake");
+        });
+        Require(window.LastExtraction is null && window.StatusText.Text == ClientApp.Text.Format("TestArchiveErrors", 3, 1),
+            "testing the archive does not start extraction");
         string partial = target + "-partial";
         await window.ExtractToAsync(partial, false, false, openFolder: true);
         Require(window.LastExtraction is { Completed: 2 } mixed && mixed.Failures.Single().Code == "IntegrityFailed" &&
