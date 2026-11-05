@@ -14,7 +14,7 @@ internal static partial class ClientChecks
 {
     internal static int RecoveryProbe(string target, string journal)
     {
-        using var file = TrackedTemporaryFile.Create(target, "Test", new RecoveryStore(journal));
+        using var file = TrackedTemporaryFile.Create(target, "Test", new RecoveryStore(journal), outputName: "恢复样本.zip");
         File.WriteAllText(file.Path, "generated crash fixture");
         Console.WriteLine(file.Id); Console.Out.Flush(); Thread.Sleep(Timeout.Infinite); return 0;
     }
@@ -113,7 +113,7 @@ internal static partial class ClientChecks
             {
                 id = (await child.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(10)))!;
                 Require(!string.IsNullOrEmpty(id), "crash probe registered");
-                await window.CleanupRecoveryAsync(id);
+                await window.CleanupRecoveryAsync(app.Recovery.List().Single());
                 Require(window.LastCleanup == RecoveryState.Busy, "live recovery lease cannot be cleaned");
             }
             finally { if (!child.HasExited) child.Kill(true); await child.WaitForExitAsync(); }
@@ -121,7 +121,7 @@ internal static partial class ClientChecks
         var timeout = Stopwatch.StartNew();
         while (app.Recovery.List().Single().State == RecoveryState.Busy && timeout.Elapsed < TimeSpan.FromSeconds(3)) await Task.Delay(25);
         string staged = app.Recovery.List().Single().Record.Path;
-        await window.CleanupRecoveryAsync(id);
+        await CheckRecoveryManagerAsync(window, app);
         Require(window.LastCleanup == RecoveryState.Recoverable && !File.Exists(staged) && File.Exists(unrelated), "only registered interrupted output cleaned");
 
         await window.TestOpenAsync(zip);

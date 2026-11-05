@@ -9,29 +9,22 @@ public partial class MainWindow
 {
     internal RecoveryState? LastCleanup { get; private set; }
     internal void ForgetCopy(string id) { openedCopies.Remove(id); CopyNotice.Text = ""; }
-    private async void Recovery_Click(object sender, RoutedEventArgs e)
+    private async void Recovery_Click(object sender, RoutedEventArgs e) => await ShowRecoveryAsync();
+    internal async Task ShowRecoveryAsync(int pageSize = 200)
     {
-        IReadOnlyList<RecoveryItem> items = [];
-        bool loaded = false;
-        await RunAsync(Text["Recovery"], async token =>
-        { items = await Task.Run(() => ((ClientApp)Application.Current).Recovery.List(), token); return () => loaded = true; });
-        if (!loaded || closed) return;
-        if (items.Count == 0) { StatusText.Text = Text["NoRecoveryItems"]; return; }
-        var dialog = new ActionDialog(this, "Recovery", "Clean", "Close");
-        dialog.Explain(Text["RecoveryHint"]);
-        var selector = dialog.Choices(Text["Recovery"], items.Select(i => $"{i.Record.CreatedUtc.ToLocalTime():g} · {Text["RecoveryKind" + i.Record.Kind]}").ToArray());
-        var detail = new TextBox { IsReadOnly = true, TextWrapping = TextWrapping.Wrap, Height = 150 }; dialog.Body.Children.Add(detail);
-        void Refresh()
-        {
-            var item = items[selector.SelectedIndex]; detail.Text = $"{Text["RecoveryState" + item.State]}\n{item.Record.Path}\n{item.Bytes:N0} B";
-            dialog.Accept.IsEnabled = item.State is RecoveryState.Recoverable or RecoveryState.Missing;
-        }
-        selector.SelectionChanged += (_, _) => Refresh(); Refresh();
-        if (dialog.ShowDialog() != true) return;
-        var record = items[selector.SelectedIndex].Record;
-        if (Confirm("Recovery", Text["RecoveryConfirm"] + Environment.NewLine + record.Path, "Clean")) await CleanupRecoveryAsync(record.Id);
+        if (IsBusy || closed) return;
+        var dialog = new RecoveryDialog(this, ((ClientApp)Application.Current).Recovery, pageSize);
+        try { dialog.ShowDialog(); }
+        finally { await dialog.FinishAsync(); }
     }
-    internal async Task CleanupRecoveryAsync(string id)
+
+    internal bool ConfirmRecovery(Window owner, RecoveryItem item)
+    {
+        string prompt = Text[item.State == RecoveryState.Missing ? "ClientRemoveRecordHint" : "RecoveryConfirm"];
+        return Confirm("Recovery", prompt + Environment.NewLine + item.Record.Path, "Clean", owner: owner);
+    }
+
+    internal async Task CleanupRecoveryAsync(RecoveryItem reviewed, CancellationToken dialogToken = default)
     {
         var app = (ClientApp)Application.Current;
         LastCleanup = null;
@@ -40,8 +33,19 @@ public partial class MainWindow
         {
             await RunAsync(Text["Recovery"], async token =>
             {
-                var result = await Task.Run(() => app.Recovery.Cleanup(id, token), token);
-                return () => { LastCleanup = result; StatusText.Text = Text[result is RecoveryState.Recoverable or RecoveryState.Missing ? "RecoveryCleaned" : "RecoveryCleanupRefused"]; };
+                using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, dialogToken);
+                var result = await Task.Run(() => app.Recovery.Cleanup(reviewed, linked.Token), linked.Token);
+                return () =>
+                {
+                    LastCleanup = result;
+                    StatusText.Text = result switch
+                    {
+                        RecoveryState.Recoverable => Text["RecoveryCleaned"],
+                        RecoveryState.Missing => Text["ClientRecordRemoved"],
+                        RecoveryState.NoRecord => Text["ClientRecordAlreadyGone"],
+                        _ => Text["RecoveryCleanupRefused"]
+                    };
+                };
             }, false);
         }
         finally { app.EndCleanup(); }

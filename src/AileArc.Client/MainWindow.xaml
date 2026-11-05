@@ -10,6 +10,12 @@
           <TextBlock Text="{Binding ArchivePath}" Style="{StaticResource Muted}" TextTrimming="CharacterEllipsis"/>
         </StackPanel>
       </DataTemplate>
+      <DataTemplate x:Key="RecoveryRowTemplate">
+        <StackPanel Margin="3,2">
+          <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis"/>
+          <TextBlock Text="{Binding Summary}" Style="{StaticResource Muted}" TextTrimming="CharacterEllipsis"/>
+        </StackPanel>
+      </DataTemplate>
       <Style x:Key="WorkCopyRow" TargetType="ListBoxItem">
         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
         <Setter Property="Template">
