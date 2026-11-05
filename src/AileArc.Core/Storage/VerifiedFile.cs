@@ -28,6 +28,25 @@ internal sealed class VerifiedFile : IDisposable
         if (!SetFileInformationByHandle(Stream.SafeFileHandle, 4, ref delete, 4)) throw new Win32Exception(Marshal.GetLastWin32Error());
     }
     public void Dispose() => Stream.Dispose();
+    // Open the file itself, without following a replacement link. Deny writes and
+    // renames while hashing or exporting this particular version of the payload.
+    public static FileStream OpenRead(string path)
+    {
+        var handle = CreateFile(path, 0x80000000, 1, IntPtr.Zero, 3, 0x00200000 | 0x40000000 | 0x02000000, IntPtr.Zero);
+        if (handle.IsInvalid)
+        {
+            var error = new Win32Exception(Marshal.GetLastWin32Error());
+            handle.Dispose();
+            throw new IOException(error.Message, error);
+        }
+        try
+        {
+            var info = Information(handle);
+            if ((info.Attributes & (0x400 | 0x10)) != 0 || info.Links != 1) throw new ArchiveOperationException("UnsafePath");
+            return new FileStream(handle, FileAccess.Read, 65536, isAsync: true);
+        }
+        catch { handle.Dispose(); throw; }
+    }
     public static string? TryIdentity(string path)
     {
         try
@@ -38,6 +57,19 @@ internal sealed class VerifiedFile : IDisposable
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or Win32Exception or ArgumentException) { return null; }
     }
     public static string IdentityOf(SafeFileHandle handle) => Key(Information(handle));
+    internal static (string Id, long Length, long Written, long Changed)? TryChangeStamp(FileStream stream)
+    {
+        if (!GetFileInformationByHandleEx(stream.SafeFileHandle, 0, out var basic, (uint)Marshal.SizeOf<BasicInfo>()) || basic.Changed <= 0)
+            return null;
+        return (IdentityOf(stream.SafeFileHandle), stream.Length, basic.Written, basic.Changed);
+    }
+    [StructLayout(LayoutKind.Sequential)] private struct BasicInfo
+    {
+        public long Created, Accessed, Written, Changed;
+        public uint Attributes;
+    }
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GetFileInformationByHandleEx(SafeFileHandle handle, int infoClass, out BasicInfo info, uint size);
     private static string Key(Info info) => $"{info.Volume:X8}:{info.IndexHigh:X8}{info.IndexLow:X8}";
     private static Info Information(SafeFileHandle handle)
     {

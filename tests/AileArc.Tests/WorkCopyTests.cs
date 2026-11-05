@@ -163,6 +163,122 @@ public sealed partial class WorkerTests
     }
 
     [Fact]
+    public async Task ExportRejectsRenamedOriginalAndRequiresConsentForAnOccupiedDestination()
+    {
+        var (store, record) = await PrepareWorkCopyAsync();
+        string moved = Path.Combine(temp, "renamed.zip");
+        File.Move(record.ArchivePath, moved);
+        byte[] original = await File.ReadAllBytesAsync(moved);
+        var unsafeTarget = await Assert.ThrowsAsync<ArchiveOperationException>(() => store.ExportAsync(record, moved, overwrite: true));
+        Assert.Equal("UnsafeExport", unsafeTarget.Code);
+        Assert.Equal(original, await File.ReadAllBytesAsync(moved));
+        string target = Path.Combine(temp, "report.txt");
+        await File.WriteAllTextAsync(target, "existing");
+        var conflict = await Assert.ThrowsAsync<ArchiveOperationException>(() => store.ExportAsync(record, target, overwrite: false));
+        Assert.Equal("CopyDestinationExists", conflict.Code);
+        Assert.Equal("existing", await File.ReadAllTextAsync(target));
+        await store.ExportAsync(record, target, overwrite: true);
+        Assert.Equal(await File.ReadAllTextAsync(store.FilePath(record)), await File.ReadAllTextAsync(target));
+    }
+
+    [Fact]
+    public async Task PollDetectsReplacementWithSameSizeAndRestoredTimestamp()
+    {
+        var (store, record) = await PrepareWorkCopyAsync();
+        var first = await store.InspectAsync(record);
+        Assert.Same(first, await store.PollAsync(first));
+        byte[] bytes = await File.ReadAllBytesAsync(first.FilePath);
+        bytes[0] ^= 1;
+        string replacement = first.FilePath + ".tmp";
+        await File.WriteAllBytesAsync(replacement, bytes);
+        File.SetLastWriteTimeUtc(replacement, File.GetLastWriteTimeUtc(first.FilePath));
+        File.Move(replacement, first.FilePath, overwrite: true);
+        Assert.Equal(WorkCopyState.Modified, (await store.PollAsync(first)).State);
+        using var held = File.Open(first.FilePath, FileMode.Open, FileAccess.Write, FileShare.None);
+        Assert.Equal(WorkCopyState.Unavailable, (await store.PollAsync(first)).State);
+    }
+
+    [Fact]
+    public async Task RetainedCopyKeepsAStricterDownloadZone()
+    {
+        var (store, record) = await PrepareWorkCopyAsync();
+        record = record with { SourceZone = "3" };
+        string mark = store.FilePath(record) + ":Zone.Identifier";
+        const string restricted = "[ZoneTransfer]\r\nZoneId=4\r\n";
+        await File.WriteAllTextAsync(mark, restricted);
+        await store.RestoreSourceMarkAsync(record);
+        Assert.Equal(restricted, await File.ReadAllTextAsync(mark));
+        string destination = Path.Combine(temp, "saved.txt");
+        await store.ExportAsync(record, destination, overwrite: false);
+        Assert.Contains("ZoneId=4", await File.ReadAllTextAsync(destination + ":Zone.Identifier"));
+    }
+
+    [Fact]
+    public async Task MissingCopyFolderStaysWithinItsRecordAndMismatchedPayloadCannotBeLaunched()
+    {
+        var (store, record) = await PrepareWorkCopyAsync();
+        string file = store.FilePath(record);
+        Assert.Equal(Path.GetDirectoryName(file), store.FindCopyFolder(record));
+        File.Delete(file);
+        Directory.Delete(Path.GetDirectoryName(file)!);
+        Assert.Equal(Path.Combine(store.Root, record.Id, "content"), store.FindCopyFolder(record));
+        var forged = record with { RelativePath = "content/other.exe" };
+        Assert.Equal("UnsafePath", Assert.Throws<ArchiveOperationException>(() => store.FilePath(forged)).Code);
+        await File.WriteAllTextAsync(Path.Combine(store.Root, record.Id, "workcopy.json"), System.Text.Json.JsonSerializer.Serialize(forged));
+        Assert.Empty(await store.LoadAsync());
+    }
+
+    [Fact]
+    public async Task RecoveryPagesCanContinuePastUnreadableRecordsAndReleaseOnCancel()
+    {
+        var (store, record) = await PrepareWorkCopyAsync();
+        var expected = new HashSet<string> { record.Id };
+        for (int i = 0; i < 6; i++)
+        {
+            string id = Guid.NewGuid().ToString("N");
+            string folder = Directory.CreateDirectory(Path.Combine(store.Root, id)).FullName;
+            if (i % 2 == 0) continue;
+            var copy = record with { Id = id };
+            await File.WriteAllTextAsync(Path.Combine(folder, "workcopy.json"), System.Text.Json.JsonSerializer.Serialize(copy));
+            expected.Add(id);
+        }
+        var pages = new List<WorkCopyListing>();
+        await foreach (var page in store.ReadPagesAsync(pageSize: 2)) pages.Add(page);
+        Assert.Equal(4, pages.Count);
+        Assert.All(pages.Take(3), page => Assert.True(page.HasMore));
+        Assert.False(pages[^1].HasMore);
+        Assert.Equal(expected.Order(), pages.SelectMany(p => p.Records).Select(r => r.Id).Order());
+        using var stop = new CancellationTokenSource();
+        await using (var cursor = store.ReadPagesAsync(1, stop.Token).GetAsyncEnumerator())
+        {
+            Assert.True(await cursor.MoveNextAsync());
+            stop.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => cursor.MoveNextAsync().AsTask());
+        }
+        Directory.Move(store.Root, store.Root + "-released");
+    }
+
+    [Fact]
+    public async Task HardLinkedReplacementCannotBeExportedOrGivenADownloadMark()
+    {
+        var (store, record) = await PrepareWorkCopyAsync();
+        string file = store.FilePath(record);
+        File.Delete(file);
+        string other = Path.Combine(temp, "other.txt");
+        await File.WriteAllTextAsync(other, "external");
+        Assert.True(CreateCopyTestLink(file, other, IntPtr.Zero));
+        Assert.Equal(WorkCopyState.Unavailable, (await store.InspectAsync(record)).State);
+        var denied = await Assert.ThrowsAsync<ArchiveOperationException>(() => store.ExportAsync(record, Path.Combine(temp, "saved.txt")));
+        Assert.Equal("UnsafePath", denied.Code);
+        await Assert.ThrowsAsync<ArchiveOperationException>(() => store.RestoreSourceMarkAsync(record with { SourceZone = "3" }));
+        Assert.False(File.Exists(other + ":Zone.Identifier"));
+        Assert.Equal("external", await File.ReadAllTextAsync(other));
+    }
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", EntryPoint = "CreateHardLinkW", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private static extern bool CreateCopyTestLink(string link, string existing, IntPtr reserved);
+
+    [Fact]
     public async Task ForgedRelativePathCannotEscapeWorkingCopyFolder()
     {
         var (store, record) = await PrepareWorkCopyAsync();
