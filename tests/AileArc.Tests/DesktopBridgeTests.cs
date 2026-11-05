@@ -98,6 +98,37 @@ public sealed class DesktopBridgeTests
         }
     }
     [Fact]
+    public void RedecodedDirectoriesMustRetainParentAndEntryMembership()
+    {
+        var identity = new ArchiveIdentity("fixture", 100, 30);
+        ArchivePresentation Model(string[] paths, int cp = 936) => new(new("ZIP", paths.Select((p, i) =>
+            new ArchiveEntry(i, p, p.EndsWith('/'), 0, false)).ToArray(), identity, cp));
+        var old = Model(["a/x/file", "a/x/file", "b/y/", "b/y/"], 932);
+        var next = Model(["甲/子/档", "甲/子/档", "乙/另/", "乙/另/"]);
+        var map = ArchiveReloadMap.Create(old, next);
+        Assert.NotNull(map);
+        Assert.Equal("甲/子", map.Directories["a/x"]); Assert.Equal("乙/另", map.Directories["b/y"]);
+        var split = ArchiveReloadMap.Create(old, Model(["甲/子/档", "甲/另/档", "乙/另/", "乙/另/"]))!;
+        Assert.False(split.Directories.ContainsKey("a/x")); Assert.Equal("乙/另", split.Directories["b/y"]);
+        var merged = ArchiveReloadMap.Create(old, Model(["甲/子/档", "甲/子/档", "乙/另/", "甲/子/"]))!;
+        Assert.False(merged.Directories.ContainsKey("a/x")); Assert.False(merged.Directories.ContainsKey("b/y"));
+        var renumbered = ArchiveReloadMap.Create(Model(["flat", "b/file"], 932), Model(["expanded/file", "乙/file"]))!;
+        Assert.Equal(-2L, renumbered.TranslateId(-1)); Assert.Equal(1L, renumbered.TranslateId(1));
+        Assert.Null(ArchiveReloadMap.Create(Model(["a/file"]), Model(["b/file"])));
+    }
+
+    [Fact]
+    public void RestorationLocatesRemainingSelectionAndClampsAnObsoletePage()
+    {
+        var rows = Enumerable.Range(0, 403).Select(i => new ArchiveEntry(i, $"file{i:D3}", false, 1, false)).ToArray();
+        var model = new ArchivePresentation(new("ZIP", rows));
+        Assert.Contains(model.Query(Query(0), restoreIds: new HashSet<long> { 402, 500 }).Rows, row => row.Id == "402");
+        var shorter = model.Query(Query(400, "file00"), restoreIds: new HashSet<long> { 402 });
+        Assert.Equal(0, shorter.Offset); Assert.Equal(10, shorter.Rows.Length);
+        Assert.Empty(model.Query(Query(400, "missing"), restoreIds: new HashSet<long>()).Rows);
+    }
+
+    [Fact]
     public void DeepImplicitPathsAreRejectedBeforeIndexExpansion()
     {
         var path=string.Concat(Enumerable.Repeat("a/",16000))+"x";

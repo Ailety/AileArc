@@ -62,7 +62,8 @@ public sealed class ArchivePresentation
     }
     public BrowserRow[] RootFolders => GetRootFolders();
     public BrowserRow[] GetRootFolders(CancellationToken token = default) => Bound(Index.Query("", cancellationToken: token).Where(row => row.IsDirectory).Take(100), 128 * 1024);
-    public BrowserPage Query(BrowserRequest request, CancellationToken token = default, bool currentDirectoryOnly = false, Func<string,string>? typeLabel = null, long? revealId = null, bool previousPage = false)
+    public BrowserPage Query(BrowserRequest request, CancellationToken token = default, bool currentDirectoryOnly = false, Func<string,string>? typeLabel = null, long? revealId = null, bool previousPage = false,
+        IReadOnlySet<long>? restoreIds = null)
     {
         token.ThrowIfCancellationRequested();
         long version = Interlocked.Increment(ref queryVersion);
@@ -82,10 +83,15 @@ public sealed class ArchivePresentation
             at = Array.FindIndex(rows, r => r.Id == id);
             if (at < 0) throw new ArchiveOperationException("ArchiveChanged");
         }
+        else if (restoreIds is not null && rows.Length > 0)
+        {
+            int match = restoreIds.Count == 0 ? -1 : Array.FindIndex(rows, row => restoreIds.Contains(row.Id));
+            at = match >= 0 ? match : Math.Min(offset, rows.Length - 1);
+        }
         // Each block starts on a stable boundary. Long metadata can split it into
         // several pages; reconstruct only this block when going back or locating an ID.
         int blockStart = at / PageRows * PageRows;
-        if (previousPage || revealId.HasValue) offset = blockStart;
+        if (previousPage || revealId.HasValue || restoreIds is not null) offset = blockStart;
         int blockEnd = Math.Min(blockStart + PageRows, rows.Length);
         while (true)
         {
