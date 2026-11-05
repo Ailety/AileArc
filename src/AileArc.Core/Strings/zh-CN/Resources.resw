@@ -224,4 +224,14 @@ Ctrl + A：全选当前页</value></data>
   <data name="ClientFolderTree"><value>压缩包目录树</value></data>
   <data name="ClientExpandFolder"><value>展开 {0}</value></data>
   <data name="ClientCollapseFolder"><value>折叠 {0}</value></data>
+  <data name="ClientLocate"><value>在所在目录中定位</value></data>
+  <data name="ClientDropHint"><value>松开以打开压缩包</value></data>
+  <data name="ClientDropInvalid"><value>请拖入 1–32 个文件；不接受文件夹。</value></data>
+  <data name="ClientDropWelcome"><value>拖入归档文件，或按 Ctrl+O 选择文件。</value></data>
+  <data name="ClientEmptyFolder"><value>此目录为空</value></data>
+  <data name="ClientTryAnotherSearch"><value>试试其他名称，或清除搜索返回当前目录。</value></data>
+  <data name="ClientCompact"><value>紧凑列表</value></data>
+  <data name="ClientExtractParent"><value>解压所在文件夹…</value></data>
+  <data name="ClientParentScope"><value>将解压「{0}」及其全部子项。</value></data>
+  <data name="ClientParentIsRoot"><value>所选文件位于根目录，将解压整个压缩包。</value></data>
 </root>

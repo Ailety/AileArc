@@ -110,7 +110,7 @@ public partial class MainWindow
         return new ConflictDecision(accepted ? choice.SelectedIndex switch { 1 => ConflictChoice.Skip, 2 => ConflictChoice.Replace, _ => ConflictChoice.Rename } : ConflictChoice.Cancel, all.IsChecked == true);
     }).Task;
 
-    private enum ExtractionMode { All, Selected, Smart, Here }
+    private enum ExtractionMode { All, Selected, Smart, Here, ParentFolder }
     private string ExtractionLabel(int count) => count == 0 ? Text["ClientExtractAll"] : Text.Format("ClientExtractSelection", count);
     private long[] SelectedIds() => EntryGrid.SelectedItems.Cast<EntryView>().Select(v => long.Parse(v.Row.Id, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
     private async void Extract_Click(object sender, RoutedEventArgs e) => await ShowExtractDialogAsync(EntryGrid.SelectedItems.Count == 0 ? ExtractionMode.All : ExtractionMode.Selected);
@@ -127,8 +127,15 @@ public partial class MainWindow
         if (IsBusy || archive is null || OpenedPath is null) return;
         var dialog = new ActionDialog(this, "Extract", "Extract");
         var ids = mode == ExtractionMode.Selected ? SelectedIds() : null;
+        if (mode == ExtractionMode.ParentFolder)
+        {
+            if (folderTree is null || EntryGrid.SelectedItems.Count != 1 || EntryGrid.SelectedItem is not EntryView item || item.Row.Type == "folder") return;
+            string parent = ArchiveIndex.ParentOf(item.Path);
+            ids = folderTree[parent].EntryId is long folderId ? [folderId] : null;
+            dialog.Explain(parent.Length == 0 ? Text["ClientParentIsRoot"] : Text.Format("ClientParentScope", parent));
+        }
         if (ids is { Length: 0 }) return;
-        dialog.Explain(mode switch { ExtractionMode.Smart => Text["SmartExtract"], ExtractionMode.Here => Text["ClientExtractHere"], _ => ExtractionLabel(ids?.Length ?? 0) });
+        if (mode != ExtractionMode.ParentFolder) dialog.Explain(mode switch { ExtractionMode.Smart => Text["SmartExtract"], ExtractionMode.Here => Text["ClientExtractHere"], _ => ExtractionLabel(ids?.Length ?? 0) });
         var destination = new TextBox { Text = Path.GetDirectoryName(OpenedPath), Margin = new Thickness(0, 0, 0, 8) };
         System.Windows.Automation.AutomationProperties.SetName(destination, Text["Destination"]);
         dialog.Explain(Text["Destination"]); dialog.Body.Children.Add(destination);

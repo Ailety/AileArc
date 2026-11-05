@@ -46,7 +46,8 @@ public partial class MainWindow : Window
         PreviewKeyDown += NavigationKey;
         EncodingBox.ItemsSource = new[] { Text["FilenameEncodingAuto"], "UTF-8 (65001)", "GBK (936)", "Shift-JIS (932)" }; EncodingBox.SelectedIndex = 0;
         InitializeSearch();
-        EmptyText.Text = Text["WelcomeDetail"]; EmptyText.Visibility = Visibility.Visible;
+        InitializeWorkspaceActions();
+        EmptyText.Text = Text["ClientDropWelcome"];
         configuring = false; SetControls();
         InitializeOperations();
         Loaded += async (_, _) => { if (initialPath is not null) await OpenAsync(initialPath, this.initialCodePage); };
@@ -124,7 +125,7 @@ public partial class MainWindow : Window
         });
     }
     private static BrowserRequest Request(string directory, string search, int offset, string sort, bool descending) => new(1, Guid.NewGuid().ToString(), "query", Directory: directory, Search: search, Sort: sort, Descending: descending, Offset: offset);
-    private async Task QueryAsync(string targetDirectory, int targetOffset, bool clearSearch = false, bool submit = false, bool back = false, bool forward = false, int? sort = null, bool? descending = null, CancellationToken? live = null)
+    private async Task QueryAsync(string targetDirectory, int targetOffset, bool clearSearch = false, bool submit = false, bool back = false, bool forward = false, int? sort = null, bool? descending = null, CancellationToken? live = null, long? revealId = null)
     {
         if ((back && history.Count == 0) || (forward && future.Count == 0)) return;
         var target = back ? history[^1].Page : forward ? future[^1].Page : new View(targetDirectory, clearSearch ? "" : submit ? SearchBox.Text : view.Search,
@@ -135,10 +136,10 @@ public partial class MainWindow : Window
         async Task<Action> Prepare(CancellationToken token)
         {
             var page = await Task.Run(() => current.Query(Request(target.Directory, target.Search, target.Offset,
-                SortKeys[target.Sort], target.Descending), token, target.Local, EntryView.LabelFor), token);
+                SortKeys[target.Sort], target.Descending), token, target.Local, EntryView.LabelFor, revealId), token);
             return () =>
             {
-                string[] restore = [];
+                string[] restore = revealId.HasValue ? [revealId.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)] : [];
                 if (back || forward)
                 {
                     var source = back ? history : future; var destination = back ? future : history;
@@ -186,16 +187,22 @@ public partial class MainWindow : Window
     }
     internal void ApplyRows(EntryView[] rows)
     {
+        EntryGrid.ContextMenu.IsOpen = false;
         changingItems = true;
         try { EntryGrid.UnselectAll(); displayed = rows; EntryGrid.ItemsSource = rows; }
         finally { changingItems = false; }
         if (rows.Length > 0) EntryGrid.ScrollIntoView(rows[0]);
-        EmptyText.Text = Text["NoResults"]; EmptyText.Visibility = rows.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+        EmptyPanel.Visibility = rows.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+        WelcomeMark.Visibility = Visibility.Collapsed;
+        EmptyHeading.Text = Text[view.Search.Length == 0 ? "ClientEmptyFolder" : "NoResults"];
+        EmptyText.Text = view.Search.Length == 0 ? "" : Text["ClientTryAnotherSearch"];
+        EmptyAction.Content = Text["ClientClearSearch"]; EmptyAction.Visibility = view.Search.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
         UpdateSelection();
     }
     private void SetControls()
     {
         bool idle = !IsBusy && ((ClientApp)Application.Current).CanStart(this);
+        EmptyAction.IsEnabled = idle; SetActivity(IsBusy);
         OpenButton.IsEnabled = idle; LanguageBox.IsEnabled = idle; RestartButton.IsEnabled = idle;
         SearchBox.IsEnabled = idle && archive is not null;
         LocalSearchBox.IsEnabled = SearchBox.IsEnabled;
@@ -250,6 +257,7 @@ public partial class MainWindow : Window
         DetailColumn.Width = new GridLength(hide ? 0 : 254); DetailDivider.Width = new GridLength(hide ? 0 : 1);
         DetailPane.Visibility = hide ? Visibility.Collapsed : Visibility.Visible;
         ShowDetails.Visibility = hide ? Visibility.Visible : Visibility.Collapsed;
+        if (!hide) FadeIn(DetailPane);
         (hide ? ShowDetails : HideDetails).Focus();
     }
     internal Action<string> CopyText { get; set; } = Clipboard.SetText;

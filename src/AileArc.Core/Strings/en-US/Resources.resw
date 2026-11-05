@@ -224,4 +224,14 @@ Ctrl + A: select this page</value></data>
   <data name="ClientFolderTree"><value>Archive folders</value></data>
   <data name="ClientExpandFolder"><value>Expand {0}</value></data>
   <data name="ClientCollapseFolder"><value>Collapse {0}</value></data>
+  <data name="ClientLocate"><value>Show in containing folder</value></data>
+  <data name="ClientDropHint"><value>Drop to open archives</value></data>
+  <data name="ClientDropInvalid"><value>Drop 1–32 files. Folders cannot be opened as archives.</value></data>
+  <data name="ClientDropWelcome"><value>Drop archive files here, or press Ctrl+O to choose a file.</value></data>
+  <data name="ClientEmptyFolder"><value>This folder is empty</value></data>
+  <data name="ClientTryAnotherSearch"><value>Try another name, or clear search to return to this folder.</value></data>
+  <data name="ClientCompact"><value>Compact rows</value></data>
+  <data name="ClientExtractParent"><value>Extract containing folder…</value></data>
+  <data name="ClientParentScope"><value>Extract “{0}” and everything inside it.</value></data>
+  <data name="ClientParentIsRoot"><value>The file is at the archive root. The entire archive will be extracted.</value></data>
 </root>

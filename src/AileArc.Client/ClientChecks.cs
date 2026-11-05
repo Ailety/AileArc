@@ -63,6 +63,7 @@ internal static partial class ClientChecks
                 await CheckSearchHistoryAsync(window, testRoot);
                 await CheckFoldersAsync(window, testRoot);
                 await CheckPrimaryExtractionAsync(window, app, testRoot);
+                await CheckWorkspaceAsync(app, testRoot);
                 var empty = new MainWindow { Opacity = 0, ShowActivated = false, ShowInTaskbar = false };
                 empty.Show(); empty.Close();
                 await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);

@@ -20,7 +20,7 @@ internal sealed class ArchiveFolderTree
             if (!entry.IsDirectory) continue;
             // ArchiveIndex emits even implicit parents before their children.
             var parent = nodes[entry.Parent];
-            var node = new FolderNode(entry.Name, entry.Path, parent);
+            var node = new FolderNode(entry.Name, entry.Path, parent, entry.Id);
             parent.Add(node); nodes.Add(entry.Path, node);
         }
         foreach (var node in nodes.Values) { token.ThrowIfCancellationRequested(); node.SortChildren(); }
@@ -41,9 +41,10 @@ internal sealed class ArchiveFolderTree
     }
 }
 
-internal sealed class FolderNode(string name, string path, FolderNode? parent) : INotifyPropertyChanged
+internal sealed class FolderNode(string name, string path, FolderNode? parent, long? entryId = null) : INotifyPropertyChanged
 {
     public string Name { get; } = name;
+    internal long? EntryId { get; } = entryId;
     public string Path { get; } = path;
     public string Hint => Parent is null ? Name : Path;
     public string Glyph => Parent is null ? "\uE7B8" : "\uE8B7";
