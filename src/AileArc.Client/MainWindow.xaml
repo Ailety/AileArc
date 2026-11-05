@@ -6,9 +6,15 @@
       <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="WarmGraphite.xaml" /></ResourceDictionary.MergedDictionaries>
       <DataTemplate x:Key="WorkCopyItem">
         <StackPanel Margin="3,2">
-          <TextBlock Text="{Binding EntryPath}" TextTrimming="CharacterEllipsis"/>
+          <DockPanel>
+            <TextBlock x:Name="IntegrityLabel" DockPanel.Dock="Right" Text="{local:Text ClientUnverifiedLabel}" Foreground="{StaticResource AccentBrush}" Margin="8,0,0,0"/>
+            <TextBlock Text="{Binding EntryPath}" TextTrimming="CharacterEllipsis"/>
+          </DockPanel>
           <TextBlock Text="{Binding ArchivePath}" Style="{StaticResource Muted}" TextTrimming="CharacterEllipsis"/>
         </StackPanel>
+        <DataTemplate.Triggers>
+          <DataTrigger Binding="{Binding Damage}" Value="{x:Null}"><Setter TargetName="IntegrityLabel" Property="Visibility" Value="Collapsed"/></DataTrigger>
+        </DataTemplate.Triggers>
       </DataTemplate>
       <DataTemplate x:Key="RecoveryRowTemplate">
         <StackPanel Margin="3,2">

@@ -127,6 +127,9 @@ internal sealed class WorkCopiesDialog : ActionDialog
             var current = await Task.Run(() => store.InspectAsync(record, request.Token), request.Token);
             if (request.IsCancellationRequested) return;
             state.Text = Text["CopyState" + current.State];
+            if (record.Damage is { } damage) state.Text = Text.Format("ClientDamagedCopyState", Text[damage.Reason], MainWindow.DamageSize(damage)) +
+                Environment.NewLine + state.Text;
+            Accept.Content = Text[record.Damage is null ? "SaveCopyAs" : "ClientExportAvailable"];
             Accept.IsEnabled = reopen.IsEnabled = current.State is WorkCopyState.Modified or WorkCopyState.Unchanged;
             clean.IsEnabled = current.State == WorkCopyState.Unchanged && !((ClientApp)Application.Current).AnyTaskRunning;
         }

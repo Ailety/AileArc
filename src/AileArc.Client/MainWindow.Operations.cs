@@ -309,8 +309,8 @@ public partial class MainWindow
         if (ExternalOpenPolicy.RequiresConfirmation(entry.Path) && !Confirm("ConfirmExecutable", Text.Format("ExecutableHint", Path.GetFileName(entry.Path)), "OpenFile")) return Task.CompletedTask;
         return RunAsync(Text["PreparingExternal"], async token =>
         {
-            var record = await WithPasswordAsync(secret => Task.Run(() => Copies.PrepareAsync(path, snapshot.Identity, entry,
-                (destination, ct) => worker.ExtractAsync(path, new ExtractionOptions(destination, false, ByteLimit: WorkCopyStore.MaxFileBytes, SelectedIds: [id], ExpectedIdentity: snapshot.Identity, NameCodePage: snapshot.NameCodePage), cancellationToken: ct, password: secret), token), token), token);
+            var record = await WithPasswordAsync(secret => Task.Run(() =>
+                Copies.PrepareForOpenAsync(worker, path, snapshot.Identity, entry, snapshot.NameCodePage, secret, token), token), token);
             return await PrepareCopyLaunchAsync(record, token);
         }, false);
     }
@@ -319,6 +319,14 @@ public partial class MainWindow
     {
         var state = await Task.Run(() => Copies.InspectAsync(record, token), token);
         if (state.State is WorkCopyState.Incomplete or WorkCopyState.Unavailable) throw new ArchiveOperationException("CopyUnavailable");
+        token.ThrowIfCancellationRequested();
+        if (record.Damage is { } damage)
+        {
+            string hint = Text.Format("ClientDamagedOpenHint", record.EntryPath, Text[damage.Reason], DamageSize(damage));
+            if (!Confirm("ClientDamagedCopy", hint, "ClientOpenAvailable", "ClientKeepCopy"))
+                return () => StatusText.Text = Text["ClientUnverifiedKept"];
+            await Task.Run(() => Copies.RecheckApprovedContentAsync(state, token), token);
+        }
         await Task.Run(() => Copies.RestoreSourceMarkAsync(record, token), token);
         return () =>
         {
@@ -326,12 +334,16 @@ public partial class MainWindow
             try
             {
                 LaunchFile(state.FilePath, new WindowInteropHelper(this).Handle);
-                StatusText.Text = Text[state.State == WorkCopyState.Modified ? "CopyStateModified" : "ExternalCopyNotice"];
+                StatusText.Text = Text[record.Damage is not null ? "ClientUnverifiedOpened" :
+                    state.State == WorkCopyState.Modified ? "CopyStateModified" : "ExternalCopyNotice"];
             }
             catch (Exception error) when (error is Win32Exception or IOException or System.Runtime.InteropServices.COMException)
             { StatusText.Text = Text["ExternalOpenFailed"]; }
         };
     }
+
+    internal static string DamageSize(UnverifiedContent damage) => damage.ExpectedBytes is ulong expected ?
+        ClientApp.Text.Format("ClientDecodedOf", damage.DecodedBytes, expected) : ClientApp.Text.Format("ClientDecodedBytes", damage.DecodedBytes);
 
     private async void Copies_Click(object sender, RoutedEventArgs e) => await ShowCopiesAsync();
     internal async Task ShowCopiesAsync(int pageSize = 2000)
