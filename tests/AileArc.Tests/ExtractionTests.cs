@@ -177,13 +177,21 @@ public sealed partial class WorkerTests
         Assert.False(Directory.Exists(destination));
     }
 
-    [Fact]
-    public async Task RarFixtureListsAndExtractsSelectedRegularFile()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RarFixtureListsAndExtractsSelectedRegularFile(bool prefixed)
     {
         // libarchive/test/test_read_format_rar.rar.uu, BSD-2-Clause; see THIRD_PARTY_NOTICES.md.
         const string fixture = "UmFyIRoHAM+QcwAADQAAAAAAAACEUnQgkDIAFAAAABQAAAADQqLIvrd22j4UMAgApIEAAHRlc3QudHh0gAi3dto+t3baPnRlc3QgdGV4dCBkb2N1bWVudA0KnS90IJAyAAgAAAAIAAAAA3tEybbRTNg+FDAIAP+hAAB0ZXN0bGlua8AI0UzYPlBf2j50ZXN0LnR4dM3gdCCQOgAUAAAAFAAAAANCosi+Y3faPhQwEACkgQAAdGVzdGRpclx0ZXN0LnR4dMDMY3faPmN32j50ZXN0IHRleHQgZG9jdW1lbnQNCqHIdOCQMQAAAAAAAAAAAAMAAAAAY3faPhQwBwDtQQAAdGVzdGRpcsDMY3faPmR32j7m53TgkDYAAAAAAAAAAAADAAAAAJ2r1T4UMAwA7UEAAHRlc3RlbXB0eWRpcoDMnavVPsVd2j7EPXsAQAcA";
         string archive = Path.Combine(temp, "sample.rar");
         await File.WriteAllBytesAsync(archive, Convert.FromBase64String(fixture));
+        if (prefixed)
+        {
+            string wrapped = Path.Combine(temp, "wrapped.bin");
+            await WithPrefixAsync(archive, wrapped, 4096);
+            archive = wrapped;
+        }
         var scan = await client.ScanAsync(archive);
         Assert.Equal("RAR", scan.Format);
         Assert.Equal(5, scan.Entries.Count);

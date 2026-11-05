@@ -203,7 +203,7 @@ Ctrl + A：全选当前页</value></data>
   <data name="ClientSelectionCount" xml:space="preserve"><value>当前 {0:N0} 项 · 已选 {1:N0} 项</value></data>
   <data name="ClientManySelected" xml:space="preserve"><value>已选择 {0:N0} 个项目</value></data>
   <data name="ClientPageSelection" xml:space="preserve"><value>页面切换会清除选择</value></data>
-  <data name="ClientFilter" xml:space="preserve"><value>压缩包|*.zip;*.7z;*.rar|所有文件|*.*</value></data>
+  <data name="ClientFilter" xml:space="preserve"><value>压缩包|*.zip;*.7z;*.rar|应用包、电子书和漫画|*.jar;*.apk;*.epub;*.cbz;*.cbr;*.cb7|自解压程序（作为归档读取）|*.exe|所有文件|*.*</value></data>
   <data name="ClientOpenPending" xml:space="preserve"><value>此开发预览仅支持浏览，文件打开功能暂不可用。</value></data>
   <data name="ClientLanguageSaved" xml:space="preserve"><value>语言已保存，重启全部窗口后生效。</value></data>
   <data name="ClientInvalidArguments" xml:space="preserve"><value>此入口仅接受压缩包路径，尚未接入 Shell 动作。</value></data>

@@ -203,7 +203,7 @@ Ctrl + A: select this page</value></data>
   <data name="ClientSelectionCount" xml:space="preserve"><value>{0:N0} items · {1:N0} selected</value></data>
   <data name="ClientManySelected" xml:space="preserve"><value>{0:N0} items selected</value></data>
   <data name="ClientPageSelection" xml:space="preserve"><value>Changing pages clears selection</value></data>
-  <data name="ClientFilter" xml:space="preserve"><value>Archives|*.zip;*.7z;*.rar|All files|*.*</value></data>
+  <data name="ClientFilter" xml:space="preserve"><value>Archives|*.zip;*.7z;*.rar|App packages, books and comics|*.jar;*.apk;*.epub;*.cbz;*.cbr;*.cb7|Self-extracting archives (read as data)|*.exe|All files|*.*</value></data>
   <data name="ClientOpenPending" xml:space="preserve"><value>This development preview supports browsing. Opening files is not available yet.</value></data>
   <data name="ClientLanguageSaved" xml:space="preserve"><value>Language saved. Restart all windows to apply.</value></data>
   <data name="ClientInvalidArguments" xml:space="preserve"><value>This entry point accepts archive paths only. Shell actions are not connected yet.</value></data>

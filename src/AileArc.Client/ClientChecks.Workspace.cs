@@ -9,10 +9,12 @@ internal static partial class ClientChecks
 {
     private static async Task CheckWorkspaceAsync(ClientApp app, string root)
     {
-        string zipPath = Path.Combine(root, "文件菜单.zip");
+        string zipPath = Path.Combine(root, "带前缀的文件菜单.bin");
         string longName = new('目', 240);
-        using (var zip = ZipFile.Open(zipPath, ZipArchiveMode.Create))
+        using (var output = File.Create(zipPath))
         {
+            output.Write("MZ"u8); output.Position = 8192;
+            using var zip = new ZipArchive(output, ZipArchiveMode.Create);
             for (int i=0; i<204; i++) zip.CreateEntry($"wide/A{i:D3}.txt");
             for (int i = 0; i < 215; i++) zip.CreateEntry($"分页/{i:D3}{longName}/note.txt");
             foreach (string name in new[] { "wide/config.yml", "docs/config.yml", "docs/deps/依赖.txt", "docs2/保留.txt" })

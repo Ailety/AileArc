@@ -13,7 +13,42 @@ public sealed partial class SevenZipEngine : IDisposable
 {
     private readonly IntPtr library;
     private readonly CreateObjectDelegate createObject;
-    private static readonly (string Name, byte Id)[] Formats = [("ZIP", 0x01), ("7Z", 0x07), ("RAR", 0x03), ("RAR5", 0xCC)];
+    private sealed record ArchiveFormat(string Name, byte Id, byte[][] Signatures);
+    private const int MaxArchivePrefix = 4 * 1024 * 1024;
+    private static readonly ArchiveFormat[] Formats =
+    [
+        new("ZIP", 0x01, [[0x50, 0x4b, 3, 4], [0x50, 0x4b, 5, 6], [0x50, 0x4b, 6, 6], [0x50, 0x4b, 7, 8]]),
+        new("7Z", 0x07, [[0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c]]),
+        new("RAR", 0x03, [[0x52, 0x61, 0x72, 0x21, 0x1a, 0x07, 0x00]]),
+        new("RAR5", 0xCC, [[0x52, 0x61, 0x72, 0x21, 0x1a, 0x07, 0x01, 0x00]])
+    ];
+
+    private static IEnumerable<(string Name, byte Id, ulong Search)> ProbeOrder(FileStream input)
+    {
+        foreach (var format in Formats) yield return (format.Name, format.Id, 0);
+        // A recognizable but broken outer archive must not reveal a nested archive
+        // instead. With a preamble, try the earliest candidate handler first.
+        input.Position = 0;
+        var prefix = new byte[(int)Math.Min(input.Length, MaxArchivePrefix + 8L)];
+        input.ReadExactly(prefix);
+        var candidates = new List<(ArchiveFormat Format, int Offset)>();
+        foreach (var format in Formats)
+        {
+            int first = int.MaxValue;
+            foreach (var signature in format.Signatures)
+            {
+                int at = prefix.AsSpan().IndexOf(signature);
+                if (at == 0) yield break;
+                if (at > 0) first = Math.Min(first, at);
+            }
+            if (first <= MaxArchivePrefix) candidates.Add((format, first));
+        }
+        foreach (var candidate in candidates.OrderBy(c => c.Offset))
+        {
+            var format = candidate.Format;
+            yield return (format.Name, format.Id, MaxArchivePrefix);
+        }
+    }
     [UnmanagedFunctionPointer(CallingConvention.StdCall)]
     private delegate int CreateObjectDelegate(ref Guid classId, ref Guid interfaceId, [MarshalAs(UnmanagedType.Interface)] out IInArchive archive);
 
@@ -30,7 +65,7 @@ public sealed partial class SevenZipEngine : IDisposable
         // Restrict to a local/UNC file path; never pass user-controlled engine switches.
         using var input = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, FileOptions.RandomAccess);
         var stream = new ArchiveInputStream(input);
-        foreach (var format in Formats)
+        foreach (var format in ProbeOrder(input))
         {
             input.Position = 0;
             var classId = new Guid($"23170F69-40C1-278A-1000-000110{format.Id:X2}0000");
@@ -40,7 +75,7 @@ public sealed partial class SevenZipEngine : IDisposable
             {
                 if (format.Name == "ZIP" && nameCodePage != 0) NativeProperties.Set(archive, ("cp", (uint)nameCodePage));
                 var callback = new ArchiveOpenCallback(password, emit);
-                ulong maxSearch = 0; // Probe signatures at file start; extension is not authoritative.
+                ulong maxSearch = format.Search;
                 int result = archive.Open(stream, ref maxSearch, callback);
                 if (callback.PasswordRequested && password is null) throw new ArchiveEngineException("PasswordRequired");
                 if (callback.PasswordRequested && result != 0) throw new ArchiveEngineException("WrongPasswordOrDamaged");
