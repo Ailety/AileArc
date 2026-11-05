@@ -74,6 +74,30 @@ public sealed class DesktopBridgeTests
         Assert.Contains(model.Query(Query(),revealId:90).Rows,r=>r.Id=="90");
     }
     [Fact]
+    public void ByteLimitedPagesRoundTripAndLocateUsesTheSameBoundaries()
+    {
+        string prefix = new('资', 750);
+        var entries = Enumerable.Range(0, 423).Select(i => new ArchiveEntry(i, prefix + (i / 2).ToString("D3"), false, 2, false)).ToArray();
+        var model = new ArchivePresentation(new("ZIP", entries));
+        var pages = new List<BrowserPage>();
+        for (int start = 0; start < entries.Length;)
+        {
+            var page = model.Query(Query(start));
+            Assert.Equal(start, page.Offset);
+            Assert.NotEmpty(page.Rows);
+            pages.Add(page);
+            start += page.Rows.Length;
+        }
+        Assert.True(pages.Count > 4);
+        Assert.Equal(entries.Select(e => e.Id.ToString()), pages.SelectMany(p => p.Rows.Select(r => r.Id)));
+        for (int i = pages.Count - 1; i > 0; i--)
+        {
+            var previous = model.Query(Query(pages[i].Offset), previousPage: true);
+            Assert.Equal(pages[i - 1].Rows, previous.Rows);
+            Assert.Equal(pages[i].Rows, model.Query(Query(), revealId: long.Parse(pages[i].Rows[^1].Id)).Rows);
+        }
+    }
+    [Fact]
     public void DeepImplicitPathsAreRejectedBeforeIndexExpansion()
     {
         var path=string.Concat(Enumerable.Repeat("a/",16000))+"x";

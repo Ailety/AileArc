@@ -37,6 +37,8 @@ public sealed record BrowserRow(string Id, string Name, string Parent, string Pa
 public sealed record BrowserPage(BrowserRow[] Rows, int Total, int Offset, bool HasMore);
 public sealed class ArchivePresentation
 {
+    private const int PageRows = 200;
+    private const int PageBytes = 512 * 1024;
     private sealed record OrderKey(string Directory, string Search, bool Local, string Sort, bool Descending, Func<string,string>? TypeLabel);
     private sealed record OrderedView(OrderKey Key, BrowserEntry[] Rows);
     private OrderedView? lastView;
@@ -60,7 +62,7 @@ public sealed class ArchivePresentation
     }
     public BrowserRow[] RootFolders => GetRootFolders();
     public BrowserRow[] GetRootFolders(CancellationToken token = default) => Bound(Index.Query("", cancellationToken: token).Where(row => row.IsDirectory).Take(100), 128 * 1024);
-    public BrowserPage Query(BrowserRequest request, CancellationToken token = default, bool currentDirectoryOnly = false, Func<string,string>? typeLabel = null, long? revealId = null)
+    public BrowserPage Query(BrowserRequest request, CancellationToken token = default, bool currentDirectoryOnly = false, Func<string,string>? typeLabel = null, long? revealId = null, bool previousPage = false)
     {
         token.ThrowIfCancellationRequested();
         long version = Interlocked.Increment(ref queryVersion);
@@ -74,29 +76,32 @@ public sealed class ArchivePresentation
         if (cached?.Key != key && Volatile.Read(ref queryVersion) == version)
             Volatile.Write(ref lastView, new OrderedView(key, rows));
         int offset = Math.Min(request.Offset, rows.Length);
-        int at = -1;
+        int at = previousPage ? Math.Max(0, offset - 1) : offset;
         if (revealId is long id)
         {
             at = Array.FindIndex(rows, r => r.Id == id);
             if (at < 0) throw new ArchiveOperationException("ArchiveChanged");
-            offset = at / 200 * 200;
         }
-        var page = Bound(rows.Skip(offset).Take(200), 512 * 1024);
-        if (at >= 0 && !page.Any(r => r.Id == revealId!.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)))
+        // Each block starts on a stable boundary. Long metadata can split it into
+        // several pages; reconstruct only this block when going back or locating an ID.
+        int blockStart = at / PageRows * PageRows;
+        if (previousPage || revealId.HasValue) offset = blockStart;
+        int blockEnd = Math.Min(blockStart + PageRows, rows.Length);
+        while (true)
         {
-            // Long paths can shorten the nominal page. Ensure the requested item itself fits.
-            offset = at; page = Bound(rows.Skip(offset).Take(200), 512 * 1024);
-            if (page.Length == 0 || page[0].Id != rows[at].Id.ToString(System.Globalization.CultureInfo.InvariantCulture))
-                throw new ArchiveOperationException("ResourceLimit");
+            var page = Bound(rows.Skip(offset).Take(blockEnd - offset), PageBytes, token);
+            int end = offset + page.Length;
+            if (end == offset && offset < rows.Length) throw new ArchiveOperationException("ResourceLimit");
+            if (end > at || end == rows.Length) return new(page, rows.Length, offset, end < rows.Length);
+            offset = end;
         }
-        token.ThrowIfCancellationRequested();
-        return new(page, rows.Length, offset, offset + page.Length < rows.Length);
     }
-    private static BrowserRow[] Bound(IEnumerable<BrowserEntry> rows, int limit)
+    private static BrowserRow[] Bound(IEnumerable<BrowserEntry> rows, int limit, CancellationToken token = default)
     {
         var result = new List<BrowserRow>(); int bytes = 0;
         foreach (var row in rows)
         {
+            token.ThrowIfCancellationRequested();
             string type = row.Kind;
             var item = new BrowserRow(row.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), row.Name,
                 row.Parent.Length > 0 ? row.Parent + "/" : "", row.Path, type, row.Size is null ? null : row.Size.Value / 1024d, "—", row.Encrypted) { UnpackedBytes = row.Size };

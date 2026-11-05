@@ -188,8 +188,7 @@ Ctrl + A：全选当前页</value></data>
   <data name="ClientText" xml:space="preserve"><value>文本文档</value></data>
   <data name="ClientFile" xml:space="preserve"><value>文件</value></data>
   <data name="ClientStatus" xml:space="preserve"><value>{0} · 索引 {1:N0} 项</value></data>
-  <data name="ClientSummary" xml:space="preserve"><value>索引 {0:N0} 项
-结果 {1:N0} 项 · 起点 {2:N0}</value></data>
+  <data name="ClientSummary" xml:space="preserve"><value>共 {0:N0} 项 · 显示第 {1:N0}–{2:N0} 项</value></data>
   <data name="ClientSelectionCount" xml:space="preserve"><value>当前 {0:N0} 项 · 已选 {1:N0} 项</value></data>
   <data name="ClientManySelected" xml:space="preserve"><value>已选择 {0:N0} 个项目</value></data>
   <data name="ClientPageSelection" xml:space="preserve"><value>页面切换会清除选择</value></data>

@@ -56,6 +56,9 @@ public partial class MainWindow
         AddressInput.Visibility = Visibility.Collapsed; await QueryAsync(target, 0, true); EntryGrid.Focus();
     }
     private async void Forward_Click(object sender, RoutedEventArgs e) => await QueryAsync(directory, 0, forward: true);
+    private Task GoUpAsync() => currentFolder?.Parent is { } parent
+        ? QueryAsync(parent.Path, 0, clearSearch: true, revealId: currentFolder.EntryId)
+        : Task.CompletedTask;
     private async void NavigationKey(object sender, KeyEventArgs e)
     {
         if (Keyboard.Modifiers != ModifierKeys.Alt || archive is null || IsBusy) return;
@@ -64,7 +67,7 @@ public partial class MainWindow
             case Key.D: e.Handled = true; EditAddress(); break;
             case Key.Left: e.Handled = true; await QueryAsync(directory, 0, back: true); break;
             case Key.Right: e.Handled = true; await QueryAsync(directory, 0, forward: true); break;
-            case Key.Up: e.Handled = true; await QueryAsync(ArchiveIndex.ParentOf(directory), 0, true); break;
+            case Key.Up: e.Handled = true; await GoUpAsync(); break;
         }
     }
     private void UpdateHeaders()

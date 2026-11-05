@@ -125,7 +125,7 @@ public partial class MainWindow : Window
         });
     }
     private static BrowserRequest Request(string directory, string search, int offset, string sort, bool descending) => new(1, Guid.NewGuid().ToString(), "query", Directory: directory, Search: search, Sort: sort, Descending: descending, Offset: offset);
-    private async Task QueryAsync(string targetDirectory, int targetOffset, bool clearSearch = false, bool submit = false, bool back = false, bool forward = false, int? sort = null, bool? descending = null, CancellationToken? live = null, long? revealId = null)
+    private async Task QueryAsync(string targetDirectory, int targetOffset, bool clearSearch = false, bool submit = false, bool back = false, bool forward = false, int? sort = null, bool? descending = null, CancellationToken? live = null, long? revealId = null, bool previousPage = false)
     {
         if ((back && history.Count == 0) || (forward && future.Count == 0)) return;
         var target = back ? history[^1].Page : forward ? future[^1].Page : new View(targetDirectory, clearSearch ? "" : submit ? SearchBox.Text : view.Search,
@@ -136,7 +136,7 @@ public partial class MainWindow : Window
         async Task<Action> Prepare(CancellationToken token)
         {
             var page = await Task.Run(() => current.Query(Request(target.Directory, target.Search, target.Offset,
-                SortKeys[target.Sort], target.Descending), token, target.Local, EntryView.LabelFor, revealId), token);
+                SortKeys[target.Sort], target.Descending), token, target.Local, EntryView.LabelFor, revealId, previousPage), token);
             return () =>
             {
                 string[] restore = revealId.HasValue ? [revealId.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)] : [];
@@ -225,7 +225,8 @@ public partial class MainWindow : Window
         BackButton.IsEnabled = !IsBusy && history.Count > 0;
         PreviousButton.IsEnabled = !IsBusy && offset > 0;
         NextButton.IsEnabled = !IsBusy && offset + displayed.Length < total;
-        SummaryText.Text = archive is null ? Text["WelcomeDetail"] : Text.Format("ClientSummary", archive.Index.Entries.Count, total, offset);
+        SummaryText.Text = archive is null ? Text["WelcomeDetail"] : total == 0 ? Text["NoResults"] :
+            Text.Format("ClientSummary", total, offset + 1, offset + displayed.Length);
     }
     private void Grid_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
@@ -291,7 +292,7 @@ public partial class MainWindow : Window
     private async void Restart_Click(object sender, RoutedEventArgs e) { if (Application.Current.Windows.OfType<MainWindow>().Any(w => w.IsBusy)) StatusText.Text = Text["TaskRunning"]; else await ((ClientApp)Application.Current).RestartAsync(); }
     private async void Encoding_Changed(object sender, SelectionChangedEventArgs e)
     { if (!configuring && !IsBusy && OpenedPath is { } path && archive?.Scan.Format == "ZIP" && EncodingBox.SelectedIndex >= 0) await OpenAsync(path, CodePages[EncodingBox.SelectedIndex], password); }
-    private async void Up_Click(object sender, RoutedEventArgs e) => await QueryAsync(ArchiveIndex.ParentOf(directory), 0, true);
+    private async void Up_Click(object sender, RoutedEventArgs e) => await GoUpAsync();
     internal Task ActivateAsync()
     {
         if (IsBusy || EntryGrid.SelectedItems.Count != 1 || EntryGrid.SelectedItem is not EntryView row) return Task.CompletedTask;
@@ -301,7 +302,7 @@ public partial class MainWindow : Window
     private async void Grid_DoubleClick(object sender, MouseButtonEventArgs e) { if (FindAncestor<DataGridRow>(e.OriginalSource as DependencyObject) is not null) await ActivateAsync(); }
     private async void Grid_KeyDown(object sender, KeyEventArgs e)
     { if (e.Key == Key.Escape) { EntryGrid.UnselectAll(); e.Handled = true; } else if (e.Key == Key.Enter) { e.Handled = true; await ActivateAsync(); } }
-    private async void Previous_Click(object sender, RoutedEventArgs e) => await QueryAsync(directory, Math.Max(0, offset - 200));
+    private async void Previous_Click(object sender, RoutedEventArgs e) => await QueryAsync(directory, offset, previousPage: true);
     private async void Next_Click(object sender, RoutedEventArgs e) => await QueryAsync(directory, offset + displayed.Length);
     private async void Back_Click(object sender, RoutedEventArgs e) => await QueryAsync(directory, 0, back: true);
     private void Scope_Click(object sender, RoutedEventArgs e) => ScheduleSearch(immediate: true);

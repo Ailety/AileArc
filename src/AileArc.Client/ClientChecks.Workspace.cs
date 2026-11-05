@@ -10,9 +10,11 @@ internal static partial class ClientChecks
     private static async Task CheckWorkspaceAsync(ClientApp app, string root)
     {
         string zipPath = Path.Combine(root, "文件菜单.zip");
+        string longName = new('目', 240);
         using (var zip = ZipFile.Open(zipPath, ZipArchiveMode.Create))
         {
             for (int i=0; i<204; i++) zip.CreateEntry($"wide/A{i:D3}.txt");
+            for (int i = 0; i < 215; i++) zip.CreateEntry($"分页/{i:D3}{longName}/note.txt");
             foreach (string name in new[] { "wide/config.yml", "docs/config.yml", "docs/deps/依赖.txt", "docs2/保留.txt" })
             { using var writer = new StreamWriter(zip.CreateEntry(name).Open()); writer.Write(name); }
         }
@@ -51,6 +53,21 @@ internal static partial class ClientChecks
             await WaitIdle();
             Require(File.ReadAllText(Path.Combine(destination,"docs","deps","依赖.txt")) == "docs/deps/依赖.txt" &&
                 Directory.EnumerateFiles(destination,"*",SearchOption.AllDirectories).Count() == 2, "folder extraction includes dependencies and excludes siblings");
+
+            await window.GoToAddressAsync("分页");
+            string[] VisibleIds() => window.TestGrid.Items.Cast<EntryView>().Select(v => v.Row.Id).ToArray();
+            var firstPage = VisibleIds();
+            Require(firstPage.Length < 200 && firstPage.Length > 0, "long Chinese paths exercise metadata-limited paging");
+            window.NextButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await WaitIdle();
+            var secondPage = VisibleIds();
+            window.NextButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await WaitIdle();
+            window.PreviousButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await WaitIdle();
+            Require(VisibleIds().SequenceEqual(secondPage), "previous page restores the complete short page");
+            var child = window.TestGrid.Items.Cast<EntryView>().Last();
+            await window.GoToAddressAsync(child.Path);
+            window.UpButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await WaitIdle();
+            Require((window.TestGrid.SelectedItem as EntryView)?.Row.Id == child.Row.Id && VisibleIds().SequenceEqual(secondPage),
+                "going up reveals the child just left on its actual page");
         }
         finally { window.ApproveClose(); window.Close(); }
         async Task WaitIdle()

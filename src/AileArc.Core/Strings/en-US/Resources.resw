@@ -188,8 +188,7 @@ Ctrl + A: select this page</value></data>
   <data name="ClientText" xml:space="preserve"><value>Text</value></data>
   <data name="ClientFile" xml:space="preserve"><value>File</value></data>
   <data name="ClientStatus" xml:space="preserve"><value>{0} · {1:N0} indexed items</value></data>
-  <data name="ClientSummary" xml:space="preserve"><value>{0:N0} indexed items
-{1:N0} results · Offset {2:N0}</value></data>
+  <data name="ClientSummary" xml:space="preserve"><value>{0:N0} items · Showing {1:N0}–{2:N0}</value></data>
   <data name="ClientSelectionCount" xml:space="preserve"><value>{0:N0} items · {1:N0} selected</value></data>
   <data name="ClientManySelected" xml:space="preserve"><value>{0:N0} items selected</value></data>
   <data name="ClientPageSelection" xml:space="preserve"><value>Changing pages clears selection</value></data>
