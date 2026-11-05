@@ -24,39 +24,31 @@ public sealed partial class ArchiveWorkerClient
         try { if (!process.Start()) throw new ArchiveOperationException("WorkerFailed"); }
         catch (Win32Exception) { throw new ArchiveOperationException("WorkerUnavailable"); }
         using var job = WorkerJob.Attach(process);
-        var drain = process.StandardError.BaseStream.CopyToAsync(Stream.Null);
+        await using var pipe = new WorkerPipe(process, job, idleTimeout, cancellationToken);
         ExtractionWriter? writer = null;
         try
         {
-            await ArchiveProtocol.WriteAsync(process.StandardInput.BaseStream,
-                new ScanRequest(ArchiveProtocol.Version, Path.GetFullPath(path), "extract", password, options.ByteLimit, options.NameCodePage), cancellationToken);
+            await pipe.WriteAsync(new ScanRequest(ArchiveProtocol.Version, Path.GetFullPath(path), "extract", password, options.ByteLimit, options.NameCodePage));
             var metadata = new List<ArchiveEntry>();
             var ids = new HashSet<long>();
             long characters = 0;
             bool opened = false;
             while (true)
             {
-                using var idle = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                idle.CancelAfter(TimeSpan.FromMinutes(2));
-                ScanMessage message;
-                try { message = await ArchiveProtocol.ReadAsync<ScanMessage>(process.StandardOutput.BaseStream, idle.Token); }
-                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { throw new ArchiveOperationException("TimedOut"); }
+                var message = await pipe.ReadAsync();
                 switch (message.Kind)
                 {
+                    case "activity" when !opened || writer is not null: break;
                     case "opened" when !opened:
                         if (message.Identity is null) throw new ArchiveOperationException("ProtocolMismatch");
                         if (options.ExpectedIdentity is not null && options.ExpectedIdentity != message.Identity)
                             throw new ArchiveOperationException("ArchiveChanged");
                         opened = true;
                         break;
-                    case "entries" when opened && writer is null && message.Entries is not null:
+                    case "entries" when opened && writer is null && message.Entries is { Length: > 0 }:
                         foreach (var entry in message.Entries)
                         {
-                            if (entry.Path is null || entry.Id < 0 || entry.Id > uint.MaxValue || !ids.Add(entry.Id))
-                                throw new ArchiveOperationException("ProtocolMismatch");
-                            characters += entry.Path.Length;
-                            if (ids.Count > ArchiveProtocol.MaxEntries || characters > ArchiveProtocol.MaxMetadataCharacters)
-                                throw new ArchiveOperationException("ResourceLimit");
+                            ValidateEntry(entry, ids, ref characters);
                             if (selectedIds is null || selectedIds.Contains(entry.Id)) metadata.Add(entry);
                         }
                         break;
@@ -67,8 +59,7 @@ public sealed partial class ArchiveWorkerClient
                         if (password is null && metadata.Any(e => e.Encrypted))
                             throw new ArchiveOperationException("PasswordRequired");
                         writer = new ExtractionWriter(path, metadata, options, conflict, cancellationToken);
-                        await ArchiveProtocol.WriteAsync(process.StandardInput.BaseStream,
-                            new ExtractionCommand(options.SelectedIds is null ? null : writer.EntryIds), cancellationToken);
+                        await pipe.WriteAsync(new ExtractionCommand(options.SelectedIds is null ? null : writer.EntryIds));
                         process.StandardInput.Close();
                         break;
                     case "file" when writer is not null && message.EntryId is { } id:
@@ -82,7 +73,7 @@ public sealed partial class ArchiveWorkerClient
                         break;
                     case "completed" when writer is not null:
                         if (!writer.IsComplete) throw new ArchiveOperationException("ProtocolMismatch");
-                        await process.WaitForExitAsync(cancellationToken);
+                        await pipe.WaitForExitAsync();
                         return writer.Result(errorCode: process.ExitCode == 0 ? null : "WorkerFailed");
                     case "error": throw new ArchiveOperationException(message.ErrorCode ?? "WorkerFailed");
                     default: throw new ArchiveOperationException("ProtocolMismatch");
@@ -91,7 +82,7 @@ public sealed partial class ArchiveWorkerClient
             }
         }
         catch (OperationCanceledException) when (writer is not null) { return writer.Result(cancelled: true); }
-        catch (Exception error) when (error is ArchiveOperationException or IOException or UnauthorizedAccessException or Win32Exception or OverflowException)
+        catch (Exception error) when (error is ArchiveOperationException or IOException or InvalidDataException or UnauthorizedAccessException or Win32Exception or OverflowException)
         {
             string code = error switch
             {
@@ -107,13 +98,6 @@ public sealed partial class ArchiveWorkerClient
         }
         finally
         {
-            if (!process.HasExited)
-            {
-                try { process.Kill(entireProcessTree: true); }
-                catch (InvalidOperationException) { }
-            }
-            await process.WaitForExitAsync();
-            await drain;
             if (writer is not null) await writer.DisposeAsync();
         }
     }

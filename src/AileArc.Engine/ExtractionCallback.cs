@@ -28,9 +28,10 @@ public sealed class ExtractionCallback(Action<ScanMessage> emit, string? passwor
     private ulong written;
     private readonly ulong limit = byteLimit;
     private readonly Action<ScanMessage> sender = emit;
+    private readonly ArchiveActivity activity = new(emit);
     public string? ErrorCode { get; private set; }
     public int SetTotal(ulong total) => 0;
-    public int SetCompleted(IntPtr completed) => 0;
+    public int SetCompleted(IntPtr completed) => activity.Report(IntPtr.Zero, completed);
     public int PrepareOperation(int askMode) => 0;
     public int CryptoGetTextPassword(out string? value)
     {

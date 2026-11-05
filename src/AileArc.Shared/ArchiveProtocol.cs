@@ -15,10 +15,15 @@ public sealed record ScanMessage(string Kind, string? Format = null, ArchiveEntr
 /// <summary>Length-prefixed JSON over the child process's private redirected pipes.</summary>
 public static class ArchiveProtocol
 {
-    public const int Version = 5;
+    public const int Version = 6;
     public const int MaxFrameBytes = 1024 * 1024;
     public const int MaxEntries = 250_000;
     public const long MaxMetadataCharacters = 32 * 1024 * 1024;
+    private static readonly JsonSerializerOptions ReaderOptions = new()
+    {
+        RespectRequiredConstructorParameters = true,
+        RespectNullableAnnotations = true
+    };
 
     public static async Task WriteAsync<T>(Stream stream, T value, CancellationToken cancellationToken = default)
     {
@@ -39,6 +44,7 @@ public static class ArchiveProtocol
         if (length <= 0 || length > MaxFrameBytes) throw new InvalidDataException("Invalid frame size.");
         var data = new byte[length];
         await stream.ReadExactlyAsync(data, cancellationToken);
-        return JsonSerializer.Deserialize<T>(data) ?? throw new InvalidDataException("Empty frame.");
+        try { return JsonSerializer.Deserialize<T>(data, ReaderOptions) ?? throw new InvalidDataException("Empty frame."); }
+        catch (JsonException error) { throw new InvalidDataException("Invalid protocol payload.", error); }
     }
 }

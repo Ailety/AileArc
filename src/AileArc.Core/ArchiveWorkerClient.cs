@@ -13,12 +13,25 @@ public sealed record ArchiveScan(string Format, IReadOnlyList<ArchiveEntry> Entr
 /// <summary>Owns a single Worker lifetime. Cancellation tears down native parsing as well as IPC.</summary>
 public sealed partial class ArchiveWorkerClient(string workerPath)
 {
+    private readonly TimeSpan idleTimeout = TimeSpan.FromMinutes(2);
+    private static void ValidateEntry(ArchiveEntry? entry, HashSet<long> ids, ref long characters)
+    {
+        if (entry?.Path is null || entry.Path.Length > 32768 || entry.Id is < 0 or > uint.MaxValue || !ids.Add(entry.Id))
+            throw new ArchiveOperationException("ProtocolMismatch");
+        characters += entry.Path.Length;
+        if (ids.Count > ArchiveProtocol.MaxEntries || characters > ArchiveProtocol.MaxMetadataCharacters)
+            throw new ArchiveOperationException("ResourceLimit");
+    }
+    public ArchiveWorkerClient(string workerPath, TimeSpan idleTimeout) : this(workerPath)
+    {
+        if (idleTimeout < TimeSpan.FromMilliseconds(1) || idleTimeout.TotalMilliseconds > uint.MaxValue - 1)
+            throw new ArgumentOutOfRangeException(nameof(idleTimeout));
+        this.idleTimeout = idleTimeout;
+    }
+
     public async Task<ArchiveScan> ScanAsync(string path, IProgress<int>? progress = null, CancellationToken cancellationToken = default, string? password = null, int nameCodePage = 0)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        deadline.CancelAfter(TimeSpan.FromMinutes(2));
-        var token = deadline.Token;
         var start = new ProcessStartInfo(Path.GetFullPath(workerPath))
         {
             UseShellExecute = false, CreateNoWindow = true,
@@ -32,12 +45,10 @@ public sealed partial class ArchiveWorkerClient(string workerPath)
         }
         catch (System.ComponentModel.Win32Exception) { throw new ArchiveOperationException("WorkerUnavailable"); }
         using var job = WorkerJob.Attach(process);
-        // Drain without retaining potentially sensitive native diagnostics in memory or logs.
-        Task drain = process.StandardError.BaseStream.CopyToAsync(Stream.Null);
+        await using var pipe = new WorkerPipe(process, job, idleTimeout, cancellationToken);
         try
         {
-            await ArchiveProtocol.WriteAsync(process.StandardInput.BaseStream,
-                new ScanRequest(ArchiveProtocol.Version, Path.GetFullPath(path), Password: password, NameCodePage: nameCodePage), token);
+            await pipe.WriteAsync(new ScanRequest(ArchiveProtocol.Version, Path.GetFullPath(path), Password: password, NameCodePage: nameCodePage));
             process.StandardInput.Close();
             var entries = new List<ArchiveEntry>();
             var ids = new HashSet<long>();
@@ -46,27 +57,24 @@ public sealed partial class ArchiveWorkerClient(string workerPath)
             ArchiveIdentity? identity = null;
             while (true)
             {
-                var message = await ArchiveProtocol.ReadAsync<ScanMessage>(process.StandardOutput.BaseStream, token);
+                var message = await pipe.ReadAsync();
                 switch (message.Kind)
                 {
+                    case "activity" when format is null: break;
                     case "opened" when format is null && message.Format is not null:
                         format = message.Format;
                         identity = message.Identity ?? throw new ArchiveOperationException("ProtocolMismatch");
                         break;
-                    case "entries" when format is not null && message.Entries is not null:
+                    case "entries" when format is not null && message.Entries is { Length: > 0 }:
                         foreach (var entry in message.Entries)
                         {
-                            if (entry.Path is null || entry.Path.Length > 32768 || !ids.Add(entry.Id))
-                                throw new ArchiveOperationException("ProtocolMismatch");
-                            characters += entry.Path.Length;
-                            if (entries.Count >= ArchiveProtocol.MaxEntries || characters > ArchiveProtocol.MaxMetadataCharacters)
-                                throw new ArchiveOperationException("ResourceLimit");
+                            ValidateEntry(entry, ids, ref characters);
                             entries.Add(entry);
                         }
                         progress?.Report(entries.Count);
                         break;
                     case "completed" when format is not null:
-                        await process.WaitForExitAsync(token);
+                        await pipe.WaitForExitAsync();
                         if (process.ExitCode != 0) throw new ArchiveOperationException("WorkerFailed");
                         return new ArchiveScan(format, entries, identity, nameCodePage);
                     case "error": throw new ArchiveOperationException(message.ErrorCode ?? "WorkerFailed");
@@ -74,20 +82,8 @@ public sealed partial class ArchiveWorkerClient(string workerPath)
                 }
             }
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        { throw new ArchiveOperationException("TimedOut"); }
         catch (EndOfStreamException) { throw new ArchiveOperationException("WorkerFailed"); }
         catch (InvalidDataException) { throw new ArchiveOperationException("ProtocolMismatch"); }
         catch (IOException) { throw new ArchiveOperationException("WorkerFailed"); }
-        finally
-        {
-            if (!process.HasExited)
-            {
-                try { process.Kill(entireProcessTree: true); }
-                catch (InvalidOperationException) { }
-            }
-            await process.WaitForExitAsync();
-            await drain;
-        }
     }
 }

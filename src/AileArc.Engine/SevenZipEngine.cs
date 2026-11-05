@@ -39,7 +39,7 @@ public sealed partial class SevenZipEngine : IDisposable
             try
             {
                 if (format.Name == "ZIP" && nameCodePage != 0) NativeProperties.Set(archive, ("cp", (uint)nameCodePage));
-                var callback = new ArchiveOpenCallback(password);
+                var callback = new ArchiveOpenCallback(password, emit);
                 ulong maxSearch = 0; // Probe signatures at file start; extension is not authoritative.
                 int result = archive.Open(stream, ref maxSearch, callback);
                 if (callback.PasswordRequested && password is null) throw new ArchiveEngineException("PasswordRequired");

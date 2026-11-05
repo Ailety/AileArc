@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using AileArc.Shared;
 
 namespace AileArc.Engine;
 
@@ -39,11 +40,12 @@ public interface ICryptoGetTextPassword
 }
 
 [ComVisible(true), ClassInterface(ClassInterfaceType.None)]
-public sealed class ArchiveOpenCallback(string? suppliedPassword = null) : IArchiveOpenCallback, ICryptoGetTextPassword
+public sealed class ArchiveOpenCallback(string? suppliedPassword = null, Action<ScanMessage>? emit = null) : IArchiveOpenCallback, ICryptoGetTextPassword
 {
+    private readonly ArchiveActivity activity = new(emit);
     public bool PasswordRequested { get; private set; }
     public int SetTotal(IntPtr files, IntPtr bytes) => 0;
-    public int SetCompleted(IntPtr files, IntPtr bytes) => 0;
+    public int SetCompleted(IntPtr files, IntPtr bytes) => activity.Report(files, bytes);
     public int CryptoGetTextPassword(out string? password)
     {
         PasswordRequested = true;
