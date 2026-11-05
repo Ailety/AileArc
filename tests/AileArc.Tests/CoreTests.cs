@@ -61,6 +61,22 @@ public sealed class CoreTests
     }
 
     [Fact]
+    public void FlatFastPathAndPartiallySortedFoldersReturnIndependentOrderedViews()
+    {
+        var flat = new ArchiveIndex([new(10,"a.txt",false,1,false), new(11,"b.txt",false,2,false), new(12,"c.txt",false,3,false)]);
+        var first = flat.Query("");
+        Array.Reverse(first);
+        Assert.Equal(new long[] { 10, 11, 12 }, flat.Query("").Select(r => r.Id));
+        Assert.Equal(new long[] { 12, 11, 10 }, flat.Query("", descending: true).Select(r => r.Id));
+        // Disorder only at the last entry must trigger the real sort. Reusing a
+        // parent cannot merge case-distinct folders or lose same-name entries.
+        var tree = new ArchiveIndex([new(8,"A/a",false,0,false), new(6,"A/b",false,0,false), new(4,"A/a",false,0,false), new(2,"a/b",false,0,false)]);
+        Assert.Equal(new long[] { 4, 8, 6 }, tree.Query("A").Select(r => r.Id));
+        Assert.Equal(2, Assert.Single(tree.Query("a")).Id);
+        Assert.Throws<OperationCanceledException>(() => flat.Query("", cancellationToken: new CancellationToken(true)));
+    }
+
+    [Fact]
     public void LanguagesHaveMatchingKeysAndPlaceholders()
     {
         var chinese = LanguageService.Load("zh-CN");

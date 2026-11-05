@@ -51,6 +51,13 @@ internal static class WorkerPipeProbe
             case "null-entry": await Send(new("entries", Entries: [null!])); return 0;
             case "empty-batch": await Send(new("entries", Entries: [])); return 0;
             case "negative-id": await Send(new("entries", Entries: [new(-1, "x", false, 1, false)])); return 0;
+            case "unordered-ids":
+            case "duplicate-prefix":
+            case "duplicate-sparse":
+                await Send(new("entries", Entries: [new(0, "a", false, 1, false), new(20, "b", false, 1, false)]));
+                long last = mode switch { "duplicate-prefix" => 0, "duplicate-sparse" => 20, _ => 1 };
+                await Send(new("entries", Entries: [new(last, "c", false, 1, false)]));
+                await Send(new("completed")); return 0;
             case "missing-id":
                 await ArchiveProtocol.WriteAsync(output, new { Kind = "entries", Entries = new[] { new { Path = "x", IsDirectory = false, Size = 1, Encrypted = false } } });
                 return 0;

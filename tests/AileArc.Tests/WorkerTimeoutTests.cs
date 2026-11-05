@@ -51,6 +51,8 @@ public sealed partial class WorkerTests
     [InlineData("null-entry")]
     [InlineData("empty-batch")]
     [InlineData("negative-id")]
+    [InlineData("duplicate-prefix")]
+    [InlineData("duplicate-sparse")]
     [InlineData("missing-id")]
     public async Task InvalidWorkerMetadataIsAnOperationFailure(string mode)
     {
@@ -62,6 +64,13 @@ public sealed partial class WorkerTests
         Assert.Equal("ProtocolMismatch", extract.Code);
         Assert.False(Directory.Exists(output));
         Assert.Single((await worker.ScanAsync(Path.Combine(temp, "healthy"))).Entries);
+    }
+
+    [Fact]
+    public async Task UnorderedUniqueIdsRemainValidAcrossWorkerFrames()
+    {
+        var scan = await SlowWorker().ScanAsync(Path.Combine(temp, "unordered-ids"));
+        Assert.Equal(new long[] { 0, 20, 1 }, scan.Entries.Select(e => e.Id));
     }
 
     [Fact]

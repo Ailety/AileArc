@@ -129,6 +129,7 @@ public partial class MainWindow : Window
                 catch (ArchiveOperationException error) when (error.Code is "PasswordRequired" or "WrongPasswordOrDamaged")
                 {
                     token.ThrowIfCancellationRequested();
+                    if (!IsVisible) BringForward();
                     var prompt = new PasswordDialog(this, error.Code);
                     using var registration = token.Register(() => Dispatcher.BeginInvoke(new Action(() => { if (prompt.IsVisible) prompt.Close(); })));
                     bool accepted = prompt.ShowDialog() == true;

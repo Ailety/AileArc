@@ -19,15 +19,13 @@ public sealed class ArchiveIndex
 
     public ArchiveIndex(IEnumerable<ArchiveEntry> source, CancellationToken cancellationToken = default)
     {
-        var rows = new List<BrowserEntry>();
+        var rows = source.TryGetNonEnumeratedCount(out int count) ? new List<BrowserEntry>(count) : new List<BrowserEntry>();
+        var missing = new Stack<string>();
         long syntheticId = -1;
-        foreach (var entry in source)
+        string EnsureParent(string parent)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var path = entry.Path.Replace('\\', '/').TrimEnd('/');
-            if (path.Length == 0) continue;
-            var parent = ParentOf(path);
-            var missing = new Stack<string>();
+            if (parent.Length == 0) return parent;
+            if (directories.TryGetValue(parent, out var existing)) return existing;
             for (string current = parent; current.Length > 0 && !directories.Contains(current); current = ParentOf(current))
                 missing.Push(current);
             while (missing.TryPop(out var directory))
@@ -35,13 +33,21 @@ public sealed class ArchiveIndex
                 directories.Add(directory);
                 rows.Add(new BrowserEntry(syntheticId--, NameOf(directory), directory, ParentOf(directory), true, null, false));
             }
+            return parent;
+        }
+        foreach (var entry in source)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var path = entry.Path.Replace('\\', '/').TrimEnd('/');
+            if (path.Length == 0) continue;
+            var parent = EnsureParent(ParentOf(path));
             // Explicit folders already synthesized are the same navigation location; raw entries remain in ArchiveScan.
             if (entry.IsDirectory && !directories.Add(path)) continue;
             rows.Add(new BrowserEntry(entry.Id, NameOf(path), path, parent, entry.IsDirectory, entry.Size, entry.Encrypted));
         }
         entries = rows.ToArray();
-        children = entries.GroupBy(e => e.Parent, StringComparer.Ordinal)
-            .ToDictionary(g => g.Key, g => g.ToArray(), StringComparer.Ordinal);
+        children = directories.Count == 0 ? new(StringComparer.Ordinal) { [""] = entries } :
+            entries.GroupBy(e => e.Parent, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.ToArray(), StringComparer.Ordinal);
     }
 
     public BrowserEntry[] Query(string directory, string search = "", bool currentDirectoryOnly = false,
@@ -49,13 +55,20 @@ public sealed class ArchiveIndex
     {
         var candidates = search.Length == 0 || currentDirectoryOnly
             ? children.GetValueOrDefault(directory, []) : entries;
-        var result = new List<BrowserEntry>();
-        foreach (var entry in candidates)
+        cancellationToken.ThrowIfCancellationRequested();
+        BrowserEntry[] result;
+        if (search.Length == 0) result = (BrowserEntry[])candidates.Clone();
+        else
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (entry.Name.Contains(search, StringComparison.OrdinalIgnoreCase)) result.Add(entry);
+            var matches = new List<BrowserEntry>();
+            foreach (var entry in candidates)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (entry.Name.Contains(search, StringComparison.OrdinalIgnoreCase)) matches.Add(entry);
+            }
+            result = matches.ToArray();
         }
-        result.Sort((left, right) =>
+        int Compare(BrowserEntry left, BrowserEntry right)
         {
             cancellationToken.ThrowIfCancellationRequested();
             int folder = right.IsDirectory.CompareTo(left.IsDirectory);
@@ -70,8 +83,14 @@ public sealed class ArchiveIndex
             if (comparison == 0) comparison = StringComparer.Ordinal.Compare(left.Path, right.Path);
             if (comparison == 0) comparison = left.Id.CompareTo(right.Id);
             return descending ? -comparison : comparison;
-        });
-        return result.ToArray();
+        }
+        for (int i = 1; i < result.Length; i++)
+        {
+            if (Compare(result[i - 1], result[i]) <= 0) continue;
+            Array.Sort(result, Compare);
+            break;
+        }
+        return result;
     }
 
     public static string ParentOf(string path) => path.LastIndexOf('/') is int i && i >= 0 ? path[..i] : "";

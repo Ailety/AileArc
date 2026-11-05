@@ -88,6 +88,7 @@ WebView2、Native SDK 和纯 WPF 验证程序保留为历史对照，正式路�
 - [长期产品蓝图](docs/AileArc_Development_Specification.md)
 - [架构决策](docs/AileArc_Architecture_Decisions.md)
 - [开发历程](docs/Development_Log.md)
+- [正式客户端首屏、进程树内存与取消测量](docs/WPF_Client_Performance.md)
 - [开发安装包与 Shell 验证](docs/Development_Installation.md)
 - [第三方声明](THIRD_PARTY_NOTICES.md)
 

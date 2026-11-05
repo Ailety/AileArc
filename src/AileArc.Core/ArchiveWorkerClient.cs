@@ -15,13 +15,23 @@ public sealed record ArchiveScan(string Format, IReadOnlyList<ArchiveEntry> Entr
 public sealed partial class ArchiveWorkerClient(string workerPath)
 {
     private readonly TimeSpan idleTimeout = TimeSpan.FromMinutes(2);
-    private static void ValidateEntry(ArchiveEntry? entry, HashSet<long> ids, ref long characters)
+    private sealed class MetadataBudget
     {
-        if (entry?.Path is null || entry.Path.Length > 32768 || entry.Id is < 0 or > uint.MaxValue || !ids.Add(entry.Id))
-            throw new ArchiveOperationException("ProtocolMismatch");
-        characters += entry.Path.Length;
-        if (ids.Count > ArchiveProtocol.MaxEntries || characters > ArchiveProtocol.MaxMetadataCharacters)
-            throw new ArchiveOperationException("ResourceLimit");
+        private int consecutive;
+        private long characters;
+        private HashSet<long>? otherIds;
+        public void Accept(ArchiveEntry? entry)
+        {
+            if (entry?.Path is null || entry.Path.Length > 32768 || entry.Id < consecutive || entry.Id > uint.MaxValue)
+                throw new ArchiveOperationException("ProtocolMismatch");
+            // Native enumeration normally sends 0..N-1. After the first gap,
+            // keep only the rest in a set, including any out-of-order arrivals.
+            if (otherIds is null && entry.Id == consecutive) consecutive++;
+            else if (!(otherIds ??= []).Add(entry.Id)) throw new ArchiveOperationException("ProtocolMismatch");
+            characters += entry.Path.Length;
+            if (consecutive + (otherIds?.Count ?? 0) > ArchiveProtocol.MaxEntries || characters > ArchiveProtocol.MaxMetadataCharacters)
+                throw new ArchiveOperationException("ResourceLimit");
+        }
     }
     public ArchiveWorkerClient(string workerPath, TimeSpan idleTimeout) : this(workerPath)
     {
@@ -53,8 +63,7 @@ public sealed partial class ArchiveWorkerClient(string workerPath)
             await pipe.WriteAsync(new ScanRequest(ArchiveProtocol.Version, Path.GetFullPath(path), Password: password, NameCodePage: nameCodePage, ExpectedIdentity: expectedIdentity));
             process.StandardInput.Close();
             var entries = new List<ArchiveEntry>();
-            var ids = new HashSet<long>();
-            long characters = 0;
+            var budget = new MetadataBudget();
             string? format = null;
             ArchiveIdentity? identity = null;
             while (true)
@@ -71,7 +80,7 @@ public sealed partial class ArchiveWorkerClient(string workerPath)
                     case "entries" when format is not null && message.Entries is { Length: > 0 }:
                         foreach (var entry in message.Entries)
                         {
-                            ValidateEntry(entry, ids, ref characters);
+                            budget.Accept(entry);
                             entries.Add(entry);
                         }
                         progress?.Report(entries.Count);

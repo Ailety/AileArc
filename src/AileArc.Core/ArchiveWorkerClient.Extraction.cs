@@ -22,8 +22,7 @@ public sealed partial class ArchiveWorkerClient
         {
             await pipe.WriteAsync(new ScanRequest(ArchiveProtocol.Version, Path.GetFullPath(path), "extract", password, options.ByteLimit, options.NameCodePage, ExpectedIdentity: options.ExpectedIdentity));
             var metadata = new List<ArchiveEntry>();
-            var ids = new HashSet<long>();
-            long characters = 0;
+            var budget = new MetadataBudget();
             bool opened = false;
             while (true)
             {
@@ -40,7 +39,7 @@ public sealed partial class ArchiveWorkerClient
                     case "entries" when opened && writer is null && message.Entries is { Length: > 0 }:
                         foreach (var entry in message.Entries)
                         {
-                            ValidateEntry(entry, ids, ref characters);
+                            budget.Accept(entry);
                             if (selectedIds is null || selectedIds.Contains(entry.Id)) metadata.Add(entry);
                         }
                         break;

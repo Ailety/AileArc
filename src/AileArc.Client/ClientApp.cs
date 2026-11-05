@@ -219,8 +219,11 @@ public sealed class ClientApp : Application
                 return;
             }
             var window = preferred is not null && preferred.OpenedPath is null && !preferred.IsBusy ? preferred : CreateWindow();
+            // The worker can enumerate while WPF creates and lays out the HWND.
+            // Bring the window forward synchronously before yielding to UI callbacks.
+            var opening = window.OpenArchiveAsync(path, codePage);
             window.BringForward();
-            await window.OpenArchiveAsync(path, codePage);
+            await opening;
             if (window.OpenedPath is not null && action != ActivationAction.Open) window.QueueShellAction(action, [path]);
         }
         catch (Exception error) when (error is IOException or ArgumentException or UnauthorizedAccessException)

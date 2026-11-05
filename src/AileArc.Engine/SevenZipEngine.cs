@@ -95,7 +95,10 @@ public sealed partial class SevenZipEngine : IDisposable
                 Marshal.ThrowExceptionForHR(archive.GetNumberOfItems(out uint count));
                 if (count > ArchiveProtocol.MaxEntries) throw new ArchiveEngineException("ResourceLimit");
                 opened(format.Name, identity);
-                var batch = new List<ArchiveEntry>(32);
+                const int batchLimit = 256, characterLimit = 32000;
+                var batch = new List<ArchiveEntry>((int)Math.Min(count, batchLimit));
+                int batchCharacters = 0;
+                long lastBatch = Environment.TickCount64;
                 long characters = 0;
                 for (uint i = 0; i < count; i++)
                 {
@@ -116,11 +119,15 @@ public sealed partial class SevenZipEngine : IDisposable
                         (rawAttributes & 0x400) != 0 || ((posix.Number ?? 0) & 0xF000) == 0xA000 ||
                         ((rawAttributes & 0x8000) != 0 && ((rawAttributes >> 16) & 0xF000) == 0xA000);
                     batch.Add(new ArchiveEntry(i, entryPath, directory.Boolean, size.Number, encrypted.Boolean, isLink));
-                    // Small bounded frames; a single long path cannot push the batch beyond the IPC limit.
-                    if (batch.Count == 32 || batch.Sum(e => e.Path.Length) > 32000)
+                    batchCharacters += entryPath.Length;
+                    // Count path characters once. Long names bound the JSON payload;
+                    // slow enumeration still yields progress before the batch fills up.
+                    if (batch.Count == batchLimit || batchCharacters >= characterLimit || Environment.TickCount64 - lastBatch >= 50)
                     {
                         batchReady(batch.ToArray());
                         batch.Clear();
+                        batchCharacters = 0;
+                        lastBatch = Environment.TickCount64;
                     }
                 }
                 if (batch.Count > 0) batchReady(batch.ToArray());

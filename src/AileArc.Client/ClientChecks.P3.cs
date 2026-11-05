@@ -12,6 +12,29 @@ namespace AileArc.Client;
 
 internal static partial class ClientChecks
 {
+    private static async Task CheckEncryptedStartupAsync(ClientApp app, string path)
+    {
+        MainWindow? owner = null;
+        bool ready = false;
+        var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(20) };
+        timer.Tick += (_, _) =>
+        {
+            if (app.Windows.OfType<PasswordDialog>().FirstOrDefault() is not { IsVisible: true } prompt) return;
+            owner = prompt.Owner as MainWindow;
+            ready = owner is { IsVisible: true, IsBusy: true };
+            ((PasswordBox)LogicalTreeHelper.FindLogicalNode(prompt, "ArchivePassword")).Password = "public-test-password";
+            prompt.DialogResult = true; timer.Stop();
+        };
+        timer.Start();
+        try
+        {
+            await app.OpenPathAsync(path);
+            Require(ready && owner?.OpenedPath == path && owner.TestGrid.Items.Count == 1,
+                "startup overlaps window creation without presenting an unowned password prompt");
+        }
+        finally { timer.Stop(); if (owner is not null) { owner.ApproveClose(); owner.Close(); } }
+    }
+
     internal static int RecoveryProbe(string target, string journal)
     {
         using var file = TrackedTemporaryFile.Create(target, "Test", new RecoveryStore(journal), outputName: "恢复样本.zip");
@@ -100,6 +123,7 @@ internal static partial class ClientChecks
         Require(window.LastCreated is null && original.SequenceEqual(preserved), "creation does not overwrite without consent");
         await window.CreateArchiveAsync(new([source], seven, "7Z", "Fast", "public-test-password", true));
         Require(window.LastCreated?.Entries == 1 && (await worker.ScanAsync(seven, password: "public-test-password")).Format == "7Z", "encrypted 7Z creation");
+        await CheckEncryptedStartupAsync(app, seven);
         Require(await File.ReadAllTextAsync(source) == "P3 public fixture", "creation preserves source");
 
         app.Recovery = new RecoveryStore(Path.Combine(root, "recovery"));

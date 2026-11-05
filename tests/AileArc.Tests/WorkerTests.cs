@@ -52,6 +52,19 @@ public sealed partial class WorkerTests : IDisposable
     }
 
     [Fact]
+    public async Task MetadataBatchesPreserveLongNamesAndMonotonicProgress()
+    {
+        string[] names = Enumerable.Range(0, 900).Select(i => i % 300 == 0 ? new string('文', 16000) + i : $"短/{i:D4}.txt").ToArray();
+        var counts = new List<int>();
+        var scan = await client.ScanAsync(MakeZip(names), new InlineProgress<int>(counts.Add));
+        Assert.Equal(names, scan.Entries.Select(e => e.Path.Replace('\\', '/')));
+        Assert.Equal(names.Length, counts[^1]);
+        int previous = 0;
+        foreach (int count in counts) { Assert.InRange(count - previous, 1, 256); previous = count; }
+        Assert.Equal(Enumerable.Range(0, names.Length).Select(i => (long)i), scan.Entries.Select(e => e.Id));
+    }
+
+    [Fact]
     public async Task SignatureWinsOverWrongExtension()
     {
         string source = MakeZip("a.txt");
