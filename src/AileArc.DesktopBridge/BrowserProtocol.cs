@@ -53,9 +53,9 @@ public sealed class ArchivePresentation
     }
     public BrowserRow[] RootFolders => GetRootFolders();
     public BrowserRow[] GetRootFolders(CancellationToken token = default) => Bound(Index.Query("", cancellationToken: token).Where(row => row.IsDirectory).Take(100), 128 * 1024);
-    public BrowserPage Query(BrowserRequest request, CancellationToken token = default)
+    public BrowserPage Query(BrowserRequest request, CancellationToken token = default, bool currentDirectoryOnly = false)
     {
-        var rows = Index.Query(request.Directory.TrimEnd('/'), request.Search, sort: request.Sort == "size" ? EntrySort.Size : EntrySort.Name,
+        var rows = Index.Query(request.Directory.TrimEnd('/'), request.Search, currentDirectoryOnly, sort: request.Sort == "size" ? EntrySort.Size : EntrySort.Name,
             descending: request.Descending, cancellationToken: token);
         int offset = Math.Min(request.Offset, rows.Length);
         var page = Bound(rows.Skip(offset).Take(200), 512 * 1024);

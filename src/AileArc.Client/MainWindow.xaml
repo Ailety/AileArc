@@ -37,15 +37,17 @@
       <Grid Grid.Column="2">
         <Grid.RowDefinitions><RowDefinition Height="65" /><RowDefinition Height="52" /><RowDefinition Height="42" /><RowDefinition Height="*" /><RowDefinition Height="46" /></Grid.RowDefinitions>
         <DockPanel Margin="18,12">
+          <Button x:Name="BackButton" DockPanel.Dock="Left" Content="{local:Text Back}" Click="Back_Click" Margin="0,0,8,0" />
           <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"><Button x:Name="UpButton" Content="{local:Text Up}" Click="Up_Click" IsEnabled="False" /><Button x:Name="EnterButton" Content="{local:Text ClientEnter}" Click="Enter_Click" IsEnabled="False" /></StackPanel>
           <TextBlock x:Name="LocationText" Text="{local:Text Root}" Foreground="{StaticResource MutedBrush}" />
         </DockPanel>
-        <Grid Grid.Row="1" Margin="18,0,18,14"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+        <Grid Grid.Row="1" Margin="18,0,18,14"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
           <Grid>
             <TextBox x:Name="SearchBox" MaxLength="512" KeyDown="Search_KeyDown" TextChanged="Search_TextChanged" AutomationProperties.Name="{local:Text Search}" AutomationProperties.AutomationId="ArchiveSearch" />
             <TextBlock x:Name="SearchHint" Text="{local:Text Search}" Style="{StaticResource Muted}" Margin="13,0" IsHitTestVisible="False" />
           </Grid>
-          <Button Grid.Column="1" Content="{local:Text ClientSearchButton}" Click="Search_Click" Margin="8,0,0,0" Style="{StaticResource Primary}" AutomationProperties.AutomationId="SearchSubmit" />
+          <CheckBox Grid.Column="1" x:Name="LocalSearchBox" Content="{local:Text CurrentDirectory}" Click="Scope_Click" Margin="10,0,0,0" />
+          <Button x:Name="SearchSubmit" Grid.Column="2" Content="{local:Text ClientSearchButton}" Click="Search_Click" Margin="8,0,0,0" Style="{StaticResource Primary}" AutomationProperties.AutomationId="SearchSubmit" />
         </Grid>
         <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="18,0,18,8">
           <ComboBox x:Name="SortBox" Width="135" SelectionChanged="Sort_Changed" AutomationProperties.Name="{local:Text SortName}" />
@@ -65,6 +67,7 @@
             <DataGridTemplateColumn Header="{local:Text Name}" Width="*" MinWidth="180"><DataGridTemplateColumn.CellTemplate><DataTemplate>
               <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions><TextBlock Text="{Binding Glyph}" FontFamily="Segoe Fluent Icons" Foreground="{StaticResource AccentBrush}" Margin="0,0,10,0" /><TextBlock Grid.Column="1" Text="{Binding Name}" ToolTip="{Binding Path}" /></Grid>
             </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+            <DataGridTextColumn x:Name="PathColumn" Header="{local:Text Path}" Binding="{Binding Path}" Width="*" MinWidth="100" Visibility="Collapsed" />
             <DataGridTextColumn Header="{local:Text ClientType}" Binding="{Binding TypeLabel}" Width="110" />
             <DataGridTextColumn Header="{local:Text ClientSize}" Binding="{Binding SizeLabel}" Width="100" />
           </DataGrid.Columns>

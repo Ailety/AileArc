@@ -20,6 +20,9 @@ public partial class MainWindow : Window
     private string directory = "", archiveName = "";
     private string? password;
     private int generation, offset, total, codePage;
+    private sealed record View(string Directory, string Search, bool Local, int Sort, bool Descending, int Offset);
+    private View view = new("", "", false, 0, false, 0);
+    private readonly List<(View Page, string[] Selected)> history = [];
     private bool composing, closed, changingItems, configuring = true;
     private LanguageService Text => ClientApp.Text;
     public string? OpenedPath { get; private set; }
@@ -108,24 +111,51 @@ public partial class MainWindow : Window
                 archive = result.presentation; archiveName = Path.GetFileName(fullPath); OpenedPath = fullPath; password = candidatePassword;
                 ((ClientApp)Application.Current).RegisterOpened(this, fullPath, scan.Identity?.FileId);
                 directory = ""; codePage = requestedCodePage;
+                history.Clear(); LocalSearchBox.IsChecked = false; PathColumn.Visibility = Visibility.Collapsed;
+                view = new("", "", false, SortBox.SelectedIndex, descending, 0);
                 RootButton.Content = archiveName; Title = archiveName + " — AileArc";
                 SearchBox.Clear(); Folders.ItemsSource = result.folders; ApplyPage(result.page);
             };
         });
     }
     private static BrowserRequest Request(string directory, string search, int offset, string sort, bool descending) => new(1, Guid.NewGuid().ToString(), "query", Directory: directory, Search: search, Sort: sort, Descending: descending, Offset: offset);
-    private Task QueryAsync(string targetDirectory, int targetOffset, bool clearSearch = false)
+    private async Task QueryAsync(string targetDirectory, int targetOffset, bool clearSearch = false, bool submit = false, bool back = false)
     {
-        string search = clearSearch ? "" : SearchBox.Text;
+        if (back && history.Count == 0) return;
+        var target = back ? history[^1].Page : new View(targetDirectory, clearSearch ? "" : submit ? SearchBox.Text : view.Search,
+            LocalSearchBox.IsChecked == true, SortBox.SelectedIndex, DescendingBox.IsChecked == true, targetOffset);
         var current = archive;
-        if (search.Length > 512 || current is null || IsBusy) return Task.CompletedTask;
-        string order = SortBox.SelectedIndex == 1 ? "size" : "name";
-        bool descending = DescendingBox.IsChecked == true;
-        return RunAsync(Text["BuildingIndex"], async token =>
+        if (target.Search.Length > 512 || current is null || IsBusy) return;
+        var selected = EntryGrid.SelectedItems.Cast<EntryView>().Select(row => row.Row.Id).ToArray();
+        await RunAsync(Text["BuildingIndex"], async token =>
         {
-            var page = await Task.Run(() => current.Query(Request(targetDirectory, search, targetOffset, order, descending), token), token);
-            return () => { directory = targetDirectory; if (clearSearch) SearchBox.Clear(); ApplyPage(page); };
+            var page = await Task.Run(() => current.Query(Request(target.Directory, target.Search, target.Offset,
+                target.Sort == 1 ? "size" : "name", target.Descending), token, target.Local), token);
+            return () =>
+            {
+                string[] restore = [];
+                if (back) { restore = history[^1].Selected; history.RemoveAt(history.Count - 1); }
+                else if (target.Directory != view.Directory || target.Search != view.Search || target.Local != view.Local && target.Search.Length > 0)
+                {
+                    if (history.Count == 32) history.RemoveAt(0);
+                    history.Add((view, selected));
+                }
+                view = target with { Offset = page.Offset }; directory = target.Directory;
+                if (clearSearch || back) SearchBox.Text = target.Search;
+                PathColumn.Visibility = target.Search.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+                ApplyPage(page);
+                if (restore.Length > 0)
+                {
+                    var ids = restore.ToHashSet();
+                    foreach (var row in displayed.Where(row => ids.Contains(row.Row.Id))) EntryGrid.SelectedItems.Add(row);
+                    if (EntryGrid.SelectedItem is EntryView first) EntryGrid.ScrollIntoView(first);
+                }
+            };
         });
+        // Commit controls to the view actually displayed, including after cancellation.
+        configuring = true;
+        SortBox.SelectedIndex = view.Sort; DescendingBox.IsChecked = view.Descending; LocalSearchBox.IsChecked = view.Local;
+        configuring = false;
     }
     private void ApplyPage(BrowserPage page)
     {
@@ -146,6 +176,7 @@ public partial class MainWindow : Window
         bool idle = !IsBusy && ((ClientApp)Application.Current).CanStart(this);
         OpenButton.IsEnabled = idle; LanguageBox.IsEnabled = idle; RestartButton.IsEnabled = idle;
         SearchBox.IsEnabled = idle && archive is not null; SortBox.IsEnabled = DescendingBox.IsEnabled = SearchBox.IsEnabled;
+        LocalSearchBox.IsEnabled = SearchBox.IsEnabled;
         configuring = true; EncodingBox.SelectedIndex = Array.IndexOf(CodePages, codePage); configuring = false;
         EncodingBox.IsEnabled = idle && archive?.Scan.Format == "ZIP";
         EntryGrid.IsEnabled = idle; RootButton.IsEnabled = idle; Folders.IsEnabled = idle;
@@ -158,6 +189,7 @@ public partial class MainWindow : Window
     {
         LocationText.Text = directory.Length == 0 ? Text["Root"] : directory;
         UpButton.IsEnabled = !IsBusy && directory.Length > 0;
+        BackButton.IsEnabled = !IsBusy && history.Count > 0;
         PreviousButton.IsEnabled = !IsBusy && offset > 0;
         NextButton.IsEnabled = !IsBusy && offset + displayed.Length < total;
         SummaryText.Text = archive is null ? Text["WelcomeDetail"] : Text.Format("ClientSummary", archive.Index.Entries.Count, total, offset);
@@ -219,8 +251,10 @@ public partial class MainWindow : Window
     { if (e.Key == Key.Escape) { EntryGrid.UnselectAll(); e.Handled = true; } else if (e.Key == Key.Enter) { e.Handled = true; await ActivateAsync(); } }
     private async void Previous_Click(object sender, RoutedEventArgs e) => await QueryAsync(directory, Math.Max(0, offset - 200));
     private async void Next_Click(object sender, RoutedEventArgs e) => await QueryAsync(directory, offset + displayed.Length);
-    private async void Search_Click(object sender, RoutedEventArgs e) => await QueryAsync(directory, 0);
-    private async void Search_KeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Escape) composing = false; if (e.Key == Key.Enter && !composing) { e.Handled = true; await QueryAsync(directory, 0); } }
+    private async void Back_Click(object sender, RoutedEventArgs e) => await QueryAsync(directory, 0, back: true);
+    private async void Scope_Click(object sender, RoutedEventArgs e) => await QueryAsync(directory, 0, submit: true);
+    private async void Search_Click(object sender, RoutedEventArgs e) => await QueryAsync(directory, 0, submit: true);
+    private async void Search_KeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Escape) composing = false; if (e.Key == Key.Enter && !composing) { e.Handled = true; await QueryAsync(directory, 0, submit: true); } }
     private void Search_TextChanged(object sender, TextChangedEventArgs e) { if (SearchHint is not null) SearchHint.Visibility = SearchBox.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed; }
     private void Cancel_Click(object sender, RoutedEventArgs e) => operation?.Cancel();
     private static T? FindAncestor<T>(DependencyObject? element) where T : DependencyObject
