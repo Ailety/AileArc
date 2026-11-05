@@ -14,6 +14,24 @@ public sealed class ClientApp : Application
 {
     internal AileArc.Core.WorkCopies.WorkCopyStore WorkCopies { get; set; } = new();
     internal RecoveryStore Recovery { get; set; } = RecoveryStore.Default;
+    internal string PreferencesKey { get; set; } = @"Software\Ailety\AileArc\Preferences";
+    internal bool OpenAfterExtraction
+    {
+        get
+        {
+            try
+            {
+                using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(PreferencesKey);
+                return key?.GetValue("OpenAfterExtraction") is 1;
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException) { return false; }
+        }
+        set
+        {
+            using var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(PreferencesKey);
+            key.SetValue("OpenAfterExtraction", value ? 1 : 0, Microsoft.Win32.RegistryValueKind.DWord);
+        }
+    }
     internal bool HideTestWindows { get; set; }
     private volatile bool restarting;
     internal bool Restarting { get => restarting; private set => restarting = value; }

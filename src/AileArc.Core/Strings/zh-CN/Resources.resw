@@ -202,6 +202,13 @@ Ctrl + A：全选当前页</value></data>
   <data name="ClientExtractMode"><value>解压方式</value></data>
   <data name="ClientExtractHere"><value>解压到压缩包所在文件夹</value></data>
   <data name="ClientOpenDestination"><value>成功后打开目标文件夹</value></data>
+  <data name="ClientRememberOpenDestination"><value>记住是否打开目标文件夹</value></data>
+  <data name="ClientArchiveEmpty"><value>压缩包为空，没有可解压的内容。</value></data>
+  <data name="ClientArchiveFailure"><value>压缩包</value></data>
+  <data name="ClientExtractionFailed"><value>未解压任何项目。{0:N0} 个错误 · 已跳过 {1:N0} 项。</value></data>
+  <data name="ClientPasswordRetryHint"><value>再次解压时可重新输入密码。已解压的文件会保留。</value></data>
+  <data name="ClientShowOutputFolder"><value>打开输出文件夹</value></data>
+  <data name="ClientRetryFailures"><value>仅重试失败项（{0:N0}）…</value></data>
   <data name="ClientResult"><value>解压结果</value></data>
   <data name="ClientCopiesAttention"><value>工作副本有修改或暂时无法读取，请打开“工作副本”检查；原压缩包未修改。</value></data>
   <data name="ClientAllFilesFilter"><value>所有文件|*.*</value></data>

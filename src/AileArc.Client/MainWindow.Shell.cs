@@ -22,7 +22,7 @@ public partial class MainWindow
                 if (action == ActivationAction.Create) await ShowCreateDialogAsync(paths);
                 else if (archive is not null && OpenedPath is not null)
                 {
-                    if (action == ActivationAction.SmartExtract) await ExtractToAsync(Path.GetDirectoryName(OpenedPath)!, true, false);
+                    if (action == ActivationAction.SmartExtract) await ExtractToAsync(Path.GetDirectoryName(OpenedPath)!, true, false, ((ClientApp)Application.Current).OpenAfterExtraction);
                     else if (action == ActivationAction.ExtractTo) await ShowExtractDialogAsync();
                 }
             }

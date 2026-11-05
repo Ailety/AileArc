@@ -31,6 +31,7 @@ internal static partial class ClientChecks
         int result = 1;
         string testRoot = Path.Combine(Path.GetTempPath(), "ailearc-p2-" + Guid.NewGuid().ToString("N"));
         app.WorkCopies = new WorkCopyStore(Path.Combine(testRoot, "copies"));
+        app.PreferencesKey = @"Software\AileArc-Test-" + Guid.NewGuid().ToString("N");
         app.HideTestWindows = true;
         var window = new MainWindow { Opacity = 0, ShowActivated = false, ShowInTaskbar = false };
         window.ContentRendered += async (_, _) =>
@@ -79,6 +80,7 @@ internal static partial class ClientChecks
                 await CheckFoldersAsync(window, testRoot);
                 await CheckPrimaryExtractionAsync(window, app, testRoot);
                 await CheckWorkspaceAsync(app, testRoot);
+                await CheckExtractionResultsAsync(window, app, testRoot);
                 await CheckProgressAsync(window.Dispatcher);
                 var empty = new MainWindow { Opacity = 0, ShowActivated = false, ShowInTaskbar = false };
                 empty.Show(); empty.Close();
@@ -87,7 +89,11 @@ internal static partial class ClientChecks
                 result = 0;
             }
             catch (Exception error) { File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "client-self-test-error.txt"), error.ToString(), System.Text.Encoding.UTF8); }
-            finally { if (File.Exists(temp)) File.Delete(temp); window.ApproveClose(); window.Close(); app.Shutdown(result); }
+            finally
+            {
+                Microsoft.Win32.Registry.CurrentUser.DeleteSubKey(app.PreferencesKey, throwOnMissingSubKey: false);
+                if (File.Exists(temp)) File.Delete(temp); window.ApproveClose(); window.Close(); app.Shutdown(result);
+            }
         };
         app.Run(window); return result;
     }

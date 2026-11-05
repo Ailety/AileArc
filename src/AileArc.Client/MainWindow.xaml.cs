@@ -124,6 +124,7 @@ public partial class MainWindow : Window
             return () =>
             {
                 archive = result.presentation; archiveName = Path.GetFileName(fullPath); OpenedPath = fullPath; password = candidatePassword;
+                LastExtraction = null;
                 ((ClientApp)Application.Current).RegisterOpened(this, fullPath, scan.Identity?.FileId);
                 directory = ""; codePage = requestedCodePage;
                 history.Clear(); future.Clear(); LocalSearchBox.IsChecked = false; PathColumn.Visibility = Visibility.Collapsed;
@@ -204,7 +205,7 @@ public partial class MainWindow : Window
         if (rows.Length > 0) EntryGrid.ScrollIntoView(rows[0]);
         EmptyPanel.Visibility = rows.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
         WelcomeMark.Visibility = Visibility.Collapsed;
-        EmptyHeading.Text = Text[view.Search.Length == 0 ? "ClientEmptyFolder" : "NoResults"];
+        EmptyHeading.Text = Text[view.Search.Length > 0 ? "NoResults" : archive?.Scan.Entries.Count == 0 ? "ClientArchiveEmpty" : "ClientEmptyFolder"];
         EmptyText.Text = view.Search.Length == 0 ? "" : Text["ClientTryAnotherSearch"];
         EmptyAction.Content = Text["ClientClearSearch"]; EmptyAction.Visibility = view.Search.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
         UpdateSelection();
@@ -224,6 +225,7 @@ public partial class MainWindow : Window
         EntryGrid.IsEnabled = idle; Folders.IsEnabled = idle && archive is not null;
         UpdateNavigation(); UpdateSelection();
         ExtractButton.IsEnabled = ExtractMore.IsEnabled = idle && archive is not null;
+        ResultButton.Visibility = idle && LastExtraction is not null ? Visibility.Visible : Visibility.Collapsed;
         CopiesButton.IsEnabled = idle;
         CreateButton.IsEnabled = RecoveryButton.IsEnabled = idle;
     }

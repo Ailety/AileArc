@@ -202,6 +202,13 @@ Ctrl + A: select this page</value></data>
   <data name="ClientExtractMode"><value>Extraction mode</value></data>
   <data name="ClientExtractHere"><value>Extract to archive folder</value></data>
   <data name="ClientOpenDestination"><value>Open destination folder after success</value></data>
+  <data name="ClientRememberOpenDestination"><value>Remember my folder-opening choice</value></data>
+  <data name="ClientArchiveEmpty"><value>This archive is empty. There is nothing to extract.</value></data>
+  <data name="ClientArchiveFailure"><value>Archive</value></data>
+  <data name="ClientExtractionFailed"><value>No items extracted. {0:N0} errors · {1:N0} skipped.</value></data>
+  <data name="ClientPasswordRetryHint"><value>Start extraction again to enter a new password. Files already extracted are kept.</value></data>
+  <data name="ClientShowOutputFolder"><value>Open output folder</value></data>
+  <data name="ClientRetryFailures"><value>Retry failed items ({0:N0})…</value></data>
   <data name="ClientResult"><value>Extraction results</value></data>
   <data name="ClientCopiesAttention"><value>Working copies have changes or cannot be read. Check Working copies; the archive is unchanged.</value></data>
   <data name="ClientAllFilesFilter"><value>All files|*.*</value></data>

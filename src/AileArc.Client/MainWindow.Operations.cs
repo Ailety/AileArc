@@ -19,8 +19,16 @@ public partial class MainWindow
     private bool checkingCopies, closingCheck, allowClose;
     private TaskCompletionSource idleCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
     internal Action<string, IntPtr> LaunchFile { get; set; } = ExternalApplication.Open;
+    internal Action<string> OpenFolder { get; set; } = folder =>
+    {
+        if (!Directory.Exists(folder)) throw new DirectoryNotFoundException();
+        var start = new ProcessStartInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe"));
+        start.ArgumentList.Add(folder);
+        using var process = Process.Start(start);
+    };
     internal Func<string, CancellationToken, Task<ConflictDecision>>? ConflictOverride { get; set; }
     internal ExtractionResult? LastExtraction { get; private set; }
+    private string? retryDestination;
     internal string? LastCopyPath { get; private set; }
     internal Func<string, string, bool>? ConfirmOverride { get; set; }
 
@@ -89,6 +97,7 @@ public partial class MainWindow
             try { return await action(password); }
             catch (ArchiveOperationException error) when (error.Code is "PasswordRequired" or "WrongPasswordOrDamaged")
             {
+                password = null;
                 token.ThrowIfCancellationRequested();
                 var prompt = new PasswordDialog(this, error.Code);
                 using var registration = token.Register(() => Dispatcher.BeginInvoke(new Action(() => { if (prompt.IsVisible) prompt.Close(); })));
@@ -110,10 +119,11 @@ public partial class MainWindow
         return new ConflictDecision(accepted ? choice.SelectedIndex switch { 1 => ConflictChoice.Skip, 2 => ConflictChoice.Replace, _ => ConflictChoice.Rename } : ConflictChoice.Cancel, all.IsChecked == true);
     }).Task;
 
-    private enum ExtractionMode { All, Selected, Smart, Here, ParentFolder }
+    private enum ExtractionMode { All, Selected, Smart, Here, ParentFolder, Failed }
     private string ExtractionLabel(int count) => count == 0 ? Text["ClientExtractAll"] : Text.Format("ClientExtractSelection", count);
     private long[] SelectedIds() => EntryGrid.SelectedItems.Cast<EntryView>().Select(v => long.Parse(v.Row.Id, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
-    private async void Extract_Click(object sender, RoutedEventArgs e) => await ShowExtractDialogAsync(EntryGrid.SelectedItems.Count == 0 ? ExtractionMode.All : ExtractionMode.Selected);
+    private async void Extract_Click(object sender, RoutedEventArgs e) => await ExtractCurrentSelectionAsync();
+    internal Task ExtractCurrentSelectionAsync() => ShowExtractDialogAsync(EntryGrid.SelectedItems.Count == 0 ? ExtractionMode.All : ExtractionMode.Selected);
     private async void AllExtract_Click(object sender, RoutedEventArgs e) => await ShowExtractDialogAsync();
     private async void SmartExtract_Click(object sender, RoutedEventArgs e) => await ShowExtractDialogAsync(ExtractionMode.Smart);
     private async void HereExtract_Click(object sender, RoutedEventArgs e) => await ShowExtractDialogAsync(ExtractionMode.Here);
@@ -125,8 +135,14 @@ public partial class MainWindow
     private async Task ShowExtractDialogAsync(ExtractionMode mode = ExtractionMode.All)
     {
         if (IsBusy || archive is null || OpenedPath is null) return;
+        if (archive.Scan.Entries.Count == 0) { StatusText.Text = Text["ClientArchiveEmpty"]; return; }
         var dialog = new ActionDialog(this, "Extract", "Extract");
         var ids = mode == ExtractionMode.Selected ? SelectedIds() : null;
+        if (mode == ExtractionMode.Failed)
+        {
+            if (LastExtraction is not { } result || !CanRetryFailures(result)) return;
+            ids = result.Failures.Select(f => f.EntryId!.Value).ToArray();
+        }
         if (mode == ExtractionMode.ParentFolder)
         {
             if (folderTree is null || EntryGrid.SelectedItems.Count != 1 || EntryGrid.SelectedItem is not EntryView item || item.Row.Type == "folder") return;
@@ -135,8 +151,14 @@ public partial class MainWindow
             dialog.Explain(parent.Length == 0 ? Text["ClientParentIsRoot"] : Text.Format("ClientParentScope", parent));
         }
         if (ids is { Length: 0 }) return;
-        if (mode != ExtractionMode.ParentFolder) dialog.Explain(mode switch { ExtractionMode.Smart => Text["SmartExtract"], ExtractionMode.Here => Text["ClientExtractHere"], _ => ExtractionLabel(ids?.Length ?? 0) });
-        var destination = new TextBox { Text = Path.GetDirectoryName(OpenedPath) ?? "", Margin = new Thickness(0, 0, 0, 8) };
+        if (mode != ExtractionMode.ParentFolder) dialog.Explain(mode switch
+        {
+            ExtractionMode.Smart => Text["SmartExtract"],
+            ExtractionMode.Here => Text["ClientExtractHere"],
+            ExtractionMode.Failed => Text.Format("ClientRetryFailures", ids!.Length),
+            _ => ExtractionLabel(ids?.Length ?? 0)
+        });
+        var destination = new TextBox { Text = (mode == ExtractionMode.Failed ? retryDestination : Path.GetDirectoryName(OpenedPath)) ?? "", Margin = new Thickness(0, 0, 0, 8) };
         System.Windows.Automation.AutomationProperties.SetName(destination, Text["Destination"]);
         dialog.Explain(Text["Destination"]); dialog.Body.Children.Add(destination);
         var hint = new TextBlock { Text = Text["ClientLocalPathHint"], TextWrapping = TextWrapping.Wrap };
@@ -153,30 +175,84 @@ public partial class MainWindow
         dialog.Body.Children.Add(browse);
         dialog.Explain(mode == ExtractionMode.Smart ? Text["SmartExtractHint"] : Text["ExtractHint"]);
         destination.IsEnabled = browse.IsEnabled = mode != ExtractionMode.Here;
-        var open = new CheckBox { Content = Text["ClientOpenDestination"] }; dialog.Body.Children.Add(open);
+        var app = (ClientApp)Application.Current;
+        var open = new CheckBox { Content = Text["ClientOpenDestination"], IsChecked = app.OpenAfterExtraction };
+        var remember = new CheckBox { Content = Text["ClientRememberOpenDestination"] };
+        dialog.Body.Children.Add(open); dialog.Body.Children.Add(remember);
         if (dialog.ShowDialog() != true) return;
-        await ExtractCapturedAsync(destination.Text ?? "", mode == ExtractionMode.Smart, ids, open.IsChecked == true);
-        if (LastExtraction?.Failures.Count > 0)
+        bool openFolder = open.IsChecked == true;
+        bool saveFailed = false;
+        if (remember.IsChecked == true)
         {
-            var failures = new ActionDialog(this, "ClientResult", "Close", "Close");
-            failures.Explain(StatusText.Text);
-            failures.Body.Children.Add(new TextBox { Text = string.Join(Environment.NewLine, LastExtraction.Failures.Select(f => $"{f.Path}: {Text[f.Code]}")), IsReadOnly = true, TextWrapping = TextWrapping.Wrap, Height = 240, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
-            failures.ShowDialog();
+            try { app.OpenAfterExtraction = openFolder; }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException) { saveFailed = true; }
         }
+        await ExtractCapturedAsync(destination.Text ?? "", mode == ExtractionMode.Smart, ids, openFolder, exactIds: mode == ExtractionMode.Failed);
+        if (saveFailed) StatusText.Text += " · " + Text["SettingsFailed"];
+        if (!closed && mode != ExtractionMode.Failed && LastExtraction?.Failures.Count > 0) await ShowExtractionResultAsync();
+    }
+    private string ExtractionSummary(ExtractionResult result)
+    {
+        if (!result.Cancelled && result.Failures.Count > 0 && result.Completed == 0)
+            return Text.Format("ClientExtractionFailed", result.Failures.Count, result.Skipped);
+        return Text.Format(result.Cancelled ? "ExtractionCancelled" : result.Failures.Count > 0 ? "ExtractionPartial" : "ExtractionDone",
+            result.Completed, result.Skipped, result.Destination);
+    }
+
+    private static bool CanRetryFailures(ExtractionResult result) =>
+        !result.Cancelled && result.Failures.Count > 0 && result.Failures.All(f => f.EntryId.HasValue);
+
+    private async void Result_Click(object sender, RoutedEventArgs e) => await ShowExtractionResultAsync();
+    internal async Task ShowExtractionResultAsync()
+    {
+        if (LastExtraction is not { } result || IsBusy) return;
+        var dialog = new ActionDialog(this, "ClientResult", "Close", "Close");
+        bool retry = false;
+        dialog.Explain(ExtractionSummary(result));
+        if (result.Failures.Count > 0)
+        {
+            if (result.Failures.Any(f => f.Code is "PasswordRequired" or "WrongPasswordOrDamaged"))
+                dialog.Explain(Text["ClientPasswordRetryHint"]);
+            var failures = new ListBox { ItemsSource = result.Failures, Height = 140, Background = Background, Foreground = Foreground,
+                ItemTemplate = (DataTemplate)FindResource("ExtractionFailureTemplate") };
+            var reason = new TextBox { IsReadOnly = true, TextWrapping = TextWrapping.Wrap, MaxHeight = 100, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+            failures.SelectionChanged += (_, _) =>
+            {
+                if (failures.SelectedItem is ExtractionFailure failure)
+                    reason.Text = string.IsNullOrEmpty(failure.Path) ? Text[failure.Code] : failure.Path + Environment.NewLine + Text[failure.Code];
+            };
+            failures.SelectedIndex = 0;
+            dialog.Body.Children.Add(failures); dialog.Body.Children.Add(reason);
+            if (CanRetryFailures(result))
+            {
+                var button = new Button { Content = Text.Format("ClientRetryFailures", result.Failures.Count) };
+                button.Click += (_, _) => { retry = true; dialog.DialogResult = true; };
+                dialog.Body.Children.Add(button);
+            }
+        }
+        if (result.Completed > 0)
+        {
+            var open = new Button { Content = Text["ClientShowOutputFolder"] };
+            open.Click += (_, _) => LaunchFolder(result.Destination);
+            dialog.Body.Children.Add(open);
+        }
+        dialog.ShowDialog();
+        if (retry && ReferenceEquals(LastExtraction, result)) await ShowExtractDialogAsync(ExtractionMode.Failed);
     }
     internal Task ExtractToAsync(string target, bool smart, bool selectedOnly, bool openFolder = false)
         => ExtractCapturedAsync(target, smart, selectedOnly ? SelectedIds() : null, openFolder);
-    private Task ExtractCapturedAsync(string target, bool smart, long[]? selectedIds, bool openFolder)
+    private Task ExtractCapturedAsync(string target, bool smart, long[]? selectedIds, bool openFolder, bool exactIds = false)
     {
         if (archive is null || OpenedPath is null || IsBusy) return Task.CompletedTask;
         var snapshot = archive.Scan; string path = OpenedPath;
         var index = archive.Index;
         if (selectedIds is { Length: 0 }) return Task.CompletedTask;
         LastExtraction = null;
+        if (snapshot.Entries.Count == 0) { StatusText.Text = Text["ClientArchiveEmpty"]; return Task.CompletedTask; }
         return RunAsync(Text["Extracting"], async token =>
         {
             int taskGeneration = generation;
-            long[]? expanded = selectedIds is null ? null : await Task.Run(() =>
+            long[]? expanded = selectedIds is null || exactIds ? selectedIds : await Task.Run(() =>
             {
                 var ids = selectedIds.ToHashSet();
                 return ArchiveSelection.Expand(index.Entries.Where(e => ids.Contains(e.Id)), snapshot.Entries, token);
@@ -191,13 +267,17 @@ public partial class MainWindow
                 ConflictOverride ?? AskConflictAsync, report, token, secret), token), token);
             // A cancelled extraction still has a meaningful partial result and completed files.
             LastExtraction = result;
-            StatusText.Text = Text.Format(result.Cancelled ? "ExtractionCancelled" : result.Failures.Count > 0 ? "ExtractionPartial" : "ExtractionDone", result.Completed, result.Skipped, result.Destination);
-            return () => { if (openFolder && !result.Cancelled && result.Failures.Count == 0) LaunchFolder(result.Destination); };
+            // Smart extraction can reserve or rename a root. Prompt for a destination
+            // on retry instead of guessing how a path in the archive maps to that root.
+            retryDestination = smart ? null : target;
+            if (result.Failures.Any(f => f.Code is "PasswordRequired" or "WrongPasswordOrDamaged")) password = null;
+            StatusText.Text = ExtractionSummary(result);
+            return () => { if (openFolder && result.Completed > 0 && !result.Cancelled && result.Failures.Count == 0) LaunchFolder(result.Destination); };
         }, false);
     }
     private void LaunchFolder(string folder)
     {
-        try { using var process = Process.Start(new ProcessStartInfo(folder) { UseShellExecute = true }); }
+        try { OpenFolder(folder); }
         catch (Exception error) when (error is Win32Exception or IOException) { StatusText.Text = Text["ExternalOpenFailed"]; }
     }
     private async void OpenFile_Click(object sender, RoutedEventArgs e) => await ActivateAsync();

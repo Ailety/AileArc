@@ -1,7 +1,17 @@
 <Window x:Class="AileArc.Client.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:AileArc.Client"
   Title="{local:Text ClientTitle}" Width="1320" Height="850" MinWidth="1060" MinHeight="650" WindowStartupLocation="CenterScreen"
   Background="{DynamicResource CanvasBrush}" Foreground="{DynamicResource TextBrush}" FontFamily="Microsoft YaHei UI, Segoe UI" FontSize="14" UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
-  <Window.Resources><ResourceDictionary><ResourceDictionary.MergedDictionaries><ResourceDictionary Source="WarmGraphite.xaml" /></ResourceDictionary.MergedDictionaries></ResourceDictionary></Window.Resources>
+  <Window.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="WarmGraphite.xaml" /></ResourceDictionary.MergedDictionaries>
+      <DataTemplate x:Key="ExtractionFailureTemplate">
+        <TextBlock x:Name="FailurePath" Text="{Binding Path}" TextTrimming="CharacterEllipsis"/>
+        <DataTemplate.Triggers>
+          <DataTrigger Binding="{Binding Path}" Value=""><Setter TargetName="FailurePath" Property="Text" Value="{local:Text ClientArchiveFailure}"/></DataTrigger>
+        </DataTemplate.Triggers>
+      </DataTemplate>
+    </ResourceDictionary>
+  </Window.Resources>
   <Grid x:Name="Workspace" AllowDrop="True" PreviewDragOver="Workspace_DragOver" PreviewDragLeave="Workspace_DragLeave" PreviewDrop="Workspace_Drop">
     <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="32" /></Grid.RowDefinitions>
     <Grid>
@@ -148,6 +158,7 @@
     </Grid>
     <Border Grid.Row="1" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0" Background="{StaticResource SurfaceBrush}"><DockPanel Margin="16,0">
       <Button x:Name="CancelButton" DockPanel.Dock="Right" Content="{local:Text Cancel}" Click="Cancel_Click" Visibility="Collapsed" Padding="8,0" MinHeight="24" />
+      <Button x:Name="ResultButton" DockPanel.Dock="Right" Content="{local:Text ClientResult}" Click="Result_Click" Visibility="Collapsed" Padding="8,0" MinHeight="24" />
       <CheckBox x:Name="CompactList" DockPanel.Dock="Right" Content="{local:Text ClientCompact}" Click="Density_Click" VerticalAlignment="Center" Margin="8,0"/>
       <Border x:Name="ActivityDot" DockPanel.Dock="Left" Background="{StaticResource AccentBrush}" Width="7" Height="7" CornerRadius="4" Margin="0,0,8,0" Visibility="Collapsed"/>
       <TextBlock x:Name="StatusText" Text="{local:Text ClientIdle}" Style="{StaticResource Muted}" />

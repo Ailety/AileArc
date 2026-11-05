@@ -6,12 +6,13 @@ namespace AileArc.Client;
 
 internal sealed class PasswordDialog : Window
 {
-    private readonly PasswordBox input = new() { MaxLength = 4096, Padding = new Thickness(10), FontSize = 16 };
+    private readonly PasswordBox input = new() { Name = "ArchivePassword", MaxLength = 4096, Padding = new Thickness(10), FontSize = 16 };
     public string Value => input.Password;
     public PasswordDialog(MainWindow owner, string error)
     {
         Owner = owner; Title = ClientApp.Text["Password"]; Width = 440; SizeToContent = SizeToContent.Height;
         WindowStartupLocation = WindowStartupLocation.CenterOwner; ResizeMode = ResizeMode.NoResize;
+        if (Application.Current is ClientApp { HideTestWindows: true }) { Opacity = 0; ShowInTaskbar = false; ShowActivated = false; }
         Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("WarmGraphite.xaml", UriKind.Relative) });
         Background = (Brush)FindResource("SurfaceBrush"); Foreground = (Brush)FindResource("TextBrush");
         var content = new StackPanel { Margin = new Thickness(24) };
