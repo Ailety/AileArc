@@ -1,6 +1,6 @@
 # 开发安装包与 Windows Shell 集成
 
-更新：2026-10-24。默认安装包已切换为纯 WPF 客户端；开发安装与文件关联候选可用，现代菜单尚未完成受信任签名环境的实际 Explorer 验收。不是正式 Release。
+更新：2026-11-05。纯 WPF 开发包已通过本机开发证书签名、D 盘安装和实际 Explorer 现代菜单验收。公开分发签名和干净 Windows 11 环境仍需单独验证。
 
 ## 构建
 
@@ -42,6 +42,45 @@ Shell 编译使用固定版本与哈希的 LLVM-MinGW，下载到 `.tools`，无
 
 ## Windows 11 现代菜单
 
+### 用自签名开发证书做本机验收
+
+只在测试电脑或 Windows 11 x64 虚拟机中信任开发证书。以下命令在仓库根目录运行。私钥留在签名用户的 `CurrentUser\My` 中，不可导出；测试机只需要 `.cer` 和通过独立渠道核对的指纹。脚本不使用 `Trusted Root`，不启用开发者模式。
+
+1. 在普通 PowerShell 7 中生成一张有效期 90 天的专用证书，再签署全新的开发包：
+
+   ```powershell
+   New-Item -ItemType Directory -Path .artifacts/dev-menu -Force | Out-Null
+   $thumb = ./scripts/DevelopmentCertificate.ps1 -Create -PublicCertificate .artifacts/dev-menu/public.cer
+   $thumb
+   ./scripts/Package.ps1 -OutputDirectory .artifacts/dev-menu/bundle -SigningCertificateThumbprint $thumb
+   ```
+
+2. 在测试机的**管理员 PowerShell** 中显式信任公钥。将示例指纹替换为第 1 步的实际值。此操作对测试机所有用户生效；签发者相同但指纹不同的证书不会被信任。
+
+   ```powershell
+   ./scripts/DevelopmentCertificate.ps1 -Trust -PublicCertificate .artifacts/dev-menu/public.cer -Thumbprint '<指纹>'
+   ```
+
+3. 回到**普通 PowerShell**，核对包签名，再安装到自选的本地非根目录。目录须为空或已有本安装器收据；测试不要覆盖正在使用的开发安装。
+
+   ```powershell
+   $sig = Get-AuthenticodeSignature -LiteralPath .artifacts/dev-menu/bundle/payload/AileArc.Identity.msix
+   if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Thumbprint -ne $thumb) { throw '签名或信任未通过' }
+   ./.artifacts/dev-menu/bundle/Install.ps1 -InstallDirectory 'D:\Apps\AileArc-Menu-Test' -EnableModernMenu
+   Get-AppxPackage -Name Ailety.AileArc.Development | Select-Object Name,Publisher,PackageFullName
+   ```
+
+4. 在资源管理器中对测试 ZIP 直接右键（无需“显示更多选项”），检查 AileArc 子菜单，分别验证打开、智能解压、解压到；对普通文件和文件夹验证新建压缩包的源预选，检查语言重启后的菜单。用收据对应的卸载器卸载，检查包注册和菜单消失，再安装验证一次。不要把 `Get-AppxPackage` 的结果当成真实菜单交互通过。
+
+5. 最终卸载测试安装；**管理员**按相同指纹撤销本机信任，再由**创建证书的普通用户**删除其私钥。这里只撤销本机测试信任，不是 CA 吊销。保留公钥文件本身不会赋予信任。
+
+   ```powershell
+   # 管理员：
+   ./scripts/DevelopmentCertificate.ps1 -Untrust -Thumbprint '<指纹>'
+   # 原签名用户：
+   ./scripts/DevelopmentCertificate.ps1 -DeleteKey -Thumbprint '<指纹>'
+   ```
+
 原生 `IExplorerCommand` 提供 AileArc 子菜单：打开、智能解压、解压到、新建压缩包。仅 ZIP/7Z/RAR 显示解压命令，其他文件和目录可新建压缩包。一次最多 32 个路径，命令行长度有界。标题来自与主程序相同的 zh-CN/en-US 资源，主程序重启后更新菜单语言；Explorer 可能缓存菜单显示。
 
 菜单查询不加载归档引擎，Invoke 启动 WPF AileArc.exe；智能解压使用压缩包所在目录，解压到显示目标对话框，新建带入所选源路径。命令通过主进程管道转交；忙碌窗口不会因新 Shell 命令取消当前任务。
@@ -56,7 +95,7 @@ Shell 编译使用固定版本与哈希的 LLVM-MinGW，下载到 `.tools`，无
 ./Install.ps1 -InstallDirectory 'D:\Apps\AileArc-Development' -EnableModernMenu
 ```
 
-目标机器必须已经信任该证书。脚本不会自动创建/导入证书、启用开发者模式、提权或重启 Explorer。注册失败会回滚本次安装，错误不会被当成成功。签名包的实际菜单、卸载与重新安装仍待在具备签名条件的环境验证。
+目标机器必须已经信任该证书。安装器不会自动创建或信任证书、提权或重启 Explorer。注册失败会回滚本次安装。
 
 参考：[微软现代菜单集成](https://learn.microsoft.com/en-us/windows/apps/desktop/modernize/integrate-packaged-app-with-file-explorer)、[外部位置包身份](https://learn.microsoft.com/en-us/windows/apps/desktop/modernize/grant-identity-to-nonpackaged-apps)、[未签名包限制](https://learn.microsoft.com/en-us/windows/msix/package/unsigned-package)。
 
@@ -67,4 +106,5 @@ Shell 编译使用固定版本与哈希的 LLVM-MinGW，下载到 `.tools`，无
 - 从实际安装目录启动自包含 Worker 的 8 项读包、解压、ZIP/7Z 与密码组合往返测试。
 - 自包含窗口启动、新建对话框预选源、智能解压输出、已有窗口接收解压到请求及取消。
 - 历史 WinUI 部署曾遗漏 PRI/XBF；该宿主现已退役。当前包检查 WPF 运行时和 AileArc.exe 存在，并拒绝混入旧宿主文件。
-- 现代菜单的真实显示、签名安装路径、干净 Windows 11 机器上的完整交互和图形安装向导尚未验收。
+- 2026-11-05：签名状态 Valid，程序和 Worker 安装在 D 盘中文空格目录。对中文空格 ZIP 直接右键，一级菜单可展开 AileArc；打开显示实际条目，智能解压得到两份内容正确的文件，解压到显示目标选择器；右键普通目录仅显示新建命令并带入所选目录。卸载后身份包和菜单均消失；同路径重装后菜单恢复。切换英文并重启后观察到四个英文命令，随后切回中文、最终卸载并确认包注册已移除。
+- 本机开发信任不代表其他机器自动信任。干净 Windows 11 的完整交互、公开分发签名及图形安装向导尚未验收。

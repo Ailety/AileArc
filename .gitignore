@@ -1,5 +1,7 @@
 .tools/
 .artifacts/
+*.pfx
+*.p12
 **/bin/
 **/obj/
 .vs/
