@@ -213,4 +213,11 @@ Ctrl + A：全选当前页</value></data>
   <data name="ClientMinimize"><value>最小化</value></data>
   <data name="ClientMaximize"><value>最大化</value></data>
   <data name="ClientRestore"><value>还原</value></data>
+  <data name="ClientShowDetails"><value>显示详情</value></data>
+  <data name="ClientHideDetails"><value>收起详情</value></data>
+  <data name="ClientDefaultOpen"><value>用默认应用打开</value></data>
+  <data name="ClientCopyPath"><value>复制路径</value></data>
+  <data name="ClientExactSize"><value>{0:N0} 字节</value></data>
+  <data name="ClientPathCopied"><value>已复制包内路径。</value></data>
+  <data name="ClientClipboardBusy"><value>剪贴板正被占用，请重试。</value></data>
 </root>

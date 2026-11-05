@@ -218,10 +218,32 @@ public partial class MainWindow : Window
         ExtractButton.Content = ExtractionLabel(count);
         SelectAllBox.IsChecked = count == 0 ? false : count == displayed.Length ? true : null;
         SelectionText.Text = Text.Format("ClientSelectionCount", displayed.Length, count);
-        var row = EntryGrid.SelectedItem as EntryView;
+        var row = count == 1 ? EntryGrid.SelectedItem as EntryView : null;
         DetailName.Text = count > 1 ? Text.Format("ClientManySelected", count) : row?.Name ?? Text["ClientSelectHint"];
-        DetailPath.Text = count > 1 ? Text["ClientPageSelection"] : row?.Path ?? Text["ClientCheckboxHint"];
-        OpenFileButton.IsEnabled = !IsBusy && count == 1 && row?.Row.Type != "folder" && archive is not null;
+        DetailProperties.Visibility = row is null ? Visibility.Collapsed : Visibility.Visible;
+        DetailClear.Visibility = count == 0 ? Visibility.Collapsed : Visibility.Visible;
+        SummaryText.Visibility = row is null ? Visibility.Visible : Visibility.Collapsed;
+        DetailPath.Text = row?.Path ?? "";
+        DetailType.Text = row?.TypeLabel ?? "";
+        DetailSize.Text = row?.Row.Type != "folder" && row?.Row.UnpackedBytes is ulong bytes ? Text.Format("ClientExactSize", bytes) : "—";
+        bool enabled = row is not null && !IsBusy && archive is not null && ((ClientApp)Application.Current).CanStart(this);
+        OpenFileButton.IsEnabled = enabled && row!.Row.Type != "folder";
+        CopyPathButton.IsEnabled = enabled;
+    }
+    private void ToggleDetails_Click(object sender, RoutedEventArgs e)
+    {
+        bool hide = DetailPane.Visibility == Visibility.Visible;
+        DetailColumn.Width = new GridLength(hide ? 0 : 254); DetailDivider.Width = new GridLength(hide ? 0 : 1);
+        DetailPane.Visibility = hide ? Visibility.Collapsed : Visibility.Visible;
+        ShowDetails.Visibility = hide ? Visibility.Visible : Visibility.Collapsed;
+        (hide ? ShowDetails : HideDetails).Focus();
+    }
+    internal Action<string> CopyText { get; set; } = Clipboard.SetText;
+    private void CopyPath_Click(object sender, RoutedEventArgs e)
+    {
+        if (!CopyPathButton.IsEnabled || EntryGrid.SelectedItems.Count != 1 || EntryGrid.SelectedItem is not EntryView row) return;
+        try { CopyText(row.Path); StatusText.Text = Text["ClientPathCopied"]; }
+        catch (System.Runtime.InteropServices.ExternalException) { StatusText.Text = Text["ClientClipboardBusy"]; }
     }
     private void RowCheck_MouseDown(object sender, MouseButtonEventArgs e)
     {

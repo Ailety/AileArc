@@ -213,4 +213,11 @@ Ctrl + A: select this page</value></data>
   <data name="ClientMinimize"><value>Minimize</value></data>
   <data name="ClientMaximize"><value>Maximize</value></data>
   <data name="ClientRestore"><value>Restore</value></data>
+  <data name="ClientShowDetails"><value>Show details</value></data>
+  <data name="ClientHideDetails"><value>Hide details</value></data>
+  <data name="ClientDefaultOpen"><value>Open with default app</value></data>
+  <data name="ClientCopyPath"><value>Copy path</value></data>
+  <data name="ClientExactSize"><value>{0:N0} bytes</value></data>
+  <data name="ClientPathCopied"><value>Archive path copied.</value></data>
+  <data name="ClientClipboardBusy"><value>Clipboard is busy. Please try again.</value></data>
 </root>

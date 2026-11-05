@@ -30,7 +30,10 @@ public static class BrowserProtocol
     }
 }
 
-public sealed record BrowserRow(string Id, string Name, string Parent, string Path, string Type, double? Size, string Date, bool Encrypted);
+public sealed record BrowserRow(string Id, string Name, string Parent, string Path, string Type, double? Size, string Date, bool Encrypted)
+{
+    [JsonIgnore] public ulong? UnpackedBytes { get; init; }
+}
 public sealed record BrowserPage(BrowserRow[] Rows, int Total, int Offset, bool HasMore);
 public sealed class ArchivePresentation
 {
@@ -68,7 +71,7 @@ public sealed class ArchivePresentation
         {
             string type = row.Kind;
             var item = new BrowserRow(row.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), row.Name,
-                row.Parent.Length > 0 ? row.Parent + "/" : "", row.Path, type, row.Size is null ? null : row.Size.Value / 1024d, "—", row.Encrypted);
+                row.Parent.Length > 0 ? row.Parent + "/" : "", row.Path, type, row.Size is null ? null : row.Size.Value / 1024d, "—", row.Encrypted) { UnpackedBytes = row.Size };
             int length = JsonSerializer.SerializeToUtf8Bytes(item, BrowserProtocol.Json).Length;
             if (length > limit) continue;
             if (bytes + length > limit) break;

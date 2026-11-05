@@ -5,7 +5,7 @@
   <Grid>
     <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="32" /></Grid.RowDefinitions>
     <Grid>
-      <Grid.ColumnDefinitions><ColumnDefinition Width="218" MinWidth="180" /><ColumnDefinition Width="1" /><ColumnDefinition Width="*" /><ColumnDefinition Width="1" /><ColumnDefinition Width="254" MinWidth="220" /></Grid.ColumnDefinitions>
+      <Grid.ColumnDefinitions><ColumnDefinition Width="218" MinWidth="180" /><ColumnDefinition Width="1" /><ColumnDefinition Width="*" /><ColumnDefinition x:Name="DetailDivider" Width="1" /><ColumnDefinition x:Name="DetailColumn" Width="254" /></Grid.ColumnDefinitions>
       <Border Background="{StaticResource SurfaceBrush}" Padding="16,20">
         <DockPanel LastChildFill="True">
           <TextBlock DockPanel.Dock="Bottom" Text="{local:Text ClientReadOnly}" Style="{StaticResource Muted}" TextWrapping="Wrap" />
@@ -40,6 +40,7 @@
                 <MenuItem Header="{local:Text ClientExtractHere}" Click="HereExtract_Click"/>
               </ContextMenu></Button.ContextMenu>
             </Button>
+            <Button x:Name="ShowDetails" Content="{local:Text ClientShowDetails}" Visibility="Collapsed" Click="ToggleDetails_Click" Margin="6,0,0,0"/>
           </StackPanel>
           <Grid Margin="6,0" Background="{StaticResource SurfaceBrush}"><ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"><StackPanel x:Name="Crumbs" Orientation="Horizontal" MouseLeftButtonDown="Address_MouseDown" Background="Transparent" /></ScrollViewer><TextBox x:Name="AddressInput" Visibility="Collapsed" KeyDown="Address_KeyDown" LostKeyboardFocus="Address_Blur" AutomationProperties.Name="{local:Text Path}" /></Grid>
         </DockPanel>
@@ -77,19 +78,28 @@
         </DockPanel>
       </Grid>
       <Border Grid.Column="3" Background="{StaticResource LineBrush}" />
-      <Border Grid.Column="4" Background="{StaticResource SurfaceBrush}" Padding="20">
-        <DockPanel><TextBlock DockPanel.Dock="Bottom" Text="{local:Text ClientFooter}" Style="{StaticResource Muted}" TextWrapping="Wrap" />
+      <Border x:Name="DetailPane" Grid.Column="4" Background="{StaticResource SurfaceBrush}" Padding="18">
+        <DockPanel>
+          <DockPanel DockPanel.Dock="Top" Margin="0,0,0,16">
+            <Button x:Name="HideDetails" DockPanel.Dock="Right" Content="×" Width="32" Padding="0" Click="ToggleDetails_Click" ToolTip="{local:Text ClientHideDetails}" AutomationProperties.Name="{local:Text ClientHideDetails}" />
+            <TextBlock Text="{local:Text ClientDetails}" Style="{StaticResource Muted}" />
+          </DockPanel>
+          <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
           <StackPanel>
-            <TextBlock Text="{local:Text ClientDetails}" Style="{StaticResource Muted}" Margin="0,0,0,24" />
-            <TextBlock Text="&#xE8A5;" FontFamily="Segoe Fluent Icons" Foreground="{StaticResource AccentBrush}" FontSize="32" Margin="0,0,0,20" />
             <TextBlock x:Name="DetailName" Text="{local:Text ClientSelectHint}" FontWeight="SemiBold" TextWrapping="Wrap" />
-            <TextBlock x:Name="DetailPath" Text="{local:Text ClientCheckboxHint}" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,12,0,20" />
-            <Border Background="{StaticResource LineBrush}" Height="1" />
+            <StackPanel x:Name="DetailProperties" Margin="0,10">
+              <TextBlock x:Name="DetailType" Foreground="{StaticResource AccentBrush}" Margin="0,0,0,12"/>
+              <TextBlock Text="{local:Text Size}" Style="{StaticResource Muted}" />
+              <TextBlock x:Name="DetailSize" Margin="0,2,0,12"/>
+              <TextBlock Text="{local:Text Path}" Style="{StaticResource Muted}" />
+              <TextBlock x:Name="DetailPath" TextWrapping="Wrap" TextTrimming="None" Margin="0,2,0,12"/>
+              <Button x:Name="OpenFileButton" Content="{local:Text ClientDefaultOpen}" Click="OpenFile_Click" Style="{StaticResource Primary}" />
+              <Button x:Name="CopyPathButton" Content="{local:Text ClientCopyPath}" Click="CopyPath_Click" Margin="0,6,0,0"/>
+            </StackPanel>
             <TextBlock x:Name="SummaryText" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,20" />
-            <Button Content="{local:Text ClientClearSelection}" Click="Clear_Click" Background="{StaticResource HoverBrush}" />
-            <Button x:Name="OpenFileButton" Content="{local:Text OpenFile}" Click="OpenFile_Click" Margin="0,8,0,0" />
-            <TextBlock Text="{local:Text ClientSelectionHint}" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,24,0,0" LineHeight="23" />
+            <Button x:Name="DetailClear" Content="{local:Text ClientClearSelection}" Click="Clear_Click" />
           </StackPanel>
+          </ScrollViewer>
         </DockPanel>
       </Border>
     </Grid>

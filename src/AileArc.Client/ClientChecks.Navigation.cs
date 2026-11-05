@@ -50,6 +50,25 @@ internal static partial class ClientChecks
         Require(!window.BackButton.IsEnabled && window.LocalSearchBox.IsChecked == false, "archive replacement resets navigation");
         await window.GoToAddressAsync("/Match120");
         Require(window.TestGrid.Items.Cast<EntryView>().Single().Path == "Match120/内容.txt", "address resolves an implicit folder");
+        window.TestGrid.SelectedIndex = 0;
+        Require(window.DetailPath.Text == "Match120/内容.txt" && window.DetailSize.Text == ClientApp.Text.Format("ClientExactSize", 0), "selected nested file shows its path and exact length");
+        var selectedFile = window.TestGrid.SelectedItem;
+        await Click(window.HideDetails); window.UpdateLayout();
+        Require(window.DetailColumn.ActualWidth == 0 && window.ShowDetails.IsVisible, "hidden inspector gives its width to the list");
+        await Click(window.ShowDetails); window.UpdateLayout();
+        Require(window.DetailColumn.ActualWidth > 0 && window.TestGrid.SelectedItem == selectedFile, "reopened inspector retains selection");
+        string? copied = null, launched = null;
+        var realCopy = window.CopyText; var previousLauncher = window.LaunchFile;
+        try
+        {
+            window.CopyText = value => copied = value;
+            await Click(window.CopyPathButton);
+            Require(copied == "Match120/内容.txt", "copy uses internal path without filesystem prefix");
+            window.LaunchFile = (file, _) => launched = file;
+            await Click(window.OpenFileButton);
+            Require(launched == window.LastCopyPath && File.Exists(launched), "inspector sends a real prepared copy to the default-app launcher");
+        }
+        finally { window.CopyText = realCopy; window.LaunchFile = previousLauncher; }
         await window.GoToAddressAsync("/missing");
         Require(window.TestGrid.Items.Cast<EntryView>().Single().Path == "Match120/内容.txt", "unknown address retains location");
         await Click(window.BackButton); await window.GoToAddressAsync("/Match042");
@@ -89,5 +108,10 @@ internal static partial class ClientChecks
         Require(window.TestGrid.Items.Cast<EntryView>().First().Name == "000.txt", "second click reverses size order");
         await Header(window.TypeColumn);
         Require(window.TestGrid.Items.Cast<EntryView>().First().Name == "204.md", "type header uses displayed type");
+        Require(window.DetailProperties.Visibility == Visibility.Collapsed, "sorting clears stale detail properties");
+        window.TestGrid.SelectedIndex = 0;
+        Require(window.DetailSize.Text == ClientApp.Text.Format("ClientExactSize", 1), "one byte is not rounded to zero");
+        await Header(window.TypeColumn);
+        Require(window.TestGrid.Items.Cast<EntryView>().First().Name.EndsWith(".txt"), "type header reverses its order");
     }
 }
