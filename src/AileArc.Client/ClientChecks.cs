@@ -10,6 +10,21 @@ namespace AileArc.Client;
 
 internal static partial class ClientChecks
 {
+    private static async Task CheckProgressAsync(Dispatcher dispatcher)
+    {
+        var values = new List<int>();
+        var updated = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using (var progress = new WindowProgress<int>(dispatcher, value => { values.Add(value); updated.TrySetResult(); }))
+        {
+            // Queue a burst while the UI is occupied. The next tick must draw only the latest value.
+            for (int i = 0; i < 10_000; i++) progress.Report(i);
+            await updated.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            progress.Report(10_000);
+        }
+        await Task.Delay(200);
+        Require(values.SequenceEqual([9_999]), "progress coalesces a backlog and stops at task completion");
+    }
+
     public static int Run(ClientApp app)
     {
         File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "client-self-test-error.txt"), "", System.Text.Encoding.UTF8);
@@ -64,6 +79,7 @@ internal static partial class ClientChecks
                 await CheckFoldersAsync(window, testRoot);
                 await CheckPrimaryExtractionAsync(window, app, testRoot);
                 await CheckWorkspaceAsync(app, testRoot);
+                await CheckProgressAsync(window.Dispatcher);
                 var empty = new MainWindow { Opacity = 0, ShowActivated = false, ShowInTaskbar = false };
                 empty.Show(); empty.Close();
                 await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);

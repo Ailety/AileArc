@@ -179,13 +179,12 @@ public partial class MainWindow
             long[]? expanded = selectedIds is null ? null : await Task.Run(() =>
             {
                 var ids = selectedIds.ToHashSet();
-                return ArchiveSelection.Expand(index.Entries.Where(e => ids.Contains(e.Id)), snapshot.Entries);
+                return ArchiveSelection.Expand(index.Entries.Where(e => ids.Contains(e.Id)), snapshot.Entries, token);
             }, token);
-            long last = 0;
-            var report = new Progress<ExtractionProgress>(p =>
+            using var report = new WindowProgress<ExtractionProgress>(Dispatcher, p =>
             {
-                if (closed || !IsBusy || generation != taskGeneration || token.IsCancellationRequested || Environment.TickCount64 - last < 100) return;
-                last = Environment.TickCount64; StatusText.Text = Text.Format("ExtractionProgress", p.Completed, p.Skipped, p.Bytes / 1048576.0);
+                if (closed || !IsBusy || generation != taskGeneration || token.IsCancellationRequested) return;
+                StatusText.Text = Text.Format("ExtractionProgress", p.Completed, p.Skipped, p.Bytes / 1048576.0);
             });
             var result = await WithPasswordAsync(secret => Task.Run(() => worker.ExtractAsync(path,
                 new ExtractionOptions(target, smart, SelectedIds: expanded, ExpectedIdentity: snapshot.Identity, NameCodePage: snapshot.NameCodePage),

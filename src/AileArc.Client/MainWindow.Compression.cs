@@ -101,7 +101,7 @@ public partial class MainWindow
         return RunAsync(Text["Compressing"], async token =>
         {
             int version = generation;
-            var report = new Progress<CompressionProgress>(p =>
+            using var report = new WindowProgress<CompressionProgress>(Dispatcher, p =>
             {
                 if (closed || !IsBusy || version != generation || token.IsCancellationRequested) return;
                 StatusText.Text = p.Phase == "verifying" ? Text["VerifyingArchive"] : Text.Format("CompressionProgress", p.Completed / 1048576.0, p.Total / 1048576.0);

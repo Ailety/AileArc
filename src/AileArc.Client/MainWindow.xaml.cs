@@ -96,7 +96,15 @@ public partial class MainWindow : Window
             while (true)
             {
                 token.ThrowIfCancellationRequested();
-                try { scan = await Task.Run(() => worker.ScanAsync(fullPath, cancellationToken: token, password: candidatePassword, nameCodePage: requestedCodePage), token); break; }
+                try
+                {
+                    using var progress = new WindowProgress<int>(Dispatcher, count =>
+                    {
+                        if (!closed && !token.IsCancellationRequested) StatusText.Text = Text.Format("ScanProgress", count);
+                    });
+                    scan = await Task.Run(() => worker.ScanAsync(fullPath, progress, token, candidatePassword, requestedCodePage), token);
+                    break;
+                }
                 catch (ArchiveOperationException error) when (error.Code is "PasswordRequired" or "WrongPasswordOrDamaged")
                 {
                     token.ThrowIfCancellationRequested();
@@ -106,6 +114,8 @@ public partial class MainWindow : Window
                     if (!accepted) throw new OperationCanceledException();
                 }
             }
+            token.ThrowIfCancellationRequested();
+            StatusText.Text = Text["BuildingIndex"];
             var result = await Task.Run(() =>
             {
                 var presentation = new ArchivePresentation(scan, token);
