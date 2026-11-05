@@ -49,7 +49,7 @@ internal static partial class ClientChecks
         while (window.ShellActionPending && DateTime.UtcNow < limit) await Task.Delay(25);
         Require(!window.ShellActionPending, "Shell action finished within deadline");
     }
-    private static async Task ObserveDialogAsync(ClientApp app, string title, Func<Task> action, Action<ActionDialog> inspect)
+    private static async Task ObserveDialogAsync(ClientApp app, string title, Func<Task> action, Action<ActionDialog> inspect, bool accept = false)
     {
         var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(25) };
@@ -58,9 +58,8 @@ internal static partial class ClientChecks
             var dialog = app.Windows.OfType<ActionDialog>().FirstOrDefault(w => w.Title == title);
             if (dialog is null) return;
             timer.Stop();
-            try { inspect(dialog); done.TrySetResult(); }
-            catch (Exception error) { done.TrySetException(error); }
-            finally { dialog.DialogResult = false; }
+            try { inspect(dialog); dialog.DialogResult = accept; done.TrySetResult(); }
+            catch (Exception error) { if (dialog.IsVisible) dialog.DialogResult = false; done.TrySetException(error); }
         };
         timer.Start();
         try { await action(); await done.Task.WaitAsync(TimeSpan.FromSeconds(10)); }

@@ -110,23 +110,36 @@ public partial class MainWindow
         return new ConflictDecision(accepted ? choice.SelectedIndex switch { 1 => ConflictChoice.Skip, 2 => ConflictChoice.Replace, _ => ConflictChoice.Rename } : ConflictChoice.Cancel, all.IsChecked == true);
     }).Task;
 
-    private async void Extract_Click(object sender, RoutedEventArgs e) => await ShowExtractDialogAsync();
-    internal async Task ShowExtractDialogAsync()
+    private enum ExtractionMode { All, Selected, Smart, Here }
+    private string ExtractionLabel(int count) => count == 0 ? Text["ClientExtractAll"] : Text.Format("ClientExtractSelection", count);
+    private long[] SelectedIds() => EntryGrid.SelectedItems.Cast<EntryView>().Select(v => long.Parse(v.Row.Id, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+    private async void Extract_Click(object sender, RoutedEventArgs e) => await ShowExtractDialogAsync(EntryGrid.SelectedItems.Count == 0 ? ExtractionMode.All : ExtractionMode.Selected);
+    private async void AllExtract_Click(object sender, RoutedEventArgs e) => await ShowExtractDialogAsync();
+    private async void SmartExtract_Click(object sender, RoutedEventArgs e) => await ShowExtractDialogAsync(ExtractionMode.Smart);
+    private async void HereExtract_Click(object sender, RoutedEventArgs e) => await ShowExtractDialogAsync(ExtractionMode.Here);
+    private void ExtractMore_Click(object sender, RoutedEventArgs e)
+    {
+        var menu = ExtractMore.ContextMenu; menu.PlacementTarget = ExtractMore;
+        menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom; menu.IsOpen = true;
+    }
+    private async Task ShowExtractDialogAsync(ExtractionMode mode = ExtractionMode.All)
     {
         if (IsBusy || archive is null || OpenedPath is null) return;
         var dialog = new ActionDialog(this, "Extract", "Extract");
-        var mode = dialog.Choices(Text["ClientExtractMode"], [Text["ExtractTo"], Text["ExtractSelected"], Text["SmartExtract"], Text["ClientExtractHere"]]);
+        var ids = mode == ExtractionMode.Selected ? SelectedIds() : null;
+        if (ids is { Length: 0 }) return;
+        dialog.Explain(mode switch { ExtractionMode.Smart => Text["SmartExtract"], ExtractionMode.Here => Text["ClientExtractHere"], _ => ExtractionLabel(ids?.Length ?? 0) });
         var destination = new TextBox { Text = Path.GetDirectoryName(OpenedPath), Margin = new Thickness(0, 0, 0, 8) };
         System.Windows.Automation.AutomationProperties.SetName(destination, Text["Destination"]);
         dialog.Explain(Text["Destination"]); dialog.Body.Children.Add(destination);
         var browse = new Button { Content = Text["BrowseFolder"] };
         browse.Click += (_, _) => { var picker = new Microsoft.Win32.OpenFolderDialog(); if (picker.ShowDialog(dialog) == true) destination.Text = picker.FolderName; };
         dialog.Body.Children.Add(browse);
-        var hint = new TextBlock { Text = Text["ExtractHint"], TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 12) }; dialog.Body.Children.Add(hint);
-        mode.SelectionChanged += (_, _) => { bool here = mode.SelectedIndex == 3; destination.IsEnabled = browse.IsEnabled = !here; hint.Text = Text[mode.SelectedIndex == 2 ? "SmartExtractHint" : "ExtractHint"]; dialog.Accept.IsEnabled = mode.SelectedIndex != 1 || EntryGrid.SelectedItems.Count > 0; };
+        dialog.Explain(mode == ExtractionMode.Smart ? Text["SmartExtractHint"] : Text["ExtractHint"]);
+        destination.IsEnabled = browse.IsEnabled = mode != ExtractionMode.Here;
         var open = new CheckBox { Content = Text["ClientOpenDestination"] }; dialog.Body.Children.Add(open);
         if (dialog.ShowDialog() != true) return;
-        await ExtractToAsync(mode.SelectedIndex == 3 ? Path.GetDirectoryName(OpenedPath)! : destination.Text ?? "", mode.SelectedIndex == 2, mode.SelectedIndex == 1, open.IsChecked == true);
+        await ExtractCapturedAsync(destination.Text ?? "", mode == ExtractionMode.Smart, ids, open.IsChecked == true);
         if (LastExtraction?.Failures.Count > 0)
         {
             var failures = new ActionDialog(this, "ClientResult", "Close", "Close");
@@ -136,17 +149,22 @@ public partial class MainWindow
         }
     }
     internal Task ExtractToAsync(string target, bool smart, bool selectedOnly, bool openFolder = false)
+        => ExtractCapturedAsync(target, smart, selectedOnly ? SelectedIds() : null, openFolder);
+    private Task ExtractCapturedAsync(string target, bool smart, long[]? selectedIds, bool openFolder)
     {
         if (archive is null || OpenedPath is null || IsBusy) return Task.CompletedTask;
         var snapshot = archive.Scan; string path = OpenedPath;
-        var ids = EntryGrid.SelectedItems.Cast<EntryView>().Select(v => long.Parse(v.Row.Id, System.Globalization.CultureInfo.InvariantCulture)).ToHashSet();
-        var selection = archive.Index.Entries.Where(e => ids.Contains(e.Id)).ToArray();
-        if (selectedOnly && selection.Length == 0) return Task.CompletedTask;
+        var index = archive.Index;
+        if (selectedIds is { Length: 0 }) return Task.CompletedTask;
         LastExtraction = null;
         return RunAsync(Text["Extracting"], async token =>
         {
             int taskGeneration = generation;
-            long[]? expanded = selectedOnly ? await Task.Run(() => ArchiveSelection.Expand(selection, snapshot.Entries), token) : null;
+            long[]? expanded = selectedIds is null ? null : await Task.Run(() =>
+            {
+                var ids = selectedIds.ToHashSet();
+                return ArchiveSelection.Expand(index.Entries.Where(e => ids.Contains(e.Id)), snapshot.Entries);
+            }, token);
             long last = 0;
             var report = new Progress<ExtractionProgress>(p =>
             {

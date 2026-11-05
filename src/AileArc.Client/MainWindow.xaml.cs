@@ -181,7 +181,7 @@ public partial class MainWindow : Window
         EncodingBox.IsEnabled = idle && archive?.Scan.Format == "ZIP";
         EntryGrid.IsEnabled = idle; RootButton.IsEnabled = idle; Folders.IsEnabled = idle;
         UpdateNavigation(); UpdateSelection();
-        ExtractButton.IsEnabled = idle && archive is not null;
+        ExtractButton.IsEnabled = ExtractMore.IsEnabled = idle && archive is not null;
         CopiesButton.IsEnabled = idle;
         CreateButton.IsEnabled = RecoveryButton.IsEnabled = idle;
     }
@@ -203,6 +203,7 @@ public partial class MainWindow : Window
     private void UpdateSelection()
     {
         int count = EntryGrid.SelectedItems.Count;
+        ExtractButton.Content = ExtractionLabel(count);
         SelectAllBox.IsChecked = count == 0 ? false : count == displayed.Length ? true : null;
         SelectionText.Text = Text.Format("ClientSelectionCount", displayed.Length, count);
         var row = EntryGrid.SelectedItem as EntryView;

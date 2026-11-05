@@ -205,4 +205,6 @@ Ctrl + A：全选当前页</value></data>
   <data name="ClientAllFilesFilter"><value>所有文件|*.*</value></data>
   <data name="ClientActivationFailed"><value>已有 AileArc 暂时无法接收打开请求，或正在重启。请稍后重试。</value></data>
   <data name="ClientChooseOutput"><value>选择输出位置…</value></data>
+  <data name="ClientExtractAll"><value>解压全部</value></data>
+  <data name="ClientExtractSelection"><value>解压所选 · {0:N0} 项</value></data>
 </root>

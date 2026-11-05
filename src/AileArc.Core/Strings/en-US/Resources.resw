@@ -205,4 +205,6 @@ Ctrl + A: select this page</value></data>
   <data name="ClientAllFilesFilter"><value>All files|*.*</value></data>
   <data name="ClientActivationFailed"><value>The running AileArc cannot accept this request or is restarting. Please retry shortly.</value></data>
   <data name="ClientChooseOutput"><value>Choose output location…</value></data>
+  <data name="ClientExtractAll"><value>Extract all</value></data>
+  <data name="ClientExtractSelection"><value>Extract selected · {0:N0}</value></data>
 </root>
