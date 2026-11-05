@@ -4,7 +4,7 @@ using System.Windows.Media;
 
 namespace AileArc.Client;
 
-internal sealed class ActionDialog : Window
+internal class ActionDialog : Window
 {
     internal StackPanel Body { get; } = new() { Margin = new Thickness(24) };
     internal Button Accept { get; }

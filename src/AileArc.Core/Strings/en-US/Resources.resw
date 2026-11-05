@@ -106,6 +106,11 @@
   <data name="CopiesRetainedHint"><value>Working copies are retained after the app closes. Changes and exported copies do not update the original archive.</value></data>
   <data name="SaveCopyAs"><value>Save a copy as…</value></data>
   <data name="OpenCopyFolder"><value>Open copy folder</value></data>
+  <data name="ClientCopySearch"><value>Search by archive or entry path</value></data>
+  <data name="ClientCopyOrigin"><value>Archive: {0}&#10;Entry: {1}&#10;Created: {2:g}&#10;Working file: {3}</value></data>
+  <data name="ClientMoreCopies"><value>Load and filter more copies</value></data>
+  <data name="ClientReplaceExport"><value>Replace this file with the working copy?</value></data>
+  <data name="CopyDestinationExists"><value>The destination already exists. Choose another filename or confirm replacement.</value></data>
   <data name="AllFiles"><value>All files</value></data>
   <data name="CopyExported"><value>Working copy saved to: {0}</value></data>
   <data name="CloseCopiesHint"><value>Some working copies have changed or cannot be checked. They will not update the archive or be automatically deleted. Reopen Working copies later to recover or export them.</value></data>

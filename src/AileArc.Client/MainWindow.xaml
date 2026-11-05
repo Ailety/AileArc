@@ -4,6 +4,24 @@
   <Window.Resources>
     <ResourceDictionary>
       <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="WarmGraphite.xaml" /></ResourceDictionary.MergedDictionaries>
+      <DataTemplate x:Key="WorkCopyItem">
+        <StackPanel Margin="3,2">
+          <TextBlock Text="{Binding EntryPath}" TextTrimming="CharacterEllipsis"/>
+          <TextBlock Text="{Binding ArchivePath}" Style="{StaticResource Muted}" TextTrimming="CharacterEllipsis"/>
+        </StackPanel>
+      </DataTemplate>
+      <Style x:Key="WorkCopyRow" TargetType="ListBoxItem">
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="Template">
+          <Setter.Value><ControlTemplate TargetType="ListBoxItem">
+            <Border x:Name="Row" Background="Transparent" Padding="6,2"><ContentPresenter/></Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Row" Property="Background" Value="{StaticResource SurfaceBrush}"/></Trigger>
+              <Trigger Property="IsSelected" Value="True"><Setter TargetName="Row" Property="Background" Value="{StaticResource SelectionBrush}"/></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate></Setter.Value>
+        </Setter>
+      </Style>
       <DataTemplate x:Key="ExtractionFailureTemplate">
         <TextBlock x:Name="FailurePath" Text="{Binding Path}" TextTrimming="CharacterEllipsis"/>
         <DataTemplate.Triggers>

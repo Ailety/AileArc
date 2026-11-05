@@ -14,7 +14,7 @@ namespace AileArc.Client;
 public partial class MainWindow
 {
     private WorkCopyStore Copies => ((ClientApp)Application.Current).WorkCopies;
-    private readonly Dictionary<string, WorkCopyRecord> openedCopies = [];
+    private readonly Dictionary<string, WorkCopyStatus> openedCopies = [];
     private readonly DispatcherTimer copyTimer = new() { Interval = TimeSpan.FromSeconds(10) };
     private bool checkingCopies, closingCheck, allowClose;
     private TaskCompletionSource idleCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -40,17 +40,31 @@ public partial class MainWindow
     private void InitializeOperations()
     {
         Closing += Window_Closing;
-        Closed += (_, _) => copyTimer.Stop();
+        var lifetime = new CancellationTokenSource();
+        var token = lifetime.Token;
+        Closed += (_, _) => { copyTimer.Stop(); lifetime.Cancel(); lifetime.Dispose(); };
         copyTimer.Tick += async (_, _) =>
         {
             if (checkingCopies || IsBusy || closingCheck || closed || openedCopies.Count == 0) return;
             checkingCopies = true;
             try
             {
-                var records = openedCopies.Values.ToArray();
-                var states = await Task.Run(async () => { var list = new List<WorkCopyStatus>(); foreach (var record in records) list.Add(await Copies.InspectAsync(record)); return list; });
-                if (!closed) CopyNotice.Text = states.Any(s => s.State != WorkCopyState.Unchanged) ? Text["ClientCopiesAttention"] : "";
+                var previous = openedCopies.Values.ToArray();
+                var states = await Task.Run(async () =>
+                {
+                    var list = new List<WorkCopyStatus>();
+                    foreach (var status in previous) list.Add(await Copies.PollAsync(status, token));
+                    return list;
+                }, token);
+                if (closed) return;
+                for (int i = 0; i < states.Count; i++)
+                {
+                    string id = states[i].Record.Id;
+                    if (ReferenceEquals(openedCopies.GetValueOrDefault(id), previous[i])) openedCopies[id] = states[i];
+                }
+                CopyNotice.Text = openedCopies.Values.Any(s => s.State != WorkCopyState.Unchanged) ? Text["ClientCopiesAttention"] : "";
             }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArchiveOperationException) { }
             finally { checkingCopies = false; }
         };
@@ -76,10 +90,10 @@ public partial class MainWindow
                 if (!Confirm("TaskRunning", Text["CloseTaskHint"], "CancelAndExit", "KeepWaiting")) return false;
                 var pending = idleCompletion.Task; operation.Cancel(); await pending;
             }
-            var records = openedCopies.Values.ToArray();
-            foreach (var record in records)
+            var copies = openedCopies.Values.ToArray();
+            foreach (var copy in copies)
             {
-                var state = await Task.Run(() => Copies.InspectAsync(record));
+                var state = await Task.Run(() => Copies.InspectAsync(copy.Record));
                 if (state.State != WorkCopyState.Unchanged)
                     return Confirm("WorkCopies", Text["CloseCopiesHint"], "KeepCopiesAndExit", "Return");
             }
@@ -292,66 +306,77 @@ public partial class MainWindow
         {
             var record = await WithPasswordAsync(secret => Task.Run(() => Copies.PrepareAsync(path, snapshot.Identity, entry,
                 (destination, ct) => worker.ExtractAsync(path, new ExtractionOptions(destination, false, ByteLimit: WorkCopyStore.MaxFileBytes, SelectedIds: [id], ExpectedIdentity: snapshot.Identity, NameCodePage: snapshot.NameCodePage), cancellationToken: ct, password: secret), token), token), token);
-            var state = await Task.Run(() => Copies.InspectAsync(record, token), token);
-            if (state.State is WorkCopyState.Incomplete or WorkCopyState.Unavailable) throw new ArchiveOperationException("CopyUnavailable");
-            await Task.Run(() => Copies.RestoreSourceMarkAsync(record, token), token);
-            return () =>
-            {
-                openedCopies[record.Id] = record; LastCopyPath = state.FilePath;
-                try { LaunchFile(state.FilePath, new WindowInteropHelper(this).Handle); StatusText.Text = Text["ExternalCopyNotice"]; }
-                catch (Exception error) when (error is Win32Exception or IOException or System.Runtime.InteropServices.COMException) { StatusText.Text = Text["ExternalOpenFailed"]; }
-            };
+            return await PrepareCopyLaunchAsync(record, token);
         }, false);
     }
-    private async void Copies_Click(object sender, RoutedEventArgs e)
+
+    private async Task<Action> PrepareCopyLaunchAsync(WorkCopyRecord record, CancellationToken token)
     {
-        if (IsBusy) return;
-        IReadOnlyList<WorkCopyRecord> records = [];
-        bool loaded = false;
-        await RunAsync(Text["CheckingCopy"], async token => { records = await Task.Run(() => Copies.LoadAsync(token), token); return () => loaded = true; });
-        if (!loaded) return;
-        if (closed || records.Count == 0) { StatusText.Text = Text["NoWorkCopies"]; return; }
-        var dialog = new ActionDialog(this, "WorkCopies", "SaveCopyAs", "Close");
-        dialog.Explain(Text["CopiesRetainedHint"]);
-        var selector = dialog.Choices(Text["WorkCopies"], records.Select(r => $"{r.CreatedUtc.ToLocalTime():g} · {r.EntryPath}").ToArray());
-        var description = new TextBox { IsReadOnly = true, TextWrapping = TextWrapping.Wrap, Height = 120 }; dialog.Body.Children.Add(description);
-        var folder = new Button { Content = Text["OpenCopyFolder"] }; dialog.Body.Children.Add(folder);
-        WorkCopyRecord? cleanup = null;
-        var clean = new Button { Content = Text["CleanUnchangedCopy"], IsEnabled = false }; dialog.Body.Children.Add(clean);
-        clean.Click += (_, _) => { cleanup = records[selector.SelectedIndex]; dialog.Close(); };
-        folder.Click += (_, _) => LaunchFolder(Path.GetDirectoryName(Copies.FilePath(records[selector.SelectedIndex]))!);
-        async Task Inspect()
+        var state = await Task.Run(() => Copies.InspectAsync(record, token), token);
+        if (state.State is WorkCopyState.Incomplete or WorkCopyState.Unavailable) throw new ArchiveOperationException("CopyUnavailable");
+        await Task.Run(() => Copies.RestoreSourceMarkAsync(record, token), token);
+        return () =>
         {
-            int selected = selector.SelectedIndex; dialog.Accept.IsEnabled = clean.IsEnabled = false;
+            openedCopies[record.Id] = state; LastCopyPath = state.FilePath;
             try
             {
-                var state = await Task.Run(() => Copies.InspectAsync(records[selected]));
-                if (selector.SelectedIndex != selected) return;
-                description.Text = Text["CopyState" + state.State] + Environment.NewLine + state.FilePath;
-                dialog.Accept.IsEnabled = state.State is WorkCopyState.Unchanged or WorkCopyState.Modified;
-                clean.IsEnabled = state.State == WorkCopyState.Unchanged && !((ClientApp)Application.Current).AnyTaskRunning;
+                LaunchFile(state.FilePath, new WindowInteropHelper(this).Handle);
+                StatusText.Text = Text[state.State == WorkCopyState.Modified ? "CopyStateModified" : "ExternalCopyNotice"];
             }
-            catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArchiveOperationException) { description.Text = Text["CopyUnavailable"]; }
+            catch (Exception error) when (error is Win32Exception or IOException or System.Runtime.InteropServices.COMException)
+            { StatusText.Text = Text["ExternalOpenFailed"]; }
+        };
+    }
+
+    private async void Copies_Click(object sender, RoutedEventArgs e) => await ShowCopiesAsync();
+    internal async Task ShowCopiesAsync(int pageSize = 2000)
+    {
+        if (IsBusy) return;
+        using var lifetime = new CancellationTokenSource();
+        await using var pages = Copies.ReadPagesAsync(pageSize, lifetime.Token).GetAsyncEnumerator();
+        Task<WorkCopyListing> ReadPage() => Task.Run(async () =>
+            await pages.MoveNextAsync() ? pages.Current : new WorkCopyListing([], false), lifetime.Token);
+        WorkCopyListing? listing = null;
+        await RunAsync(Text["CheckingCopy"], async token =>
+        {
+            using var stop = token.Register(lifetime.Cancel);
+            var loaded = await ReadPage();
+            return () => listing = loaded;
+        });
+        if (closed || listing is null) return;
+        if (listing.Records.Count == 0 && !listing.HasMore) { StatusText.Text = Text["NoWorkCopies"]; return; }
+        var dialog = new WorkCopiesDialog(this, Copies, listing, ReadPage, LaunchFolder);
+        bool accepted;
+        try { accepted = dialog.ShowDialog() == true; }
+        finally { lifetime.Cancel(); await dialog.PendingLoad; }
+        if (!accepted || dialog.Selected is not { } record) return;
+        if (dialog.Choice == CopyAction.Open)
+        {
+            string file = Copies.FilePath(record);
+            if (ExternalOpenPolicy.RequiresConfirmation(file) && !Confirm("ConfirmExecutable", Text.Format("ExecutableHint", Path.GetFileName(file)), "OpenFile")) return;
+            await RunAsync(Text["PreparingExternal"], token => PrepareCopyLaunchAsync(record, token), false);
         }
-        selector.SelectionChanged += async (_, _) => await Inspect();
-        dialog.Loaded += async (_, _) => await Inspect();
-        bool export = dialog.ShowDialog() == true;
-        if (cleanup is not null)
+        else if (dialog.Choice == CopyAction.Clean)
         {
             var confirm = new ActionDialog(this, "CleanUnchangedCopy", "Clean"); confirm.Explain(Text["CleanupCopyHint"]);
             var editorsClosed = new CheckBox { Content = Text["EditorsClosed"] }; confirm.Body.Children.Add(editorsClosed);
             confirm.Accept.IsEnabled = false; editorsClosed.Click += (_, _) => confirm.Accept.IsEnabled = editorsClosed.IsChecked == true;
-            if (confirm.ShowDialog() == true) await CleanupCopyAsync(cleanup);
-            return;
+            if (confirm.ShowDialog() == true) await CleanupCopyAsync(record);
         }
-        if (!export) return;
-        var record = records[selector.SelectedIndex];
-        var picker = new Microsoft.Win32.SaveFileDialog { FileName = Path.GetFileName(record.EntryPath), Filter = Text["ClientAllFilesFilter"], OverwritePrompt = true };
-        if (picker.ShowDialog(this) == true) await ExportCopyAsync(record, picker.FileName);
+        else
+        {
+            var picker = new Microsoft.Win32.SaveFileDialog { FileName = Path.GetFileName(record.EntryPath), Filter = Text["ClientAllFilesFilter"], OverwritePrompt = false };
+            if (picker.ShowDialog(this) != true) return;
+            string destination = picker.FileName;
+            bool overwrite = File.Exists(destination);
+            if (overwrite && !Confirm("ClientReplaceExport", destination, "Replace")) return;
+            await ExportCopyAsync(record, destination, overwrite);
+        }
     }
-    internal Task ExportCopyAsync(WorkCopyRecord record, string destination) => RunAsync(Text["SaveCopyAs"], async token =>
+
+    internal Task ExportCopyAsync(WorkCopyRecord record, string destination, bool overwrite = false) => RunAsync(Text["SaveCopyAs"], async token =>
     {
-        await Task.Run(() => Copies.ExportAsync(record, destination, token), token);
+        await Task.Run(() => Copies.ExportAsync(record, destination, overwrite, token), token);
         return () => StatusText.Text = Text.Format("CopyExported", destination);
     }, false);
 }

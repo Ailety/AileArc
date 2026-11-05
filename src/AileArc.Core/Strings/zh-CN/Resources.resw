@@ -107,6 +107,11 @@
   <data name="CopiesRetainedHint"><value>工作副本会保留到应用关闭之后。修改不会写回原压缩包；另存为也不会改变原压缩包。</value></data>
   <data name="SaveCopyAs"><value>另存为…</value></data>
   <data name="OpenCopyFolder"><value>打开副本位置</value></data>
+  <data name="ClientCopySearch"><value>搜索来源压缩包或包内路径</value></data>
+  <data name="ClientCopyOrigin"><value>来源压缩包：{0}&#10;包内路径：{1}&#10;创建时间：{2:g}&#10;副本位置：{3}</value></data>
+  <data name="ClientMoreCopies"><value>继续载入副本并筛选</value></data>
+  <data name="ClientReplaceExport"><value>用工作副本替换此文件？</value></data>
+  <data name="CopyDestinationExists"><value>目标文件已存在。请重新选择保存位置或确认替换。</value></data>
   <data name="AllFiles"><value>所有文件</value></data>
   <data name="CopyExported"><value>工作副本已另存到：{0}</value></data>
   <data name="CloseCopiesHint"><value>存在已修改或暂时无法检查的工作副本。它们不会写回压缩包，也不会被自动清理。退出后可从“工作副本”中找回并另存。</value></data>
