@@ -32,7 +32,14 @@ internal static partial class ClientChecks
         {
             Require(!dialog.Body.Children.OfType<ComboBox>().Any(), "no second scope selection");
             Require(dialog.Body.Children.OfType<TextBlock>().Any(t => t.Text == label), "destination dialog identifies selection");
-            dialog.Body.Children.OfType<TextBox>().Single().Text = target;
+            var destination = dialog.Body.Children.OfType<TextBox>().Single();
+            foreach (var invalid in new[] { "", "relative", @"D:relative", @"\\server\share", @"D:\bad?name" })
+            {
+                destination.Text = invalid;
+                Require(!dialog.Accept.IsEnabled, "invalid extraction target cannot be submitted");
+            }
+            destination.Text = target;
+            Require(dialog.Accept.IsEnabled, "a full local destination re-enables extraction");
         }, accept: true);
         var deadline = DateTime.UtcNow.AddSeconds(15);
         while (window.IsBusy && DateTime.UtcNow < deadline) await Task.Delay(10);

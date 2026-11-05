@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Controls;
 using AileArc.Core;
 using AileArc.Core.Compression;
 using AileArc.Core.Lifecycle;
@@ -22,8 +23,25 @@ internal static partial class ClientChecks
         string source = Path.Combine(root, "创建测试.txt"); await File.WriteAllTextAsync(source, "P3 public fixture");
         string zip = Path.Combine(root, "created.zip"), seven = Path.Combine(root, "created.7z");
         var worker = new ArchiveWorkerClient(Path.Combine(AppContext.BaseDirectory, "Worker", "AileArc.Worker.exe"));
-        await window.CreateArchiveAsync(new([source], zip));
-        Require(window.LastCreated?.Entries == 1 && (await worker.ScanAsync(zip)).Format == "ZIP", "WPF creates and verifies ZIP");
+        string excluded = Path.Combine(root, "移除.txt");
+        await File.WriteAllTextAsync(excluded, "excluded fixture");
+        await ObserveDialogAsync(app, ClientApp.Text["CreateArchive"], () => window.ShowCreateDialogAsync([source, excluded]), dialog =>
+        {
+            var list = dialog.Body.Children.OfType<ListBox>().Single();
+            list.SelectedItem = excluded;
+            var output = dialog.Body.Children.OfType<TextBox>().Single();
+            output.Text = "relative.zip";
+            Require(!dialog.Accept.IsEnabled, "creation rejects a relative destination");
+            output.Text = zip;
+            Require(Equals(list.SelectedItem, excluded), "editing the destination preserves source selection");
+            var remove = dialog.Body.Children.OfType<WrapPanel>().Single().Children.OfType<Button>()
+                .Single(b => Equals(b.Content, ClientApp.Text["ClientRemoveSources"]));
+            remove.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Require(list.Items.Cast<string>().SequenceEqual([source]) && dialog.Accept.IsEnabled, "remove only selected input");
+        }, accept: true);
+        var created = await worker.ScanAsync(zip);
+        Require(window.LastCreated?.Entries == 1 && created.Format == "ZIP" && created.Entries.Single().Path == Path.GetFileName(source),
+            "created ZIP contains just the retained input");
         byte[] original = await File.ReadAllBytesAsync(zip);
         await window.CreateArchiveAsync(new([source], zip));
         byte[] preserved = await File.ReadAllBytesAsync(zip);

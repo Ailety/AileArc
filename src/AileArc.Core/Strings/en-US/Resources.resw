@@ -44,6 +44,8 @@
   <data name="SmartExtract"><value>Smart extract</value></data>
   <data name="Extract"><value>Extract</value></data>
   <data name="Destination"><value>Destination folder</value></data>
+  <data name="ClientLocalPathHint"><value>Enter or choose a full local folder path, such as D:\Extracted.</value></data>
+  <data name="ClientLocalFileHint"><value>Include a filename in the full local path, such as D:\Archives\Files.zip.</value></data>
   <data name="SmartExtractHint"><value>Organize by archive structure and use a new name when a destination already exists.</value></data>
   <data name="ExtractHint"><value>Preserve the archive structure and ask how to handle existing files.</value></data>
   <data name="Extracting"><value>Preparing extraction…</value></data>
@@ -120,6 +122,7 @@
   <data name="EncryptNames"><value>Encrypt filenames (7Z)</value></data>
   <data name="Create"><value>Create</value></data>
   <data name="AddFiles"><value>Add files…</value></data>
+  <data name="ClientRemoveSources"><value>Remove selected</value></data>
   <data name="AddFolder"><value>Add folder…</value></data>
   <data name="ClearSelection"><value>Clear selection</value></data>
   <data name="CreateArchiveHint"><value>Verify after creation and keep source files. ZIP passwords use AES-256; filename encryption is available for 7Z.</value></data>

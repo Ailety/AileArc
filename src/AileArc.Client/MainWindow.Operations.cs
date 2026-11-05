@@ -136,9 +136,18 @@ public partial class MainWindow
         }
         if (ids is { Length: 0 }) return;
         if (mode != ExtractionMode.ParentFolder) dialog.Explain(mode switch { ExtractionMode.Smart => Text["SmartExtract"], ExtractionMode.Here => Text["ClientExtractHere"], _ => ExtractionLabel(ids?.Length ?? 0) });
-        var destination = new TextBox { Text = Path.GetDirectoryName(OpenedPath), Margin = new Thickness(0, 0, 0, 8) };
+        var destination = new TextBox { Text = Path.GetDirectoryName(OpenedPath) ?? "", Margin = new Thickness(0, 0, 0, 8) };
         System.Windows.Automation.AutomationProperties.SetName(destination, Text["Destination"]);
         dialog.Explain(Text["Destination"]); dialog.Body.Children.Add(destination);
+        var hint = new TextBlock { Text = Text["ClientLocalPathHint"], TextWrapping = TextWrapping.Wrap };
+        dialog.Body.Children.Add(hint);
+        void ValidateDestination()
+        {
+            dialog.Accept.IsEnabled = ActionDialog.IsLocalDestination(destination.Text);
+            hint.Visibility = dialog.Accept.IsEnabled ? Visibility.Collapsed : Visibility.Visible;
+        }
+        destination.TextChanged += (_, _) => ValidateDestination();
+        ValidateDestination();
         var browse = new Button { Content = Text["BrowseFolder"] };
         browse.Click += (_, _) => { var picker = new Microsoft.Win32.OpenFolderDialog(); if (picker.ShowDialog(dialog) == true) destination.Text = picker.FolderName; };
         dialog.Body.Children.Add(browse);

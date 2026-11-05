@@ -21,11 +21,19 @@ internal sealed class ActionDialog : Window
         var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(24, 0, 24, 20) };
         Accept = new Button { Content = ClientApp.Text[accept], Style = (Style)FindResource("Primary") };
         Accept.Click += (_, _) => DialogResult = true;
-        actions.Children.Add(new Button { Content = ClientApp.Text[cancel], IsCancel = true }); actions.Children.Add(Accept);
+        if (accept == cancel) Accept.IsCancel = true;
+        else actions.Children.Add(new Button { Content = ClientApp.Text[cancel], IsCancel = true });
+        actions.Children.Add(Accept);
         DockPanel.SetDock(actions, Dock.Bottom); layout.Children.Add(actions);
         layout.Children.Add(new ScrollViewer { Content = Body, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }); Content = layout; GraphiteFrame.Install(this);
     }
     internal void Explain(string text) => Body.Children.Add(new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 16) });
+    internal static bool IsLocalDestination(string text)
+    {
+        // Validate while typing without probing a potentially offline drive.
+        return text.Length >= 3 && char.IsAsciiLetter(text[0]) && text[1] == ':' && text[2] is '/' or '\\' &&
+            !text.AsSpan(2).ContainsAny("<>:\"|?*") && !text.Any(char.IsControl);
+    }
     internal ComboBox Choices(string label, string[] items)
     {
         Explain(label);

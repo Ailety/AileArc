@@ -1,6 +1,8 @@
 using System.IO;
+using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using AileArc.Core.Compression;
 
@@ -14,17 +16,20 @@ public partial class MainWindow
     {
         if (IsBusy || !((ClientApp)Application.Current).CanStart(this)) return;
         var dialog = new ActionDialog(this, "CreateArchive", "Create");
-        var sources = new List<string>();
-        var selected = new ListBox { MaxHeight = 100, MinHeight = 40, Background = (Brush)dialog.FindResource("CanvasBrush"), Foreground = dialog.Foreground, BorderBrush = (Brush)dialog.FindResource("LineBrush") };
+        var sources = new ObservableCollection<string>();
+        var selected = new ListBox { ItemsSource = sources, SelectionMode = SelectionMode.Extended, MaxHeight = 100, MinHeight = 40, Background = (Brush)dialog.FindResource("CanvasBrush"), Foreground = dialog.Foreground, BorderBrush = (Brush)dialog.FindResource("LineBrush") };
         var destination = new TextBox { Margin = new Thickness(0, 0, 0, 12) };
         System.Windows.Automation.AutomationProperties.SetName(destination, Text["ArchiveDestination"]);
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal };
+        var buttons = new WrapPanel();
         var files = new Button { Content = Text["AddFiles"] };
         var folder = new Button { Content = Text["AddFolder"] };
         var clear = new Button { Content = Text["ClearSelection"] };
-        buttons.Children.Add(files); buttons.Children.Add(folder); buttons.Children.Add(clear);
+        var remove = new Button { Content = Text["ClientRemoveSources"], IsEnabled = false };
+        buttons.Children.Add(files); buttons.Children.Add(folder); buttons.Children.Add(remove); buttons.Children.Add(clear);
         dialog.Body.Children.Add(buttons); dialog.Body.Children.Add(selected);
         dialog.Explain(Text["ArchiveDestination"]); dialog.Body.Children.Add(destination);
+        var hint = new TextBlock { Text = Text["ClientLocalFileHint"], TextWrapping = TextWrapping.Wrap };
+        dialog.Body.Children.Add(hint);
         var browse = new Button { Content = Text["ClientChooseOutput"] }; dialog.Body.Children.Add(browse);
         var format = dialog.Choices(Text["ArchiveFormat"], ["ZIP", "7Z"]);
         var preset = dialog.Choices(Text["CompressionPreset"], [Text["PresetFast"], Text["PresetBalanced"], Text["PresetMaximum"]]); preset.SelectedIndex = 1;
@@ -36,15 +41,31 @@ public partial class MainWindow
         dialog.Explain(Text["CreateArchiveHint"]);
         void Refresh()
         {
-            selected.ItemsSource = sources.ToArray(); dialog.Accept.IsEnabled = sources.Count > 0 && !string.IsNullOrWhiteSpace(destination.Text);
+            clear.IsEnabled = sources.Count > 0;
+            bool validPath = ActionDialog.IsLocalDestination(destination.Text) && Path.GetFileName(destination.Text).Length != 0;
+            hint.Visibility = !validPath && destination.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+            dialog.Accept.IsEnabled = sources.Count > 0 && validPath;
             names.IsEnabled = format.SelectedIndex == 1 && secret.Password.Length > 0;
             if (!names.IsEnabled) names.IsChecked = false;
         }
+        void RemoveSelected()
+        {
+            int first = selected.SelectedIndex;
+            foreach (var path in selected.SelectedItems.Cast<string>().ToArray()) sources.Remove(path);
+            if (first >= 0 && sources.Count > 0) selected.SelectedIndex = Math.Min(first, sources.Count - 1);
+            Refresh();
+        }
+        selected.SelectionChanged += (_, _) => remove.IsEnabled = selected.SelectedItems.Count > 0;
+        selected.PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Delete && selected.SelectedItems.Count > 0) { e.Handled = true; RemoveSelected(); }
+        };
+        remove.Click += (_, _) => RemoveSelected();
         void Add(IEnumerable<string> paths)
         {
             foreach (string path in paths) if (!sources.Contains(path, StringComparer.OrdinalIgnoreCase)) sources.Add(path);
-            if (sources.Count > 0 && string.IsNullOrWhiteSpace(destination.Text))
-                destination.Text = Path.Combine(Path.GetDirectoryName(sources[0])!, Path.GetFileNameWithoutExtension(sources[0]) + (format.SelectedIndex == 0 ? ".zip" : ".7z"));
+            if (sources.Count > 0 && string.IsNullOrWhiteSpace(destination.Text) && Path.GetDirectoryName(sources[0]) is { } directory)
+                destination.Text = Path.Combine(directory, Path.GetFileNameWithoutExtension(sources[0]) + (format.SelectedIndex == 0 ? ".zip" : ".7z"));
             Refresh();
         }
         files.Click += (_, _) => { var picker = new Microsoft.Win32.OpenFileDialog { Multiselect = true, Filter = Text["ClientAllFilesFilter"] }; if (picker.ShowDialog(dialog) == true) Add(picker.FileNames); };
