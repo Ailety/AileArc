@@ -39,6 +39,11 @@
   <data name="TimedOut"><value>The background task stopped responding and was closed. Retry or open another archive.</value></data>
   <data name="ExtractionByteLimit"><value>The unpacked selection exceeds the size limit for this operation. Extract fewer items at a time.</value></data>
   <data name="TestArchive"><value>Test archive</value></data>
+  <data name="ClientRefreshArchive"><value>Reload archive (F5)</value></data>
+  <data name="ClientReloadRequired"><value>The archive changed on disk. Press F5 to read the new contents before continuing.</value></data>
+  <data name="ClientRefreshedReplacement"><value>The archive changed on disk. Its new contents are open at the root.</value></data>
+  <data name="ClientReloadLayoutChanged"><value>The directory structure changed. Review the entries at the archive root.</value></data>
+  <data name="ClientReloadSelection"><value>Restored {0:N0} of {1:N0} selected items on this page. Review the selection before extracting.</value></data>
   <data name="TestArchiveHint"><value>Check all archive entries without saving extracted files.</value></data>
   <data name="TestArchiveProgress"><value>Tested {0:N0} of {1:N0} entries · Decoded {2:N1} MiB</value></data>
   <data name="TestArchiveOk"><value>Archive test passed · {0:N0} entries checked.</value></data>

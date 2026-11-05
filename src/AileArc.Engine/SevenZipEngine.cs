@@ -59,11 +59,14 @@ public sealed partial class SevenZipEngine : IDisposable
     }
 
     public void Scan(string path, Action<string, ArchiveIdentity> opened, Action<ArchiveEntry[]> batchReady, string? password = null,
-        Func<uint[]?>? selectEntries = null, Action<ScanMessage>? emit = null, ulong byteLimit = 4UL * 1024 * 1024 * 1024, int nameCodePage = 0, bool verify = false, bool checkOnly = false)
+        Func<uint[]?>? selectEntries = null, Action<ScanMessage>? emit = null, ulong byteLimit = 4UL * 1024 * 1024 * 1024, int nameCodePage = 0, bool verify = false, bool checkOnly = false,
+        ArchiveIdentity? expectedIdentity = null)
     {
         if (nameCodePage is not (0 or 65001 or 936 or 932)) throw new ArchiveEngineException("EncodingNotSupported");
         // Restrict to a local/UNC file path; never pass user-controlled engine switches.
         using var input = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, FileOptions.RandomAccess);
+        var identity = ArchiveFileIdentity.Read(input.SafeFileHandle);
+        if (expectedIdentity is not null && identity != expectedIdentity) throw new ArchiveEngineException("ArchiveChanged");
         var stream = new ArchiveInputStream(input);
         foreach (var format in ProbeOrder(input))
         {
@@ -83,7 +86,7 @@ public sealed partial class SevenZipEngine : IDisposable
                 if (format.Name != "ZIP" && nameCodePage != 0) throw new ArchiveEngineException("EncodingNotSupported");
                 Marshal.ThrowExceptionForHR(archive.GetNumberOfItems(out uint count));
                 if (count > ArchiveProtocol.MaxEntries) throw new ArchiveEngineException("ResourceLimit");
-                opened(format.Name, ArchiveFileIdentity.Read(input.SafeFileHandle));
+                opened(format.Name, identity);
                 var batch = new List<ArchiveEntry>(32);
                 long characters = 0;
                 for (uint i = 0; i < count; i++)

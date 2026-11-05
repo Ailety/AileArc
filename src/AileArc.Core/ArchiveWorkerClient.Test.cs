@@ -33,7 +33,7 @@ public sealed partial class ArchiveWorkerClient
         var failures = new List<ExtractionFailure>();
         try
         {
-            await pipe.WriteAsync(new ScanRequest(ArchiveProtocol.Version, Path.GetFullPath(path), "test", password, limit, snapshot.NameCodePage));
+            await pipe.WriteAsync(new ScanRequest(ArchiveProtocol.Version, Path.GetFullPath(path), "test", password, limit, snapshot.NameCodePage, ExpectedIdentity: snapshot.Identity));
             while (true)
             {
                 var message = await pipe.ReadAsync();

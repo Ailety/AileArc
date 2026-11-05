@@ -8,7 +8,15 @@ namespace AileArc.Client;
 public partial class MainWindow
 {
     internal bool ShellActionPending { get; private set; }
-    internal void QueueShellAction(ActivationAction action, string[] paths)
+    internal AileArc.Shared.ArchiveIdentity? CurrentIdentity => archive?.Scan.Identity;
+    internal async Task<bool> ReloadActivatedPathAsync(string path)
+    {
+        if (IsBusy || OwnedWindows.Count > 0 || closed) return false;
+        var original = archive;
+        await OpenAsync(path, codePage, OpenIntent.Refresh);
+        return !ReferenceEquals(original, archive);
+    }
+    internal void QueueShellAction(ActivationAction action, string[] paths, bool reload = false)
     {
         if (closed) return;
         if (ShellActionPending || IsBusy || OwnedWindows.Count > 0 || !((ClientApp)Application.Current).CanStart(this))
@@ -22,6 +30,7 @@ public partial class MainWindow
                 if (action == ActivationAction.Create) await ShowCreateDialogAsync(paths);
                 else if (archive is not null && OpenedPath is not null)
                 {
+                    if (reload && !await ReloadActivatedPathAsync(paths[0])) return;
                     if (action == ActivationAction.SmartExtract) await ExtractToAsync(Path.GetDirectoryName(OpenedPath)!, true, false, ((ClientApp)Application.Current).OpenAfterExtraction);
                     else if (action == ActivationAction.ExtractTo) await ShowExtractDialogAsync();
                 }

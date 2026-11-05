@@ -49,7 +49,7 @@ try
         (format, identity) => Send(new("opened", Format: format, Identity: identity)),
         batch => { if (request.Operation != "test") Send(new("entries", Entries: batch)); else Send(new("activity")); },
         request.Password, request.Operation is "extract" or "test" ? SelectEntries : null,
-        Send, request.ByteLimit, request.NameCodePage, checkOnly: request.Operation == "test");
+        Send, request.ByteLimit, request.NameCodePage, checkOnly: request.Operation == "test", expectedIdentity: request.ExpectedIdentity);
     Send(new("completed"));
     return 0;
 }

@@ -46,6 +46,37 @@ public sealed partial class WorkerTests
     }
 
     [Fact]
+    public async Task OlderWorkCopyManifestWithoutChangeTimeCanStillBeRecovered()
+    {
+        var (store, record) = await PrepareWorkCopyAsync();
+        string manifest = Path.Combine(store.Root, record.Id, "workcopy.json");
+        var json = System.Text.Json.Nodes.JsonNode.Parse(await File.ReadAllTextAsync(manifest))!;
+        json["Identity"]!.AsObject().Remove("ChangeTime");
+        await File.WriteAllTextAsync(manifest, json.ToJsonString());
+        var restarted = new WorkCopyStore(store.Root);
+        var loaded = Assert.Single(await restarted.LoadAsync());
+        Assert.Null(loaded.Identity.ChangeTime);
+        Assert.Equal(WorkCopyState.Unchanged, (await restarted.InspectAsync(loaded)).State);
+        string exported = Path.Combine(temp, "legacy-export.txt");
+        await restarted.ExportAsync(loaded, exported, overwrite: false);
+        Assert.Equal(await File.ReadAllTextAsync(store.FilePath(record)), await File.ReadAllTextAsync(exported));
+    }
+
+    [Fact]
+    public async Task ChangedSourceCannotSilentlyReopenCachedCopyFromTheArchiveBrowser()
+    {
+        var (store, record) = await PrepareWorkCopyAsync();
+        var scan = await client.ScanAsync(record.ArchivePath);
+        await File.WriteAllTextAsync(store.FilePath(record), "retained edits");
+        File.Move(MakeZip("replacement.txt"), record.ArchivePath, overwrite: true);
+        var error = await Assert.ThrowsAsync<ArchiveOperationException>(() => store.PrepareAsync(record.ArchivePath, scan.Identity!,
+            Assert.Single(scan.Entries), (_, _) => throw new InvalidOperationException("Stale entry must not be extracted")));
+        Assert.Equal("ArchiveChanged", error.Code);
+        Assert.Equal(WorkCopyState.Modified, (await store.InspectAsync(record)).State);
+        Assert.Equal("retained edits", await File.ReadAllTextAsync(store.FilePath(record)));
+    }
+
+    [Fact]
     public async Task ExportDoesNotChangeArchiveOrResetModificationState()
     {
         var (store, record) = await PrepareWorkCopyAsync();

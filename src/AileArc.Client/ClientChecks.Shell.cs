@@ -42,6 +42,23 @@ internal static partial class ClientChecks
         Require(window.IsBusy && !window.ShellActionPending, "Shell action does not replace an active task");
         window.ConfirmOverride = (_, _) => true; Require(await window.PrepareCloseAsync(), "active task safely cancels"); await active;
         window.ConflictOverride = null;
+
+        string aliasFolder = Directory.CreateDirectory(Path.Combine(root, "右键别名")).FullName;
+        string alias = Path.Combine(aliasFolder, "从这里解压.zip");
+        Require(CreateHardLink(alias, zip, IntPtr.Zero), "create Shell source in a different directory");
+        await ObserveDialogAsync(app, ClientApp.Text["Extract"], () => app.HandleActivationAsync(new([alias], Action: ActivationAction.ExtractTo)), dialog =>
+            Require(dialog.Body.Children.OfType<TextBox>().Single().Text == aliasFolder, "Shell destination follows the invoked alias"));
+        await app.HandleActivationAsync(new([alias], Action: ActivationAction.SmartExtract));
+        await WaitForShellAsync(window);
+        Require(window.OpenedPath == alias && File.ReadAllText(Path.Combine(aliasFolder, Path.GetFileName(source))) == "P3 public fixture",
+            "smart extraction uses the clicked folder even when the original archive window is already open");
+        string replacement = alias + ".tmp";
+        using (var zipFile = System.IO.Compression.ZipFile.Open(replacement, System.IO.Compression.ZipArchiveMode.Create)) zipFile.CreateEntry("updated.txt");
+        File.Move(replacement, alias, overwrite: true);
+        await app.HandleActivationAsync(new([alias], Action: ActivationAction.SmartExtract));
+        await WaitForShellAsync(window);
+        Require(File.Exists(Path.Combine(aliasFolder, "updated.txt")) && window.TestGrid.Items.Cast<EntryView>().Single().Name == "updated.txt",
+            "Shell re-reads a replacement before acting");
     }
     private static async Task WaitForShellAsync(MainWindow window)
     {

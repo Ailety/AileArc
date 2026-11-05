@@ -41,7 +41,7 @@ public sealed partial class ArchiveWorkerClient(string workerPath)
         catch (System.ComponentModel.Win32Exception) { throw new ArchiveOperationException("WorkerUnavailable"); }
     }
 
-    public async Task<ArchiveScan> ScanAsync(string path, IProgress<int>? progress = null, CancellationToken cancellationToken = default, string? password = null, int nameCodePage = 0)
+    public async Task<ArchiveScan> ScanAsync(string path, IProgress<int>? progress = null, CancellationToken cancellationToken = default, string? password = null, int nameCodePage = 0, ArchiveIdentity? expectedIdentity = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
         using var process = StartWorker();
@@ -49,7 +49,7 @@ public sealed partial class ArchiveWorkerClient(string workerPath)
         await using var pipe = new WorkerPipe(process, job, idleTimeout, cancellationToken);
         try
         {
-            await pipe.WriteAsync(new ScanRequest(ArchiveProtocol.Version, Path.GetFullPath(path), Password: password, NameCodePage: nameCodePage));
+            await pipe.WriteAsync(new ScanRequest(ArchiveProtocol.Version, Path.GetFullPath(path), Password: password, NameCodePage: nameCodePage, ExpectedIdentity: expectedIdentity));
             process.StandardInput.Close();
             var entries = new List<ArchiveEntry>();
             var ids = new HashSet<long>();
@@ -65,6 +65,7 @@ public sealed partial class ArchiveWorkerClient(string workerPath)
                     case "opened" when format is null && message.Format is not null:
                         format = message.Format;
                         identity = message.Identity ?? throw new ArchiveOperationException("ProtocolMismatch");
+                        if (expectedIdentity is not null && identity != expectedIdentity) throw new ArchiveOperationException("ArchiveChanged");
                         break;
                     case "entries" when format is not null && message.Entries is { Length: > 0 }:
                         foreach (var entry in message.Entries)

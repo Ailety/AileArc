@@ -39,6 +39,11 @@
   <data name="TimedOut"><value>后台任务未及时响应，已停止。可以重试或打开其他压缩包。</value></data>
   <data name="ExtractionByteLimit"><value>所选内容的解压大小超过本次任务上限。请分批解压，或减少所选内容。</value></data>
   <data name="TestArchive"><value>测试压缩包</value></data>
+  <data name="ClientRefreshArchive"><value>重新读取压缩包（F5）</value></data>
+  <data name="ClientReloadRequired"><value>磁盘上的压缩包已变化。请按 F5 重新读取后再操作。</value></data>
+  <data name="ClientRefreshedReplacement"><value>磁盘上的压缩包已变化，已在根目录显示新内容。</value></data>
+  <data name="ClientReloadLayoutChanged"><value>目录结构已变化，请在压缩包根目录重新选择条目。</value></data>
+  <data name="ClientReloadSelection"><value>已在当前页恢复 {0:N0} / {1:N0} 个所选项目，请核对解压范围。</value></data>
   <data name="TestArchiveHint"><value>检查全包条目的完整性，不写出解压文件。</value></data>
   <data name="TestArchiveProgress"><value>已测试 {0:N0} / {1:N0} 项 · 已解码 {2:N1} MiB</value></data>
   <data name="TestArchiveOk"><value>压缩包测试通过，已检查 {0:N0} 项。</value></data>

@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using AileArc.Shared;
 using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
 
@@ -59,17 +60,9 @@ internal sealed class VerifiedFile : IDisposable
     public static string IdentityOf(SafeFileHandle handle) => Key(Information(handle));
     internal static (string Id, long Length, long Written, long Changed)? TryChangeStamp(FileStream stream)
     {
-        if (!GetFileInformationByHandleEx(stream.SafeFileHandle, 0, out var basic, (uint)Marshal.SizeOf<BasicInfo>()) || basic.Changed <= 0)
-            return null;
-        return (IdentityOf(stream.SafeFileHandle), stream.Length, basic.Written, basic.Changed);
+        var id = ArchiveFileIdentity.Read(stream.SafeFileHandle);
+        return id.ChangeTime is long changed ? (id.FileId, id.Length, id.LastWriteTime, changed) : null;
     }
-    [StructLayout(LayoutKind.Sequential)] private struct BasicInfo
-    {
-        public long Created, Accessed, Written, Changed;
-        public uint Attributes;
-    }
-    [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern bool GetFileInformationByHandleEx(SafeFileHandle handle, int infoClass, out BasicInfo info, uint size);
     private static string Key(Info info) => $"{info.Volume:X8}:{info.IndexHigh:X8}{info.IndexLow:X8}";
     private static Info Information(SafeFileHandle handle)
     {

@@ -27,6 +27,14 @@ internal sealed class ArchiveFolderTree
         Root.Expanded = Root.HasChildren;
     }
     internal FolderNode this[string path] => nodes[path];
+    internal void RestoreExpansion(ArchiveFolderTree previous, IReadOnlyDictionary<string, string> paths, CancellationToken token)
+    {
+        foreach (var node in previous.nodes.Values)
+        {
+            token.ThrowIfCancellationRequested();
+            if (paths.TryGetValue(node.Path, out var path)) nodes[path].Expanded = node.Expanded;
+        }
+    }
     internal List<FolderNode> VisibleRows()
     {
         var rows = new List<FolderNode>(); var pending = new Stack<FolderNode>();

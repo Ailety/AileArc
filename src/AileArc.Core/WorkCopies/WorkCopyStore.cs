@@ -41,7 +41,14 @@ public sealed partial class WorkCopyStore
         await gate.WaitAsync(token);
         try
         {
-            if (prepared.TryGetValue(key, out var existing) && File.Exists(FilePath(existing))) return existing;
+            if (prepared.TryGetValue(key, out var existing) && File.Exists(FilePath(existing)))
+            {
+                // Reopening through the archive browser uses its indexed snapshot.
+                // The retained-copy manager can still open the edited file on its own.
+                using var source = File.OpenHandle(fullArchive, FileMode.Open, FileAccess.Read, FileShare.Read);
+                if (ArchiveFileIdentity.Read(source) != identity) throw new ArchiveOperationException("ArchiveChanged");
+                return existing;
+            }
             using var rootGuard = DirectoryGuard.Acquire(Root, create: true);
             string id = Guid.NewGuid().ToString("N");
             string folder = Path.Combine(Root, id);

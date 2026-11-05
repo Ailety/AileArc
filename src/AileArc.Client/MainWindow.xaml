@@ -87,7 +87,12 @@
       <Grid Grid.Column="2">
         <Grid.RowDefinitions><RowDefinition Height="65" /><RowDefinition Height="52" /><RowDefinition Height="0" /><RowDefinition Height="*" /><RowDefinition Height="46" /></Grid.RowDefinitions>
         <DockPanel Margin="18,12">
-          <StackPanel DockPanel.Dock="Left" Orientation="Horizontal"><Button x:Name="BackButton" FontFamily="Segoe Fluent Icons" Content="&#xE72B;" ToolTip="{local:Text Back}" AutomationProperties.Name="{local:Text Back}" Click="Back_Click" Width="32" Padding="0" /><Button x:Name="ForwardButton" FontFamily="Segoe Fluent Icons" Content="&#xE72A;" ToolTip="{local:Text Forward}" AutomationProperties.Name="{local:Text Forward}" Click="Forward_Click" Width="32" Padding="0" /><Button x:Name="UpButton" FontFamily="Segoe Fluent Icons" Content="&#xE74A;" ToolTip="{local:Text Up}" AutomationProperties.Name="{local:Text Up}" Click="Up_Click" Width="32" Padding="0" /></StackPanel>
+          <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+            <Button x:Name="BackButton" FontFamily="Segoe Fluent Icons" Content="&#xE72B;" ToolTip="{local:Text Back}" AutomationProperties.Name="{local:Text Back}" Click="Back_Click" Width="32" Padding="0" />
+            <Button x:Name="ForwardButton" FontFamily="Segoe Fluent Icons" Content="&#xE72A;" ToolTip="{local:Text Forward}" AutomationProperties.Name="{local:Text Forward}" Click="Forward_Click" Width="32" Padding="0" />
+            <Button x:Name="UpButton" FontFamily="Segoe Fluent Icons" Content="&#xE74A;" ToolTip="{local:Text Up}" AutomationProperties.Name="{local:Text Up}" Click="Up_Click" Width="32" Padding="0" />
+            <Button x:Name="RefreshButton" FontFamily="Segoe Fluent Icons" Content="&#xE72C;" ToolTip="{local:Text ClientRefreshArchive}" AutomationProperties.Name="{local:Text ClientRefreshArchive}" Click="Refresh_Click" Width="32" Padding="0" />
+          </StackPanel>
           <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
             <Button x:Name="ExtractButton" Content="{local:Text ClientExtractAll}" Click="Extract_Click" Style="{StaticResource Primary}" Margin="8,0,0,0" />
             <Button x:Name="ExtractMore" Content="▾" ToolTip="{local:Text ClientExtractMode}" AutomationProperties.Name="{local:Text ClientExtractMode}" Click="ExtractMore_Click">

@@ -8,8 +8,10 @@ public sealed class WindowCatalog<T> where T : class
     public T? Find(string path, string? fileId)
     {
         string canonical = Path.GetFullPath(path);
-        return entries.LastOrDefault(e => string.Equals(e.Path, canonical, StringComparison.OrdinalIgnoreCase) ||
-            (fileId is not null && e.FileId == fileId))?.Window;
+        // A stale window can still have the same path after a file is replaced.
+        // Prefer a window known to contain the file that was actually invoked.
+        return (fileId is null ? null : entries.LastOrDefault(e => e.FileId == fileId)?.Window) ??
+            entries.LastOrDefault(e => string.Equals(e.Path, canonical, StringComparison.OrdinalIgnoreCase))?.Window;
     }
     public void Register(T window, string path, string? fileId) => entries.Add(new(window, Path.GetFullPath(path), fileId));
     public void Remove(T window) => entries.RemoveAll(e => ReferenceEquals(e.Window, window));

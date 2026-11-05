@@ -18,6 +18,17 @@ public sealed class LifecycleTests
         Assert.Throws<ArgumentException>(() => ActivationRequest.Parse(Enumerable.Repeat("a.zip", 33).ToArray(), @"C:\Sources"));
     }
     [Fact]
+    public void KnownFileIdentityWinsOverAStaleWindowWithTheSamePath()
+    {
+        var catalog = new WindowCatalog<object>();
+        var current = new object(); var stale = new object();
+        catalog.Register(current, @"C:\alias.zip", "new");
+        catalog.Register(stale, @"C:\original.zip", "old");
+        Assert.Same(current, catalog.Find(@"C:\original.zip", "new"));
+        Assert.Same(stale, catalog.Find(@"C:\original.zip", null));
+    }
+
+    [Fact]
     public void CatalogFindsNormalizedPathsAndHardLinkIdentity()
     {
         var catalog = new WindowCatalog<object>();

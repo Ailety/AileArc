@@ -56,11 +56,27 @@ public partial class MainWindow
         AddressInput.Visibility = Visibility.Collapsed; await QueryAsync(target, 0, true); EntryGrid.Focus();
     }
     private async void Forward_Click(object sender, RoutedEventArgs e) => await QueryAsync(directory, 0, forward: true);
+    private async void Refresh_Click(object sender, RoutedEventArgs e) => await RefreshArchiveAsync();
+    internal Task RefreshArchiveAsync() => ReopenArchiveAsync(codePage, OpenIntent.Refresh);
+    private async Task ReopenArchiveAsync(int requestedCodePage, OpenIntent intent)
+    {
+        if (IsBusy || composing || OpenedPath is not { } path) return;
+        var original = archive;
+        if (SearchBox.Text != view.Search || (LocalSearchBox.IsChecked == true) != view.Local)
+        {
+            // Flushing a pending edit first preserves both the text and its Back step.
+            await QueryAsync(directory, 0, submit: true);
+            if (closed || !ReferenceEquals(original, archive) || SearchBox.Text != view.Search) return;
+        }
+        await OpenAsync(path, requestedCodePage, intent);
+    }
     private Task GoUpAsync() => currentFolder?.Parent is { } parent
         ? QueryAsync(parent.Path, 0, clearSearch: true, revealId: currentFolder.EntryId)
         : Task.CompletedTask;
     private async void NavigationKey(object sender, KeyEventArgs e)
     {
+        if (e.Key == Key.F5 && Keyboard.Modifiers == ModifierKeys.None && !composing && archive is not null && !IsBusy)
+        { e.Handled = true; await RefreshArchiveAsync(); return; }
         if (Keyboard.Modifiers != ModifierKeys.Alt || archive is null || IsBusy) return;
         switch (e.SystemKey)
         {

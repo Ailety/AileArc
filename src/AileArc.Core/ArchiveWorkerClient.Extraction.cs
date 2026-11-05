@@ -20,7 +20,7 @@ public sealed partial class ArchiveWorkerClient
         ExtractionWriter? writer = null;
         try
         {
-            await pipe.WriteAsync(new ScanRequest(ArchiveProtocol.Version, Path.GetFullPath(path), "extract", password, options.ByteLimit, options.NameCodePage));
+            await pipe.WriteAsync(new ScanRequest(ArchiveProtocol.Version, Path.GetFullPath(path), "extract", password, options.ByteLimit, options.NameCodePage, ExpectedIdentity: options.ExpectedIdentity));
             var metadata = new List<ArchiveEntry>();
             var ids = new HashSet<long>();
             long characters = 0;

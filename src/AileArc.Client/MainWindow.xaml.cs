@@ -71,7 +71,10 @@ public partial class MainWindow : Window
         }
         catch (OperationCanceledException) { if (!closed && version == generation) StatusText.Text = Text["Cancelled"]; }
         catch (InvalidOperationException) when (cancellation.IsCancellationRequested) { }
-        catch (ArchiveOperationException error) { if (!closed && version == generation) StatusText.Text = Text[error.Code]; }
+        catch (ArchiveOperationException error)
+        {
+            if (!closed && version == generation) StatusText.Text = Text[error.Code == "ArchiveChanged" && archive is not null ? "ClientReloadRequired" : error.Code];
+        }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException or System.ComponentModel.Win32Exception)
         { if (!closed && version == generation) StatusText.Text = Text["OpenFailed"]; }
         finally
@@ -84,14 +87,19 @@ public partial class MainWindow : Window
             }
         }
     }
-    private Task OpenAsync(string path, int requestedCodePage = 0, string? existingPassword = null)
+    private enum OpenIntent { Open, ChangeEncoding, Refresh }
+    private Task OpenAsync(string path, int requestedCodePage = 0, OpenIntent intent = OpenIntent.Open)
     {
-        string order = SortKeys[view.Sort];
-        bool descending = view.Descending;
         return RunAsync(Text["Scanning"], async token =>
         {
             string fullPath = Path.GetFullPath(path);
-            string? candidatePassword = existingPassword;
+            var previous = intent == OpenIntent.Open ? null : archive;
+            var expected = previous?.Scan.Identity;
+            string? candidatePassword = expected is null ? null : password;
+            var selected = previous is null ? [] : SelectedIds();
+            var anchor = selected.ToHashSet();
+            if (previous is not null && anchor.Count == 0 && displayed.Length > 0) anchor.Add(ParseId(displayed[0].Row.Id));
+            bool replaced = false;
             ArchiveScan scan;
             while (true)
             {
@@ -102,13 +110,18 @@ public partial class MainWindow : Window
                     {
                         if (!closed && !token.IsCancellationRequested) StatusText.Text = Text.Format("ScanProgress", count);
                     });
-                    scan = await Task.Run(() => worker.ScanAsync(fullPath, progress, token, candidatePassword, requestedCodePage), token);
+                    scan = await Task.Run(() => worker.ScanAsync(fullPath, progress, token, candidatePassword, requestedCodePage, expected), token);
                     break;
+                }
+                catch (ArchiveOperationException error) when (error.Code == "ArchiveChanged" && intent == OpenIntent.Refresh && expected is not null)
+                {
+                    expected = null; candidatePassword = null; requestedCodePage = 0; replaced = true;
                 }
                 catch (ArchiveOperationException error) when (error.Code is "PasswordRequired" or "WrongPasswordOrDamaged")
                 {
                     token.ThrowIfCancellationRequested();
                     var prompt = new PasswordDialog(this, error.Code);
+                    using var registration = token.Register(() => Dispatcher.BeginInvoke(new Action(() => { if (prompt.IsVisible) prompt.Close(); })));
                     bool accepted = prompt.ShowDialog() == true;
                     candidatePassword = accepted ? prompt.Value : null; prompt.Clear();
                     if (!accepted) throw new OperationCanceledException();
@@ -119,21 +132,56 @@ public partial class MainWindow : Window
             var result = await Task.Run(() =>
             {
                 var presentation = new ArchivePresentation(scan, token);
-                return (presentation, page: presentation.Query(Request("", "", 0, order, descending), token, typeLabel: EntryView.LabelFor), tree: new ArchiveFolderTree(Path.GetFileName(fullPath), presentation.Index, token));
+                var tree = new ArchiveFolderTree(Path.GetFileName(fullPath), presentation.Index, token);
+                var map = previous is null ? null : ArchiveReloadMap.Create(previous, presentation, token);
+                string? location = map?.Directories.GetValueOrDefault(view.Directory);
+                var next = location is null ? new View("", "", false, view.Sort, view.Descending, 0) : view with { Directory = location };
+                if (map is not null && folderTree is not null) tree.RestoreExpansion(folderTree, map.Directories, token);
+                var restored = location is null ? [] : TranslateIds(selected, map!).ToHashSet();
+                var page = presentation.Query(Request(next.Directory, next.Search, next.Offset, SortKeys[next.Sort], next.Descending),
+                    token, next.Local, EntryView.LabelFor, restoreIds: location is null ? null : TranslateIds(anchor, map!).ToHashSet());
+                return (presentation, page, tree, next, map, location, restored);
             }, token);
             return () =>
             {
                 archive = result.presentation; archiveName = Path.GetFileName(fullPath); OpenedPath = fullPath; password = candidatePassword;
-                LastExtraction = null;
+                if (result.location is null || previous?.Scan.NameCodePage != scan.NameCodePage) { LastExtraction = null; retryDestination = null; }
                 ((ClientApp)Application.Current).RegisterOpened(this, fullPath, scan.Identity?.FileId);
-                directory = ""; codePage = requestedCodePage;
-                history.Clear(); future.Clear(); LocalSearchBox.IsChecked = false; PathColumn.Visibility = Visibility.Collapsed;
-                view = new("", "", false, view.Sort, descending, 0);
+                view = result.next with { Offset = result.page.Offset }; directory = view.Directory; codePage = requestedCodePage;
+                if (result.map is null) { history.Clear(); future.Clear(); }
+                else { RemapHistory(history, result.map); RemapHistory(future, result.map); }
+                LocalSearchBox.IsChecked = view.Local; PathColumn.Visibility = view.Search.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
                 Title = archiveName + " — AileArc";
                 folderTree = result.tree; currentFolder = null; TreeWelcome.Visibility = Visibility.Collapsed;
-                SearchBox.Clear(); ApplyPage(result.page);
+                AddressInput.Visibility = Visibility.Collapsed;
+                SearchBox.Text = view.Search; ApplyPage(result.page);
+                RestoreSelection(result.restored);
+                StatusText.Text = replaced ? Text["ClientRefreshedReplacement"] : previous is not null && result.location is null ? Text["ClientReloadLayoutChanged"] :
+                    result.location is not null && EntryGrid.SelectedItems.Count < selected.Length ? Text.Format("ClientReloadSelection", EntryGrid.SelectedItems.Count, selected.Length) :
+                    Text.Format("ClientStatus", scan.Format, result.presentation.Index.Entries.Count);
             };
-        });
+        }, false);
+    }
+    private static long ParseId(string id) => long.Parse(id, System.Globalization.CultureInfo.InvariantCulture);
+    private static IEnumerable<long> TranslateIds(IEnumerable<long> ids, ArchiveReloadMap map)
+    {
+        foreach (long id in ids) if (map.TranslateId(id) is long translated) yield return translated;
+    }
+    private static void RemapHistory(List<(View Page, string[] Selected)> trail, ArchiveReloadMap map)
+    {
+        for (int i = trail.Count - 1; i >= 0; i--)
+        {
+            var (page, selected) = trail[i];
+            if (!map.Directories.TryGetValue(page.Directory, out var path)) { trail.RemoveAt(i); continue; }
+            trail[i] = (page with { Directory = path }, TranslateIds(selected.Select(ParseId), map)
+                .Select(id => id.ToString(System.Globalization.CultureInfo.InvariantCulture)).ToArray());
+        }
+    }
+    private void RestoreSelection(IReadOnlySet<long> ids)
+    {
+        if (ids.Count == 0) return;
+        foreach (var row in displayed.Where(r => ids.Contains(ParseId(r.Row.Id)))) EntryGrid.SelectedItems.Add(row);
+        if (EntryGrid.SelectedItem is EntryView first) EntryGrid.ScrollIntoView(first);
     }
     private static BrowserRequest Request(string directory, string search, int offset, string sort, bool descending) => new(1, Guid.NewGuid().ToString(), "query", Directory: directory, Search: search, Sort: sort, Descending: descending, Offset: offset);
     private async Task QueryAsync(string targetDirectory, int targetOffset, bool clearSearch = false, bool submit = false, bool back = false, bool forward = false, int? sort = null, bool? descending = null, CancellationToken? live = null, long? revealId = null, bool previousPage = false)
@@ -144,10 +192,11 @@ public partial class MainWindow : Window
         var current = archive;
         if (target.Search.Length > 512 || current is null || IsBusy) return;
         var selected = EntryGrid.SelectedItems.Cast<EntryView>().Select(row => row.Row.Id).ToArray();
+        var anchors = back ? history[^1].Selected : forward ? future[^1].Selected : null;
         async Task<Action> Prepare(CancellationToken token)
         {
             var page = await Task.Run(() => current.Query(Request(target.Directory, target.Search, target.Offset,
-                SortKeys[target.Sort], target.Descending), token, target.Local, EntryView.LabelFor, revealId, previousPage), token);
+                SortKeys[target.Sort], target.Descending), token, target.Local, EntryView.LabelFor, revealId, previousPage, anchors?.Select(ParseId).ToHashSet()), token);
             return () =>
             {
                 string[] restore = revealId.HasValue ? [revealId.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)] : [];
@@ -170,12 +219,7 @@ public partial class MainWindow : Window
                 if (clearSearch || back || forward) SearchBox.Text = target.Search;
                 PathColumn.Visibility = target.Search.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
                 ApplyPage(page, revealFolder: clearSearch || back || forward);
-                if (restore.Length > 0)
-                {
-                    var ids = restore.ToHashSet();
-                    foreach (var row in displayed.Where(row => ids.Contains(row.Row.Id))) EntryGrid.SelectedItems.Add(row);
-                    if (EntryGrid.SelectedItem is EntryView first) EntryGrid.ScrollIntoView(first);
-                }
+                RestoreSelection(restore.Select(ParseId).ToHashSet());
             };
         }
         if (live is { } latest)
@@ -236,6 +280,7 @@ public partial class MainWindow : Window
         ForwardButton.IsEnabled = !IsBusy && future.Count > 0;
         UpButton.IsEnabled = !IsBusy && directory.Length > 0;
         BackButton.IsEnabled = !IsBusy && history.Count > 0;
+        RefreshButton.IsEnabled = !IsBusy && archive is not null;
         PreviousButton.IsEnabled = !IsBusy && offset > 0;
         NextButton.IsEnabled = !IsBusy && offset + displayed.Length < total;
         SummaryText.Text = archive is null ? Text["WelcomeDetail"] : total == 0 ? Text["NoResults"] :
@@ -304,7 +349,7 @@ public partial class MainWindow : Window
     }
     private async void Restart_Click(object sender, RoutedEventArgs e) { if (Application.Current.Windows.OfType<MainWindow>().Any(w => w.IsBusy)) StatusText.Text = Text["TaskRunning"]; else await ((ClientApp)Application.Current).RestartAsync(); }
     private async void Encoding_Changed(object sender, SelectionChangedEventArgs e)
-    { if (!configuring && !IsBusy && OpenedPath is { } path && archive?.Scan.Format == "ZIP" && EncodingBox.SelectedIndex >= 0) await OpenAsync(path, CodePages[EncodingBox.SelectedIndex], password); }
+    { if (!configuring && !IsBusy && archive?.Scan.Format == "ZIP" && EncodingBox.SelectedIndex >= 0) await ReopenArchiveAsync(CodePages[EncodingBox.SelectedIndex], OpenIntent.ChangeEncoding); }
     private async void Up_Click(object sender, RoutedEventArgs e) => await GoUpAsync();
     internal Task ActivateAsync()
     {

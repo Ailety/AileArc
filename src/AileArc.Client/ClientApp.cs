@@ -200,13 +200,19 @@ public sealed class ClientApp : Application
         try
         {
             path = Path.GetFullPath(path);
-            string? fileId = await ArchiveWindowIdentity.ReadAsync(path);
+            var identity = await ArchiveWindowIdentity.ReadSnapshotAsync(path);
             if (Restarting) return;
-            var existing = forceNew ? null : catalog.Find(path, fileId);
+            var existing = forceNew ? null : catalog.Find(path, identity?.FileId);
             if (existing is not null)
             {
                 existing.BringForward();
-                if (action != ActivationAction.Open) existing.QueueShellAction(action, [path]);
+                if (action != ActivationAction.Open)
+                {
+                    bool reload = identity is null || identity != existing.CurrentIdentity || !string.Equals(path, existing.OpenedPath, StringComparison.OrdinalIgnoreCase);
+                    existing.QueueShellAction(action, [path], reload);
+                }
+                else if (identity is not null && identity != existing.CurrentIdentity && !existing.ShellActionPending)
+                    await existing.ReloadActivatedPathAsync(path);
                 return;
             }
             var window = preferred is not null && preferred.OpenedPath is null && !preferred.IsBusy ? preferred : CreateWindow();

@@ -82,6 +82,7 @@ internal static partial class ClientChecks
                 await CheckWorkspaceAsync(app, testRoot);
                 await CheckExtractionResultsAsync(window, app, testRoot);
                 await CheckRetainedCopiesAsync(app, testRoot);
+                await CheckReloadAsync(app, testRoot);
                 await CheckProgressAsync(window.Dispatcher);
                 var empty = new MainWindow { Opacity = 0, ShowActivated = false, ShowInTaskbar = false };
                 empty.Show(); empty.Close();
