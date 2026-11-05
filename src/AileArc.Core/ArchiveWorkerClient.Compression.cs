@@ -21,7 +21,7 @@ public sealed partial class ArchiveWorkerClient
             throw new ArchiveOperationException("DestinationInsideSource");
         if (target.Existing is not null && !options.Overwrite) throw new ArchiveOperationException("DestinationConflict");
         using var destinationGuard = DirectoryGuard.Acquire(Path.GetDirectoryName(destination)!, create: true);
-        using var trackedTemporary = TrackedTemporaryFile.Create(Path.GetDirectoryName(destination)!, "Compress");
+        using var trackedTemporary = TrackedTemporaryFile.Create(Path.GetDirectoryName(destination)!, "Compress", outputName: Path.GetFileName(destination));
         string temporary = trackedTemporary.Path;
         using var stage = VerifiedFile.OpenStaging(temporary);
         var emptyStage = ArchiveFileIdentity.Read(stage.Stream.SafeFileHandle);

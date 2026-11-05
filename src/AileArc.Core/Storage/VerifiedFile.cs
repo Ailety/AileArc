@@ -13,16 +13,17 @@ internal sealed class VerifiedFile : IDisposable
     public string Identity { get; }
     public VerifiedFile(string path) : this(path, false) { }
     internal static VerifiedFile OpenStaging(string path) => new(path, true);
-    private VerifiedFile(string path, bool writable)
+    internal static VerifiedFile CreateStaging(string path) => new(path, true, createNew: true);
+    private VerifiedFile(string path, bool writable, bool createNew = false)
     {
-        var handle = CreateFile(path, writable ? 0xC0010000U : 0x80010000U, writable ? 0U : 1U, IntPtr.Zero, 3, 0x00200000 | 0x02000000, IntPtr.Zero);
+        var handle = CreateFile(path, writable ? 0xC0010000U : 0x80010000U, writable ? 0U : 1U, IntPtr.Zero, createNew ? 1U : 3U, 0x00200000 | 0x02000000, IntPtr.Zero);
         if (handle.IsInvalid) { int error = Marshal.GetLastWin32Error(); handle.Dispose(); throw new Win32Exception(error); }
         try
         {
             var info = Information(handle);
             if ((info.Attributes & (0x400 | 0x10)) != 0 || info.Links != 1) throw new ArchiveOperationException("UnsafePath");
             Identity = Key(info);
-            Stream = new FileStream(handle, FileAccess.Read);
+            Stream = new FileStream(handle, createNew ? FileAccess.ReadWrite : FileAccess.Read);
         }
         catch { handle.Dispose(); throw; }
     }

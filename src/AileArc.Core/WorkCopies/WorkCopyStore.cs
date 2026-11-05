@@ -192,7 +192,7 @@ public sealed partial class WorkCopyStore
         if ((File.GetAttributes(source) & FileAttributes.ReparsePoint) != 0 ||
             (File.Exists(fullDestination) && (File.GetAttributes(fullDestination) & FileAttributes.ReparsePoint) != 0))
             throw new ArchiveOperationException("UnsafePath");
-        using var trackedTemporary = TrackedTemporaryFile.Create(Path.GetDirectoryName(fullDestination)!, "Export");
+        using var trackedTemporary = TrackedTemporaryFile.Create(Path.GetDirectoryName(fullDestination)!, "Export", outputName: Path.GetFileName(fullDestination));
         string temporary = trackedTemporary.Path;
         try
         {
@@ -225,7 +225,7 @@ public sealed partial class WorkCopyStore
         string folder = Path.Combine(Root, record.Id);
         using var guard = DirectoryGuard.Acquire(folder, create: false);
         string destination = Path.Combine(folder, "workcopy.json");
-        using var trackedTemporary = TrackedTemporaryFile.Create(folder, "Metadata");
+        using var trackedTemporary = TrackedTemporaryFile.Create(folder, "Metadata", outputName: "workcopy.json");
         string temp = trackedTemporary.Path;
         try
         {

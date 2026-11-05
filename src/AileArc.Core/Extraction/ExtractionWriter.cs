@@ -154,7 +154,7 @@ internal sealed class ExtractionWriter : IAsyncDisposable
             }
         }
         if (ignored) return;
-        trackedTemporary = TrackedTemporaryFile.Create(Path.GetDirectoryName(target)!, "Extract");
+        trackedTemporary = TrackedTemporaryFile.Create(Path.GetDirectoryName(target)!, "Extract", outputName: Path.GetFileName(target));
         temporary = trackedTemporary.Path;
         stream = new FileStream(temporary, FileMode.Open, FileAccess.Write, FileShare.None, 64 * 1024, FileOptions.Asynchronous);
     }

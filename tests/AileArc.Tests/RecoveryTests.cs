@@ -130,6 +130,19 @@ public sealed partial class WorkerTests
         Assert.Single(await store.LoadAsync());
     }
     [Fact]
+    public async Task RecreatedParentCannotAuthorizeRemovingTheOldRecoveryRecord()
+    {
+        string folder = Directory.CreateDirectory(Path.Combine(temp, "target")).FullName;
+        var (store, record) = await CrashProbeAsync(folder);
+        string moved = Path.Combine(temp, "moved");
+        Directory.Move(folder, moved); Directory.CreateDirectory(folder);
+        Assert.Equal(RecoveryState.Changed, Assert.Single(store.List()).State);
+        Assert.Equal(RecoveryState.Changed, store.Cleanup(record.Id));
+        Assert.True(File.Exists(Path.Combine(moved, Path.GetFileName(record.Path))));
+        Assert.Single(store.List());
+    }
+
+    [Fact]
     public async Task MissingTargetDirectoryDoesNotDiscardRecoveryInformation()
     {
         string target = Path.Combine(temp, "target");
@@ -157,6 +170,115 @@ public sealed partial class WorkerTests
             Assert.True(File.Exists(Path.Combine(moved, Path.GetFileName(record.Path))));
         }
         finally { Directory.Delete(target); }
+    }
+
+    [Fact]
+    public async Task ConfirmationCannotFollowARewrittenJournalToAnotherFile()
+    {
+        var (store, record) = await CrashProbeAsync();
+        var shown = Assert.Single(store.List());
+        string other = Path.Combine(Directory.CreateDirectory(Path.Combine(temp, "elsewhere")).FullName, Path.GetFileName(record.Path));
+        await File.WriteAllTextAsync(other, "keep");
+        string otherId;
+        using (var file = File.OpenRead(other)) otherId = AileArc.Shared.ArchiveFileIdentity.Read(file.SafeFileHandle).FileId;
+        var redirected = new RecoveryRecord(1, record.Id, other, otherId, record.Kind, record.CreatedUtc);
+        await File.WriteAllTextAsync(Path.Combine(store.Root, record.Id + ".json"), System.Text.Json.JsonSerializer.Serialize(redirected));
+        Assert.Equal(RecoveryState.Changed, store.Cleanup(shown));
+        Assert.True(File.Exists(record.Path)); Assert.Equal("keep", await File.ReadAllTextAsync(other));
+        Assert.Equal(other, Assert.Single(store.List()).Record.Path);
+    }
+
+    [Fact]
+    public async Task ReplacingJournalWithIdenticalJsonStillRequiresANewReview()
+    {
+        var (store, record) = await CrashProbeAsync();
+        var shown = Assert.Single(store.List());
+        string journal = Path.Combine(store.Root, record.Id + ".json");
+        File.Copy(journal, journal + ".replacement");
+        File.Move(journal + ".replacement", journal, true);
+        Assert.Equal(RecoveryState.Changed, store.Cleanup(shown));
+        Assert.True(File.Exists(record.Path));
+        Assert.Equal(RecoveryState.Recoverable, store.Cleanup(Assert.Single(store.List())));
+    }
+
+    [Fact]
+    public async Task CleanupRechecksTheDisplayedVersionAndMissingOnlyScope()
+    {
+        var (store, record) = await CrashProbeAsync();
+        var first = Assert.Single(store.List());
+        await File.AppendAllTextAsync(record.Path, "modified since inspection");
+        Assert.Equal(RecoveryState.Changed, store.Cleanup(first));
+        File.Move(record.Path, record.Path + ".moved");
+        var missing = Assert.Single(store.List());
+        Assert.Equal(RecoveryState.Missing, missing.State);
+        File.Move(record.Path + ".moved", record.Path);
+        Assert.Equal(RecoveryState.Changed, store.Cleanup(missing));
+        Assert.True(File.Exists(record.Path));
+        var current = Assert.Single(store.List());
+        Assert.Equal(RecoveryState.Recoverable, store.Cleanup(current));
+        Assert.Equal(RecoveryState.NoRecord, store.Cleanup(current));
+    }
+
+    [Fact]
+    public async Task StaleLeaseCanBeInspectedWithoutChangingAnUnownedLock()
+    {
+        var (store, record) = await CrashProbeAsync();
+        string lease = Path.Combine(store.Root, record.Id + ".lock");
+        await File.WriteAllTextAsync(lease, "external marker");
+        Assert.Equal(RecoveryState.Unverified, Assert.Single(store.List()).State);
+        Assert.Equal(RecoveryState.Unverified, store.Cleanup(record.Id));
+        Assert.Equal("external marker", await File.ReadAllTextAsync(lease));
+        await File.WriteAllBytesAsync(lease, []);
+        var item = Assert.Single(store.List());
+        Assert.Equal(RecoveryState.Recoverable, item.State);
+        Assert.Equal(RecoveryState.Recoverable, store.Cleanup(item));
+        Assert.True(File.Exists(lease)); Assert.False(File.Exists(record.Path));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LegacyRegistrationRequiresTheActualFileIdentity(bool removed)
+    {
+        var (store, record) = await CrashProbeAsync();
+        var legacy = new { Version = 1, record.Id, record.Path, record.FileId, record.Kind, record.CreatedUtc };
+        await File.WriteAllTextAsync(Path.Combine(store.Root, record.Id + ".json"), System.Text.Json.JsonSerializer.Serialize(legacy));
+        if (removed) File.Delete(record.Path);
+        var item = Assert.Single(store.List());
+        Assert.Equal(removed ? RecoveryState.Unverified : RecoveryState.Recoverable, item.State);
+        Assert.Equal(item.State, store.Cleanup(item));
+        Assert.Equal(removed, File.Exists(Path.Combine(store.Root, record.Id + ".json")));
+    }
+
+    [Fact]
+    public void OversizedRegistrationCannotCreateAnUninspectableStagingFile()
+    {
+        var store = new RecoveryStore(Path.Combine(temp, "journal"));
+        var error = Assert.Throws<ArchiveOperationException>(() => TrackedTemporaryFile.Create(temp, new string('测', 30000), store));
+        Assert.Equal("ResourceLimit", error.Code);
+        Assert.Empty(Directory.GetFiles(temp, "*", SearchOption.AllDirectories));
+    }
+
+    [Fact]
+    public void MalformedRecordsAreVisibleButCannotAuthorizeCleanupAndPagingCancels()
+    {
+        var store = new RecoveryStore(Directory.CreateDirectory(Path.Combine(temp, "broken")).FullName);
+        for (int i = 0; i < 5; i++) File.WriteAllText(Path.Combine(store.Root, Guid.NewGuid().ToString("N") + ".json"), "{");
+        var pages = store.ReadPages(2).ToArray();
+        Assert.Equal(new[] { true, true, false }, pages.Select(p => p.HasMore));
+        var items = pages.SelectMany(p => p.Items).ToArray();
+        Assert.Equal(5, items.Select(i => i.Record.Id).Distinct().Count());
+        foreach (var item in items)
+        {
+            Assert.Equal("", item.Record.Path); Assert.Equal(RecoveryState.Unverified, store.Cleanup(item));
+        }
+        using var cancel = new CancellationTokenSource();
+        using (var cursor = store.ReadPages(1, cancel.Token).GetEnumerator())
+        {
+            Assert.True(cursor.MoveNext()); cancel.Cancel();
+            Assert.Throws<OperationCanceledException>(() => cursor.MoveNext());
+        }
+        Directory.Move(store.Root, store.Root + "-released");
     }
 
     [Fact]
