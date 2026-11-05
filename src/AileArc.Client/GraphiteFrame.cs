@@ -19,12 +19,12 @@ internal static class GraphiteFrame
         var body = (UIElement)window.Content; window.Content = null;
         var shell = new DockPanel();
         var bar = new DockPanel { Height = height, Background = (Brush)window.FindResource("SurfaceBrush") };
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Stretch };
         WindowChrome.SetIsHitTestVisibleInChrome(buttons,true);
         if (action != null) buttons.Children.Add(action);
         Button Control(string glyph, string label, Action execute)
         {
-            var button = new Button { Content = glyph, FontFamily = new FontFamily("Segoe Fluent Icons"), Width = 42, Height = height - 8, Padding = new Thickness(0), ToolTip = ClientApp.Text[label] };
+            var button = new Button { Content = glyph, FontFamily = new FontFamily("Segoe Fluent Icons"), Width = 42, VerticalAlignment = VerticalAlignment.Stretch, Padding = new Thickness(0), ToolTip = ClientApp.Text[label] };
             AutomationProperties.SetName(button, ClientApp.Text[label]); button.Click += (_, _) => execute(); buttons.Children.Add(button); return button;
         }
         if (main)
