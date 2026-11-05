@@ -108,7 +108,7 @@ public partial class MainWindow : Window
             var result = await Task.Run(() =>
             {
                 var presentation = new ArchivePresentation(scan, token);
-                return (presentation, page: presentation.Query(Request("", "", 0, order, descending), token, typeLabel: EntryView.LabelFor), folders: presentation.GetRootFolders(token));
+                return (presentation, page: presentation.Query(Request("", "", 0, order, descending), token, typeLabel: EntryView.LabelFor), tree: new ArchiveFolderTree(Path.GetFileName(fullPath), presentation.Index, token));
             }, token);
             return () =>
             {
@@ -117,8 +117,9 @@ public partial class MainWindow : Window
                 directory = ""; codePage = requestedCodePage;
                 history.Clear(); future.Clear(); LocalSearchBox.IsChecked = false; PathColumn.Visibility = Visibility.Collapsed;
                 view = new("", "", false, view.Sort, descending, 0);
-                RootButton.Content = archiveName; Title = archiveName + " — AileArc";
-                SearchBox.Clear(); Folders.ItemsSource = result.folders; ApplyPage(result.page);
+                Title = archiveName + " — AileArc";
+                folderTree = result.tree; currentFolder = null; TreeWelcome.Visibility = Visibility.Collapsed;
+                SearchBox.Clear(); ApplyPage(result.page);
             };
         });
     }
@@ -156,7 +157,7 @@ public partial class MainWindow : Window
                 view = target with { Offset = page.Offset }; directory = target.Directory;
                 if (clearSearch || back || forward) SearchBox.Text = target.Search;
                 PathColumn.Visibility = target.Search.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
-                ApplyPage(page);
+                ApplyPage(page, revealFolder: clearSearch || back || forward);
                 if (restore.Length > 0)
                 {
                     var ids = restore.ToHashSet();
@@ -178,10 +179,10 @@ public partial class MainWindow : Window
         UpdateHeaders(); LocalSearchBox.IsChecked = view.Local;
         configuring = false;
     }
-    private void ApplyPage(BrowserPage page)
+    private void ApplyPage(BrowserPage page, bool revealFolder = false)
     {
         offset = page.Offset; total = page.Total;
-        ApplyRows(page.Rows.Select(row => new EntryView(row)).ToArray()); UpdateNavigation();
+        ApplyRows(page.Rows.Select(row => new EntryView(row)).ToArray()); UpdateNavigation(); SyncFolderTree(revealFolder);
     }
     internal void ApplyRows(EntryView[] rows)
     {
@@ -203,7 +204,7 @@ public partial class MainWindow : Window
         else if (SearchBox.Text != view.Search && pendingSearch is null) ScheduleSearch();
         configuring = true; EncodingBox.SelectedIndex = Array.IndexOf(CodePages, codePage); configuring = false;
         EncodingBox.IsEnabled = idle && archive?.Scan.Format == "ZIP";
-        EntryGrid.IsEnabled = idle; RootButton.IsEnabled = idle; Folders.IsEnabled = idle;
+        EntryGrid.IsEnabled = idle; Folders.IsEnabled = idle && archive is not null;
         UpdateNavigation(); UpdateSelection();
         ExtractButton.IsEnabled = ExtractMore.IsEnabled = idle && archive is not null;
         CopiesButton.IsEnabled = idle;
@@ -282,8 +283,6 @@ public partial class MainWindow : Window
     private async void Restart_Click(object sender, RoutedEventArgs e) { if (Application.Current.Windows.OfType<MainWindow>().Any(w => w.IsBusy)) StatusText.Text = Text["TaskRunning"]; else await ((ClientApp)Application.Current).RestartAsync(); }
     private async void Encoding_Changed(object sender, SelectionChangedEventArgs e)
     { if (!configuring && !IsBusy && OpenedPath is { } path && archive?.Scan.Format == "ZIP" && EncodingBox.SelectedIndex >= 0) await OpenAsync(path, CodePages[EncodingBox.SelectedIndex], password); }
-    private async void Root_Click(object sender, RoutedEventArgs e) => await QueryAsync("", 0, true);
-    private async void Folder_Click(object sender, RoutedEventArgs e) => await QueryAsync(((Button)sender).Tag?.ToString() ?? "", 0, true);
     private async void Up_Click(object sender, RoutedEventArgs e) => await QueryAsync(ArchiveIndex.ParentOf(directory), 0, true);
     internal Task ActivateAsync()
     {

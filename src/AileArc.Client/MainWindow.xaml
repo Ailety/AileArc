@@ -9,12 +9,8 @@
       <Border Background="{StaticResource SurfaceBrush}" Padding="16,20">
         <DockPanel LastChildFill="True">
           <TextBlock DockPanel.Dock="Bottom" Text="{local:Text ClientReadOnly}" Style="{StaticResource Muted}" TextWrapping="Wrap" />
-          <StackPanel>
-            <TextBlock Text="{local:Text ClientArchive}" Style="{StaticResource Muted}" Margin="0,0,0,12" />
-            <Button x:Name="RootButton" Click="Root_Click" HorizontalContentAlignment="Left" Content="{local:Text Welcome}" AutomationProperties.AutomationId="Root" />
-            <ItemsControl x:Name="Folders" Margin="4,8,0,0"><ItemsControl.ItemTemplate><DataTemplate>
-              <Button Content="{Binding Name}" Tag="{Binding Path}" Click="Folder_Click" HorizontalContentAlignment="Left" ToolTip="{Binding Path}" />
-            </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+          <TextBlock DockPanel.Dock="Top" Text="{local:Text ClientArchive}" Style="{StaticResource Muted}" Margin="0,0,0,8" />
+          <StackPanel DockPanel.Dock="Bottom">
             <Border Height="1" Background="{StaticResource LineBrush}" Margin="0,20" />
             <Button x:Name="CreateButton" Content="{local:Text CreateArchive}" Click="Create_Click" Margin="0,0,0,8" />
             <Button x:Name="CopiesButton" Content="{local:Text WorkCopies}" Click="Copies_Click" Margin="0,0,0,16" />
@@ -24,6 +20,38 @@
             <ComboBox x:Name="LanguageBox" SelectionChanged="Language_Changed" AutomationProperties.Name="{local:Text Language}" />
             <Button x:Name="RestartButton" Content="{local:Text RestartNow}" Click="Restart_Click" Visibility="Collapsed" Margin="0,8,0,0" />
           </StackPanel>
+          <Grid>
+            <TextBlock x:Name="TreeWelcome" Text="{local:Text Welcome}" Style="{StaticResource Muted}" VerticalAlignment="Top" Margin="2,8" />
+            <ListBox x:Name="Folders" AutomationProperties.Name="{local:Text ClientFolderTree}" SelectionChanged="TreeSelectionChanged"
+                     PreviewKeyDown="Tree_KeyDown" BorderThickness="0" Background="Transparent" Foreground="{StaticResource TextBrush}"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     ScrollViewer.CanContentScroll="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+              <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem">
+                <Setter Property="AutomationProperties.Name" Value="{Binding Hint}"/>
+                <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem">
+                  <Border x:Name="Row" Background="Transparent" CornerRadius="3"><ContentPresenter/></Border>
+                  <ControlTemplate.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Row" Property="Background" Value="{StaticResource HoverBrush}"/></Trigger>
+                    <Trigger Property="IsSelected" Value="True"><Setter TargetName="Row" Property="Background" Value="{StaticResource SelectionBrush}"/></Trigger>
+                  </ControlTemplate.Triggers>
+                </ControlTemplate></Setter.Value></Setter>
+              </Style></ListBox.ItemContainerStyle>
+              <ListBox.ItemTemplate><DataTemplate><Grid Margin="{Binding Indent}">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="22"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                <Button Content="{Binding Arrow}" ToolTip="{Binding ToggleHint}" AutomationProperties.Name="{Binding ToggleHint}" Click="ToggleFolder_Click" Focusable="False" Padding="0">
+                  <Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                    <Style.Triggers><DataTrigger Binding="{Binding HasChildren}" Value="False"><Setter Property="Visibility" Value="Hidden"/></DataTrigger></Style.Triggers>
+                  </Style></Button.Style>
+                </Button>
+                <Button Grid.Column="1" Click="Folder_Click" ToolTip="{Binding Hint}" AutomationProperties.Name="{Binding Name}" Focusable="False" Padding="0">
+                  <Button.Template><ControlTemplate TargetType="Button"><Border Background="Transparent"><ContentPresenter VerticalAlignment="Center"/></Border></ControlTemplate></Button.Template>
+                  <DockPanel><TextBlock DockPanel.Dock="Left" FontFamily="Segoe Fluent Icons" Text="{Binding Glyph}" Foreground="{StaticResource AccentBrush}" Margin="2,0,6,0"/>
+                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"/>
+                  </DockPanel>
+                </Button>
+              </Grid></DataTemplate></ListBox.ItemTemplate>
+            </ListBox>
+          </Grid>
         </DockPanel>
       </Border>
       <Border Grid.Column="1" Background="{StaticResource LineBrush}" />

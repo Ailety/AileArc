@@ -221,4 +221,7 @@ Ctrl + A: select this page</value></data>
   <data name="ClientPathCopied"><value>Archive path copied.</value></data>
   <data name="ClientClipboardBusy"><value>Clipboard is busy. Please try again.</value></data>
   <data name="ClientClearSearch"><value>Clear search</value></data>
+  <data name="ClientFolderTree"><value>Archive folders</value></data>
+  <data name="ClientExpandFolder"><value>Expand {0}</value></data>
+  <data name="ClientCollapseFolder"><value>Collapse {0}</value></data>
 </root>

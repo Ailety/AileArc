@@ -221,4 +221,7 @@ Ctrl + A：全选当前页</value></data>
   <data name="ClientPathCopied"><value>已复制包内路径。</value></data>
   <data name="ClientClipboardBusy"><value>剪贴板正被占用，请重试。</value></data>
   <data name="ClientClearSearch"><value>清除搜索</value></data>
+  <data name="ClientFolderTree"><value>压缩包目录树</value></data>
+  <data name="ClientExpandFolder"><value>展开 {0}</value></data>
+  <data name="ClientCollapseFolder"><value>折叠 {0}</value></data>
 </root>
