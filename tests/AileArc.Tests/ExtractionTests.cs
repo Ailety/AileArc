@@ -147,7 +147,9 @@ public sealed partial class WorkerTests
         Directory.CreateDirectory(destination);
         await File.WriteAllTextAsync(Path.Combine(destination, "a.txt"), "keep me");
         var result = await client.ExtractAsync(archive, new(destination, Smart: false, ConflictPolicy: ConflictChoice.Replace));
-        Assert.Single(result.Failures);
+        var failure = Assert.Single(result.Failures);
+        Assert.Equal(0L, failure.EntryId);
+        Assert.Equal("IntegrityFailed", failure.Code);
         Assert.Equal(0, result.Completed);
         Assert.Equal("keep me", await File.ReadAllTextAsync(Path.Combine(destination, "a.txt")));
         Assert.Empty(Directory.GetFiles(destination, "*.partial", SearchOption.AllDirectories));

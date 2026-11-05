@@ -8,7 +8,10 @@ public enum ConflictChoice { Rename, Skip, Replace, Cancel }
 public sealed record ConflictDecision(ConflictChoice Choice, bool ApplyToAll = false);
 public sealed record ExtractionOptions(string Destination, bool Smart = true, ConflictChoice? ConflictPolicy = null,
     ulong ByteLimit = 4UL * 1024 * 1024 * 1024, long[]? SelectedIds = null, ArchiveIdentity? ExpectedIdentity = null, int NameCodePage = 0);
-public sealed record ExtractionFailure(string Path, string Code);
+public sealed record ExtractionFailure(string Path, string Code)
+{
+    public long? EntryId { get; init; }
+}
 public sealed record ExtractionProgress(int Completed, int Skipped, ulong Bytes, string? CurrentPath);
 public sealed record ExtractionResult(string Destination, int Completed, int Skipped, IReadOnlyList<ExtractionFailure> Failures, bool Cancelled);
 
@@ -164,7 +167,9 @@ internal sealed class ExtractionWriter : IAsyncDisposable
             if (ignored) { Skipped++; return; }
             if (nativeResult != 0 || (!active.IsDirectory && active.Size is { } size && currentBytes != size))
             {
-                failures.Add(new(active.Path, nativeResult == 9 ? "WrongPasswordOrDamaged" : "IntegrityFailed"));
+                // Some encrypted formats report a data or CRC error for a wrong key.
+                bool passwordOrDamage = nativeResult == 9 || active.Encrypted && nativeResult is 2 or 3;
+                failures.Add(new(active.Path, passwordOrDamage ? "WrongPasswordOrDamaged" : "IntegrityFailed") { EntryId = active.Id });
                 return;
             }
             if (stream is not null)

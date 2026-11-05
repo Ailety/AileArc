@@ -41,7 +41,16 @@ public sealed partial class WorkerTests
                 var failure = await Assert.ThrowsAsync<ArchiveOperationException>(() => client.ExtractAsync(destination, new(Path.Combine(temp, "wrong-password")), password: "wrong"));
                 Assert.Equal("WrongPasswordOrDamaged", failure.Code);
             }
-            else Assert.NotEmpty((await client.ExtractAsync(destination, new(Path.Combine(temp, "wrong-password")), password: "wrong")).Failures);
+            else
+            {
+                var failures = (await client.ExtractAsync(destination, new(Path.Combine(temp, "wrong-password")), password: "wrong")).Failures;
+                Assert.NotEmpty(failures);
+                Assert.All(failures, f =>
+                {
+                    Assert.NotNull(f.EntryId);
+                    Assert.Equal("WrongPasswordOrDamaged", f.Code);
+                });
+            }
         }
     }
 
