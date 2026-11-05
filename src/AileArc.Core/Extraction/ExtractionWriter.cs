@@ -1,4 +1,6 @@
 using System.Runtime.InteropServices;
+using System.ComponentModel;
+using AileArc.Core.Storage;
 using AileArc.Shared;
 using AileArc.Core.Recovery;
 
@@ -22,20 +24,25 @@ public sealed record ExtractionFailure(string Path, string Code)
     }) { EntryId = entry.Id };
 }
 public sealed record ExtractionProgress(int Completed, int Skipped, ulong Bytes, string? CurrentPath);
-public sealed record ExtractionResult(string Destination, int Completed, int Skipped, IReadOnlyList<ExtractionFailure> Failures, bool Cancelled);
+public sealed record UnverifiedContent(string Reason, ulong DecodedBytes, ulong? ExpectedBytes);
+public sealed record ExtractionResult(string Destination, int Completed, int Skipped, IReadOnlyList<ExtractionFailure> Failures, bool Cancelled)
+{
+    internal UnverifiedContent? PrivateCopy { get; init; }
+}
 
 internal sealed class ExtractionWriter : IAsyncDisposable
 {
     private readonly Dictionary<long, ArchiveEntry> entries;
     private readonly ExtractionOptions options;
+    private readonly bool privateCopy;
+    private UnverifiedContent? pendingContent, retainedContent;
     private readonly Func<string, CancellationToken, Task<ConflictDecision>>? conflict;
     private readonly Dictionary<string, string> rootMappings = new(StringComparer.Ordinal);
     private readonly List<ExtractionFailure> failures = [];
     private readonly HashSet<long> processed = [];
-    private FileStream? stream;
+    private VerifiedFile? stage;
     private DirectoryGuard? guard;
     private DirectoryGuard? destinationGuard;
-    private string? temporary;
     private TrackedTemporaryFile? trackedTemporary;
     private string? target;
     private ArchiveEntry? active;
@@ -51,12 +58,13 @@ internal sealed class ExtractionWriter : IAsyncDisposable
     public string Destination { get; private set; }
     public string? CurrentPath => active?.Path;
     public uint[] EntryIds => entries.Keys.Order().Select(id => checked((uint)id)).ToArray();
-    public bool IsComplete => active is null && processed.Count == entries.Count;
+    public bool IsComplete => (active is null || pendingContent is not null) && processed.Count == entries.Count;
 
     public ExtractionWriter(string archivePath, IReadOnlyList<ArchiveEntry> selectedEntries, ExtractionOptions options,
-        Func<string, CancellationToken, Task<ConflictDecision>>? conflict, CancellationToken token)
+        Func<string, CancellationToken, Task<ConflictDecision>>? conflict, CancellationToken token, bool privateCopy)
     {
         this.options = options;
+        this.privateCopy = privateCopy;
         this.conflict = conflict;
         zoneIdentifier = ReadZone(archivePath);
         policy = options.ConflictPolicy;
@@ -155,55 +163,63 @@ internal sealed class ExtractionWriter : IAsyncDisposable
         }
         if (ignored) return;
         trackedTemporary = TrackedTemporaryFile.Create(Path.GetDirectoryName(target)!, "Extract", outputName: Path.GetFileName(target));
-        temporary = trackedTemporary.Path;
-        stream = new FileStream(temporary, FileMode.Open, FileAccess.Write, FileShare.None, 64 * 1024, FileOptions.Asynchronous);
+        stage = trackedTemporary.OpenForWriting();
     }
 
     public async Task WriteAsync(long id, byte[] bytes, CancellationToken token)
     {
-        if (active?.Id != id || bytes.Length > 32 * 1024 || active.IsDirectory) throw new ArchiveOperationException("ProtocolMismatch");
+        if (active?.Id != id || pendingContent is not null || bytes.Length > 32 * 1024 || active.IsDirectory) throw new ArchiveOperationException("ProtocolMismatch");
         Bytes = checked(Bytes + (uint)bytes.Length);
         currentBytes += (uint)bytes.Length;
         if (Bytes > options.ByteLimit) throw new ArchiveOperationException("ExtractionByteLimit");
         if (active.Size is { } size && currentBytes > size) throw new ArchiveOperationException("IntegrityFailed");
-        if (stream is not null) await stream.WriteAsync(bytes, token);
+        if (stage is not null) await stage.Stream.WriteAsync(bytes, token);
     }
 
     public async Task CompleteAsync(long id, int nativeResult, CancellationToken token)
     {
-        if (active?.Id != id) throw new ArchiveOperationException("ProtocolMismatch");
+        if (active?.Id != id || pendingContent is not null) throw new ArchiveOperationException("ProtocolMismatch");
         try
         {
             if (ignored) { Skipped++; return; }
             if (nativeResult != 0 || (!active.IsDirectory && active.Size is { } size && currentBytes != size))
             {
                 // Some encrypted formats report a data or CRC error for a wrong key.
-                failures.Add(ExtractionFailure.ForEntry(active, nativeResult));
+                var failure = ExtractionFailure.ForEntry(active, nativeResult);
+                failures.Add(failure);
+                if (privateCopy && !active.Encrypted && stage is not null && !replace && currentBytes > 0 && nativeResult is 2 or 3 or 5)
+                    pendingContent = new(failure.Code, currentBytes, active.Size);
                 return;
             }
-            if (stream is not null)
-            {
-                await stream.FlushAsync(token);
-                stream.Flush(flushToDisk: true);
-                await stream.DisposeAsync();
-                stream = null;
-                if (zoneIdentifier is not null)
-                    await File.WriteAllTextAsync(temporary + ":Zone.Identifier", zoneIdentifier, System.Text.Encoding.ASCII, token);
-                token.ThrowIfCancellationRequested();
-                if (!replace)
-                {
-                    while (true)
-                    {
-                        try { File.Move(temporary!, target!, overwrite: false); break; }
-                        catch (IOException) when (policy == ConflictChoice.Rename && Exists(target!)) { target = FindFreeName(target!); }
-                    }
-                }
-                else File.Move(temporary!, target!, overwrite: true);
-                temporary = null;
-            }
+            await PublishFileAsync(token);
             Completed++;
         }
+        finally { if (pendingContent is null) await ClearActiveAsync(); }
+    }
+
+    // Only the private single-entry reader calls this, after checking the final
+    // protocol message and worker exit. Incomplete IPC leaves the staging file for disposal.
+    public async Task FinishPrivateCopyAsync(CancellationToken token)
+    {
+        if (pendingContent is not { } content) return;
+        pendingContent = null;
+        try { await PublishFileAsync(token); retainedContent = content; }
         finally { await ClearActiveAsync(); }
+    }
+
+    private async Task PublishFileAsync(CancellationToken token)
+    {
+        if (stage is null) return;
+        await stage.Stream.FlushAsync(token);
+        stage.Stream.Flush(flushToDisk: true);
+        if (zoneIdentifier is not null) await stage.SetDownloadZoneAsync(zoneIdentifier, token);
+        token.ThrowIfCancellationRequested();
+        while (true)
+        {
+            try { stage.RenameTo(target!, replace); break; }
+            catch (Win32Exception e) when (!replace && policy == ConflictChoice.Rename && e.NativeErrorCode is 80 or 183)
+            { token.ThrowIfCancellationRequested(); target = FindFreeName(target!); }
+        }
     }
 
     public ExtractionResult Result(bool cancelled = false, string? errorCode = null)
@@ -214,7 +230,7 @@ internal sealed class ExtractionWriter : IAsyncDisposable
             alreadyFailed = true;
         }
         string output = rootMappings.Count == 1 ? Path.Combine(Destination, rootMappings.Values.Single()) : Destination;
-        return new(output, Completed, Skipped, failures.ToArray(), cancelled);
+        return new(output, Completed, Skipped, failures.ToArray(), cancelled) { PrivateCopy = cancelled || errorCode is not null ? null : retainedContent };
     }
     private static string? ReadZone(string archivePath)
     {
@@ -224,7 +240,7 @@ internal sealed class ExtractionWriter : IAsyncDisposable
             if (zone.Length > 16384) throw new ArchiveOperationException("InvalidSourceZone");
             using var reader = new StreamReader(zone);
             foreach (string line in reader.ReadToEnd().Split('\n'))
-                if (line.Trim() is "ZoneId=3" or "ZoneId=4") return "[ZoneTransfer]\r\n" + line.Trim() + "\r\n";
+                if (line.Trim() is "ZoneId=3" or "ZoneId=4") return line.Trim()[7..];
             return null;
         }
         catch (FileNotFoundException) { return null; }
@@ -244,12 +260,13 @@ internal sealed class ExtractionWriter : IAsyncDisposable
     }
     private async Task ClearActiveAsync()
     {
-        try
+        try { if (stage is not null) await stage.Stream.DisposeAsync(); }
+        finally
         {
-            if (stream is not null) { await stream.DisposeAsync(); stream = null; }
-            trackedTemporary?.Dispose();
+            stage = null;
+            try { trackedTemporary?.Dispose(); }
+            finally { trackedTemporary = null; active = null; guard?.Dispose(); guard = null; }
         }
-        finally { trackedTemporary = null; temporary = null; active = null; guard?.Dispose(); guard = null; }
     }
     public async ValueTask DisposeAsync()
     {

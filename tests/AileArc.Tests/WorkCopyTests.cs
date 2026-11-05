@@ -46,6 +46,17 @@ public sealed partial class WorkerTests
     }
 
     [Fact]
+    public async Task OversizedManifestIsRefusedBeforeDecodingOrCreatingACopyDirectory()
+    {
+        var store = new WorkCopyStore(Path.Combine(temp, "copies"));
+        string name = string.Join('/', Enumerable.Repeat(new string('文', 220), 70)) + ".txt";
+        var error = await Assert.ThrowsAsync<ArchiveOperationException>(() => store.PrepareAsync(Path.Combine(temp, "source.zip"),
+            new("fixture", 0, 0), new(0, name, false, 1, false), (_, _) => throw new InvalidOperationException("Must not decode")));
+        Assert.Equal("ResourceLimit", error.Code);
+        Assert.Empty(Directory.GetFileSystemEntries(store.Root));
+    }
+
+    [Fact]
     public async Task OlderWorkCopyManifestWithoutChangeTimeCanStillBeRecovered()
     {
         var (store, record) = await PrepareWorkCopyAsync();

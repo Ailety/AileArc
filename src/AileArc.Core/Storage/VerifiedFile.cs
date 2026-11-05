@@ -11,19 +11,24 @@ internal sealed class VerifiedFile : IDisposable
 {
     public FileStream Stream { get; }
     public string Identity { get; }
+    private string currentPath;
     public VerifiedFile(string path) : this(path, false) { }
     internal static VerifiedFile OpenStaging(string path) => new(path, true);
+    internal static VerifiedFile OpenAsyncStaging(string path) => new(path, true, asynchronous: true);
     internal static VerifiedFile CreateStaging(string path) => new(path, true, createNew: true);
-    private VerifiedFile(string path, bool writable, bool createNew = false)
+    private VerifiedFile(string path, bool writable, bool createNew = false, bool asynchronous = false)
     {
-        var handle = CreateFile(path, writable ? 0xC0010000U : 0x80010000U, writable ? 0U : 1U, IntPtr.Zero, createNew ? 1U : 3U, 0x00200000 | 0x02000000, IntPtr.Zero);
+        currentPath = Path.GetFullPath(path);
+        uint flags = 0x00200000 | 0x02000000;
+        if (asynchronous) flags |= 0x40000000;
+        var handle = CreateFile(currentPath, writable ? 0xC0010000U : 0x80010000U, writable ? 0U : 1U, IntPtr.Zero, createNew ? 1U : 3U, flags, IntPtr.Zero);
         if (handle.IsInvalid) { int error = Marshal.GetLastWin32Error(); handle.Dispose(); throw new Win32Exception(error); }
         try
         {
             var info = Information(handle);
             if ((info.Attributes & (0x400 | 0x10)) != 0 || info.Links != 1) throw new ArchiveOperationException("UnsafePath");
             Identity = Key(info);
-            Stream = new FileStream(handle, createNew ? FileAccess.ReadWrite : FileAccess.Read);
+            Stream = new FileStream(handle, createNew || asynchronous ? FileAccess.ReadWrite : FileAccess.Read, asynchronous ? 65536 : 4096, asynchronous);
         }
         catch { handle.Dispose(); throw; }
     }
@@ -35,7 +40,8 @@ internal sealed class VerifiedFile : IDisposable
     internal void RenameTo(string destination, bool replace)
     {
         // FILE_RENAME_INFO has an aligned root HANDLE followed by the UTF-16 byte length.
-        byte[] name = System.Text.Encoding.Unicode.GetBytes(Path.GetFullPath(destination));
+        string full = Path.GetFullPath(destination);
+        byte[] name = System.Text.Encoding.Unicode.GetBytes(full);
         int lengthOffset = 2 * IntPtr.Size, nameOffset = lengthOffset + sizeof(uint);
         var buffer = new byte[nameOffset + name.Length + sizeof(char)];
         buffer[0] = replace ? (byte)1 : (byte)0;
@@ -43,6 +49,16 @@ internal sealed class VerifiedFile : IDisposable
         name.CopyTo(buffer, nameOffset);
         if (!SetFileInformationByHandle(Stream.SafeFileHandle, 3, buffer, (uint)buffer.Length))
             throw new Win32Exception(Marshal.GetLastWin32Error());
+        currentPath = full;
+    }
+    internal async Task SetDownloadZoneAsync(string zoneId, CancellationToken token)
+    {
+        if (zoneId is not ("3" or "4")) throw new ArchiveOperationException("InvalidSourceZone");
+        // The base handle pins the name. The ADS must share its delete access.
+        await using var mark = new FileStream(currentPath + ":Zone.Identifier", FileMode.Create, FileAccess.Write,
+            FileShare.ReadWrite | FileShare.Delete, 4096, FileOptions.Asynchronous);
+        await mark.WriteAsync(System.Text.Encoding.ASCII.GetBytes($"[ZoneTransfer]\r\nZoneId={zoneId}\r\n"), token);
+        mark.Flush(flushToDisk: true);
     }
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool SetFileInformationByHandle(SafeFileHandle file, int infoClass, byte[] info, uint size);

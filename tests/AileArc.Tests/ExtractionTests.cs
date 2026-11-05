@@ -130,6 +130,30 @@ public sealed partial class WorkerTests
     }
 
     [Fact]
+    public async Task PublishingUsesThePinnedStagingFileAndRenamesAroundALateCollision()
+    {
+        string archive = MakeZip("note.txt"), output = Path.Combine(temp, "out");
+        string target = Path.Combine(output, "note.txt");
+        bool checkedStage = false;
+        var result = await client.ExtractAsync(archive, new(output, Smart: false, ConflictPolicy: ConflictChoice.Rename),
+            progress: new InlineProgress<ExtractionProgress>(p =>
+            {
+                if (checkedStage || p.Bytes == 0 || p.Completed > 0) return;
+                string stage = Assert.Single(Directory.GetFiles(output, "*.partial"));
+                Assert.Throws<IOException>(() => { using var file = File.OpenWrite(stage); });
+                Assert.Throws<IOException>(() => File.Move(stage, stage + ".swapped"));
+                File.WriteAllText(target, "already here");
+                checkedStage = true;
+            }));
+        Assert.True(checkedStage);
+        Assert.Empty(result.Failures);
+        Assert.Equal(1, result.Completed);
+        Assert.Equal("already here", await File.ReadAllTextAsync(target));
+        Assert.Equal("AileArc 测试内容", await File.ReadAllTextAsync(Path.Combine(output, "note (2).txt")));
+        Assert.Empty(Directory.GetFiles(output, "*.partial"));
+    }
+
+    [Fact]
     public async Task CrcFailureNeverReplacesExistingFile()
     {
         string archive = Path.Combine(temp, "corrupt.zip");

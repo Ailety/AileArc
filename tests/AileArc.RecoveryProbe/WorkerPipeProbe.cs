@@ -72,6 +72,19 @@ internal static class WorkerPipeProbe
         }
         if (request.Operation == "extract")
         {
+            if (mode.StartsWith("damaged-copy-", StringComparison.Ordinal))
+            {
+                string fault = mode["damaged-copy-".Length..];
+                await Send(new("entries", Entries: [new(0, "partial.txt", false, fault == "overrun" ? 1u : 5u, fault == "encrypted")]));
+                await Send(new("ready")); await ArchiveProtocol.ReadAsync<ExtractionCommand>(input);
+                await Send(new("file", EntryId: 0));
+                if (fault != "empty") await Send(new("data", EntryId: 0, Data: [65, 66]));
+                await Send(new("fileDone", EntryId: 0, Result: fault switch { "short" => 5, "method" => 1, "false-success" => 0, _ => 3 }));
+                if (fault == "extra") await Send(new("data", EntryId: 0, Data: [67]));
+                if (fault == "cancel") { File.WriteAllText(request.Path + ".ready", "ready"); await Task.Delay(Timeout.Infinite); }
+                await Send(new("completed"));
+                return fault == "exit" ? 3 : 0;
+            }
             await Send(new("entries", Entries: [new(0, "ok.txt", false, 1, false), new(1, "partial.txt", false, 2, false)]));
             await Send(new("ready"));
             await ArchiveProtocol.ReadAsync<ExtractionCommand>(input);

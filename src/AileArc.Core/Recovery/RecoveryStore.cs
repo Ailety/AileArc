@@ -202,6 +202,16 @@ public sealed class TrackedTemporaryFile : IDisposable
     private RecoveryRecord record;
     public string Path => record.Path;
     internal string? FileId => record.FileId;
+    internal VerifiedFile OpenForWriting()
+    {
+        var file = VerifiedFile.OpenAsyncStaging(Path);
+        try
+        {
+            if (file.Identity != FileId || file.Stream.Length != 0) throw new ArchiveOperationException("UnsafePath");
+            return file;
+        }
+        catch { file.Dispose(); throw; }
+    }
     public string Id => record.Id;
     private bool disposed;
     private TrackedTemporaryFile(RecoveryStore store, FileStream lease, RecoveryRecord record)

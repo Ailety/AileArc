@@ -11,12 +11,14 @@ using AileArc.Core.Storage;
 namespace AileArc.Core.WorkCopies;
 
 public sealed record WorkCopyRecord(int Version, string Id, string ArchivePath, ArchiveIdentity Identity,
-    long EntryId, string EntryPath, string RelativePath, string? BaselineHash, DateTime CreatedUtc, string? SourceZone = null);
+    long EntryId, string EntryPath, string RelativePath, string? BaselineHash, DateTime CreatedUtc, string? SourceZone = null,
+    UnverifiedContent? Damage = null);
 public enum WorkCopyState { Unchanged, Modified, Unavailable, Incomplete }
 public sealed record WorkCopyStatus(WorkCopyRecord Record, string FilePath, WorkCopyState State)
 {
     internal (string Id, long Length, long Written, long Changed)? Stamp { get; init; }
     internal long VerifiedAt { get; init; }
+    internal string? ContentHash { get; init; }
 }
 public sealed record WorkCopyListing(IReadOnlyList<WorkCopyRecord> Records, bool HasMore);
 
@@ -24,14 +26,25 @@ public sealed record WorkCopyListing(IReadOnlyList<WorkCopyRecord> Records, bool
 public sealed partial class WorkCopyStore
 {
     public const ulong MaxFileBytes = 256UL * 1024 * 1024;
+    private const int MaxManifestBytes = 128 * 1024;
     public string Root { get; }
     private readonly SemaphoreSlim gate = new(1, 1);
     private readonly Dictionary<string, WorkCopyRecord> prepared = new(StringComparer.Ordinal);
     public WorkCopyStore(string? root = null) => Root = Path.GetFullPath(root ?? Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AileArc", "WorkCopies"));
 
-    public async Task<WorkCopyRecord> PrepareAsync(string archivePath, ArchiveIdentity identity, ArchiveEntry entry,
-        Func<string, CancellationToken, Task<ExtractionResult>> extract, CancellationToken token = default)
+    public Task<WorkCopyRecord> PrepareAsync(string archivePath, ArchiveIdentity identity, ArchiveEntry entry,
+        Func<string, CancellationToken, Task<ExtractionResult>> extract, CancellationToken token = default) =>
+        PrepareCoreAsync(archivePath, identity, entry, extract, false, token);
+
+    /// <summary>Prepares a private copy. A record with Damage requires explicit consent on every launch.</summary>
+    public Task<WorkCopyRecord> PrepareForOpenAsync(ArchiveWorkerClient worker, string archivePath, ArchiveIdentity identity,
+        ArchiveEntry entry, int codePage, string? password, CancellationToken token = default) =>
+        PrepareCoreAsync(archivePath, identity, entry,
+            (destination, ct) => worker.ExtractWorkingFileAsync(archivePath, destination, identity, entry.Id, codePage, password, ct), true, token);
+
+    private async Task<WorkCopyRecord> PrepareCoreAsync(string archivePath, ArchiveIdentity identity, ArchiveEntry entry,
+        Func<string, CancellationToken, Task<ExtractionResult>> extract, bool allowUnverified, CancellationToken token)
     {
         if (entry.IsDirectory || entry.IsLink) throw new ArchiveOperationException("LinksNotSupported");
         if (entry.Size > MaxFileBytes) throw new ArchiveOperationException("WorkCopyTooLarge");
@@ -47,6 +60,7 @@ public sealed partial class WorkCopyStore
                 // The retained-copy manager can still open the edited file on its own.
                 using var source = File.OpenHandle(fullArchive, FileMode.Open, FileAccess.Read, FileShare.Read);
                 if (ArchiveFileIdentity.Read(source) != identity) throw new ArchiveOperationException("ArchiveChanged");
+                if (!allowUnverified && existing.Damage is { } damage) throw new ArchiveOperationException(damage.Reason);
                 return existing;
             }
             using var rootGuard = DirectoryGuard.Acquire(Root, create: true);
@@ -56,19 +70,35 @@ public sealed partial class WorkCopyStore
             security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
             security.AddAccessRule(new FileSystemAccessRule(WindowsIdentity.GetCurrent().User!, FileSystemRights.FullControl,
                 InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit, PropagationFlags.None, AccessControlType.Allow));
-            new DirectoryInfo(folder).Create(security);
             var record = new WorkCopyRecord(1, id, fullArchive, identity, entry.Id, entry.Path, relative, null, DateTime.UtcNow);
-            await WriteManifestAsync(record, token);
+            byte[] initial = EncodeManifest(record);
+            new DirectoryInfo(folder).Create(security);
+            await WriteManifestAsync(record, initial, token);
             var result = await extract(Path.Combine(folder, "content"), token);
             if (result.Cancelled) throw new OperationCanceledException(token);
-            if (result.Failures.Count > 0) throw new ArchiveOperationException(result.Failures[0].Code);
-            if (result.Completed != 1) throw new ArchiveOperationException("OpenFailed");
+            var recovered = result.PrivateCopy;
+            if (recovered is not null && allowUnverified)
+            {
+                if (entry.Encrypted || result.Completed != 0 || result.Skipped != 0 || result.Failures.Count != 1 ||
+                    result.Failures[0].EntryId != entry.Id || result.Failures[0].Path != entry.Path || result.Failures[0].Code != recovered.Reason)
+                    throw new ArchiveOperationException("ProtocolMismatch");
+            }
+            else
+            {
+                // A terminal transport/write error can follow a per-entry failure.
+                if (result.Failures.Count > 0) throw new ArchiveOperationException(result.Failures[^1].Code);
+                if (result.Completed != 1) throw new ArchiveOperationException("OpenFailed");
+            }
             string file = FilePath(record);
             using (DirectoryGuard.Acquire(Path.GetDirectoryName(file)!, false))
             await using (var input = VerifiedFile.OpenRead(file))
-                record = record with { BaselineHash = await HashAsync(input, token), SourceZone = await ReadZoneAsync(file, token) };
+            {
+                if (recovered is not null && (ulong)input.Length != recovered.DecodedBytes) throw new ArchiveOperationException("CopyUnavailable");
+                record = record with { Version = recovered is null ? 1 : 2, Damage = recovered,
+                    BaselineHash = await HashAsync(input, token), SourceZone = await ReadZoneAsync(file, token) };
+            }
             // Never launch before the baseline has reached durable metadata.
-            await WriteManifestAsync(record, token);
+            await WriteManifestAsync(record, EncodeManifest(record), token);
             prepared[key] = record;
             return record;
         }
@@ -77,7 +107,14 @@ public sealed partial class WorkCopyStore
 
     public string FilePath(WorkCopyRecord record)
     {
-        if (record.Version != 1 || !Guid.TryParseExact(record.Id, "N", out _) ||
+        bool knownVersion = record.Version switch
+        {
+            1 => record.Damage is null,
+            2 => record.BaselineHash is not null && record.Damage is { Reason: "IntegrityFailed" or "EntryUnexpectedEnd", DecodedBytes: > 0 and <= MaxFileBytes } damage &&
+                (damage.ExpectedBytes is null || (damage.ExpectedBytes <= MaxFileBytes && damage.DecodedBytes <= damage.ExpectedBytes)),
+            _ => false
+        };
+        if (!knownVersion || !Guid.TryParseExact(record.Id, "N", out _) ||
             record.Identity is null || string.IsNullOrEmpty(record.Identity.FileId) || !Path.IsPathFullyQualified(record.ArchivePath ?? "") ||
             record.EntryId is < 0 or > uint.MaxValue || record.SourceZone is not (null or "3" or "4") ||
             (record.BaselineHash is { } hash && (hash.Length != 64 || !hash.All(char.IsAsciiHexDigit))))
@@ -98,6 +135,13 @@ public sealed partial class WorkCopyStore
     public Task<WorkCopyStatus> PollAsync(WorkCopyStatus previous, CancellationToken token = default) =>
         InspectCoreAsync(previous.Record, previous, token);
 
+    public async Task RecheckApprovedContentAsync(WorkCopyStatus reviewed, CancellationToken token = default)
+    {
+        var current = await InspectAsync(reviewed.Record, token);
+        if (current.ContentHash is null || current.ContentHash != reviewed.ContentHash)
+            throw new ArchiveOperationException("CopyChangedDuringConfirmation");
+    }
+
     private async Task<WorkCopyStatus> InspectCoreAsync(WorkCopyRecord record, WorkCopyStatus? previous, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
@@ -114,7 +158,7 @@ public sealed partial class WorkCopyStore
                 Environment.TickCount64 - previous.VerifiedAt < 120_000) return previous;
             string current = await HashAsync(stream, token);
             return new(record, path, current == record.BaselineHash ? WorkCopyState.Unchanged : WorkCopyState.Modified)
-                { Stamp = stamp, VerifiedAt = Environment.TickCount64 };
+                { Stamp = stamp, VerifiedAt = Environment.TickCount64, ContentHash = current };
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArchiveOperationException or System.ComponentModel.Win32Exception)
         { return new(record, path, WorkCopyState.Unavailable); }
@@ -163,7 +207,7 @@ public sealed partial class WorkCopyStore
                 {
                     using var folderGuard = DirectoryGuard.Acquire(directory, create: false);
                     await using var stream = VerifiedFile.OpenRead(Path.Combine(directory, "workcopy.json"));
-                    if (stream.Length > 128 * 1024) continue;
+                    if (stream.Length > MaxManifestBytes) continue;
                     var record = await JsonSerializer.DeserializeAsync<WorkCopyRecord>(stream, cancellationToken: token);
                     if (record is null || record.Id != Path.GetFileName(directory)) continue;
                     _ = FilePath(record);
@@ -193,51 +237,45 @@ public sealed partial class WorkCopyStore
             (File.Exists(fullDestination) && (File.GetAttributes(fullDestination) & FileAttributes.ReparsePoint) != 0))
             throw new ArchiveOperationException("UnsafePath");
         using var trackedTemporary = TrackedTemporaryFile.Create(Path.GetDirectoryName(fullDestination)!, "Export", outputName: Path.GetFileName(fullDestination));
-        string temporary = trackedTemporary.Path;
-        try
+        await using var input = VerifiedFile.OpenRead(source);
+        using var output = trackedTemporary.OpenForWriting();
+        if ((ulong)input.Length > MaxFileBytes) throw new ArchiveOperationException("WorkCopyTooLarge");
+        await input.CopyToAsync(output.Stream, token);
+        await output.Stream.FlushAsync(token);
+        output.Stream.Flush(flushToDisk: true);
+        string? sourceZone = StrongerZone(record.SourceZone, await ReadZoneAsync(source, token));
+        if (sourceZone is not null) await output.SetDownloadZoneAsync(sourceZone, token);
+        token.ThrowIfCancellationRequested();
+        if (overwrite && File.Exists(fullDestination))
         {
-            await using var input = VerifiedFile.OpenRead(source);
-            await using (var output = new FileStream(temporary, FileMode.Open, FileAccess.Write, FileShare.None, 65536, FileOptions.Asynchronous))
-            {
-                if ((ulong)input.Length > MaxFileBytes) throw new ArchiveOperationException("WorkCopyTooLarge");
-                await input.CopyToAsync(output, token);
-                await output.FlushAsync(token);
-                output.Flush(flushToDisk: true);
-            }
-            // Preserve the working file's download mark when exporting edited content.
-            string? sourceZone = StrongerZone(record.SourceZone, await ReadZoneAsync(source, token));
-            if (sourceZone is not null) await WriteZoneAsync(temporary, sourceZone, token);
-            token.ThrowIfCancellationRequested();
-            if (overwrite && File.Exists(fullDestination))
-            {
-                string? id = VerifiedFile.TryIdentity(fullDestination);
-                if (id is null || id == record.Identity.FileId) throw new ArchiveOperationException("UnsafeExport");
-            }
-            try { File.Move(temporary, fullDestination, overwrite); }
-            catch (IOException) when (!overwrite && File.Exists(fullDestination)) { throw new ArchiveOperationException("CopyDestinationExists"); }
-            // Baseline stays unchanged: exporting a copy does not update the original archive.
+            string? id = VerifiedFile.TryIdentity(fullDestination);
+            if (id is null || id == record.Identity.FileId) throw new ArchiveOperationException("UnsafeExport");
         }
-        finally { trackedTemporary.Dispose(); }
+        try { output.RenameTo(fullDestination, overwrite); }
+        catch (System.ComponentModel.Win32Exception e) when (!overwrite && e.NativeErrorCode is 80 or 183)
+        { throw new ArchiveOperationException("CopyDestinationExists"); }
     }
 
-    private async Task WriteManifestAsync(WorkCopyRecord record, CancellationToken token)
+    private static byte[] EncodeManifest(WorkCopyRecord record)
+    {
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(record);
+        // Reserve space in the first record for the hash, zone and possible damage information.
+        if (bytes.Length > MaxManifestBytes - (record.BaselineHash is null ? 256 : 0)) throw new ArchiveOperationException("ResourceLimit");
+        return bytes;
+    }
+
+    private async Task WriteManifestAsync(WorkCopyRecord record, byte[] bytes, CancellationToken token)
     {
         string folder = Path.Combine(Root, record.Id);
         using var guard = DirectoryGuard.Acquire(folder, create: false);
         string destination = Path.Combine(folder, "workcopy.json");
         using var trackedTemporary = TrackedTemporaryFile.Create(folder, "Metadata", outputName: "workcopy.json");
-        string temp = trackedTemporary.Path;
-        try
-        {
-            await using (var output = new FileStream(temp, FileMode.Open, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous))
-            {
-                await JsonSerializer.SerializeAsync(output, record, cancellationToken: token);
-                await output.FlushAsync(token);
-                output.Flush(flushToDisk: true);
-            }
-            File.Move(temp, destination, overwrite: true);
-        }
-        finally { trackedTemporary.Dispose(); }
+        using var output = trackedTemporary.OpenForWriting();
+        await output.Stream.WriteAsync(bytes, token);
+        await output.Stream.FlushAsync(token);
+        output.Stream.Flush(flushToDisk: true);
+        token.ThrowIfCancellationRequested();
+        output.RenameTo(destination, replace: record.BaselineHash is not null);
     }
     private static async Task<string> HashAsync(FileStream stream, CancellationToken token)
     {

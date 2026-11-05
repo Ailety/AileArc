@@ -7,9 +7,19 @@ namespace AileArc.Core;
 
 public sealed partial class ArchiveWorkerClient
 {
-    public async Task<ExtractionResult> ExtractAsync(string path, ExtractionOptions options,
+    public Task<ExtractionResult> ExtractAsync(string path, ExtractionOptions options,
         Func<string, CancellationToken, Task<ConflictDecision>>? conflict = null,
-        IProgress<ExtractionProgress>? progress = null, CancellationToken cancellationToken = default, string? password = null)
+        IProgress<ExtractionProgress>? progress = null, CancellationToken cancellationToken = default, string? password = null) =>
+        ExtractCoreAsync(path, options, conflict, progress, cancellationToken, password, privateCopy: false);
+
+    internal Task<ExtractionResult> ExtractWorkingFileAsync(string path, string destination, ArchiveIdentity identity, long id,
+        int codePage, string? password, CancellationToken token) =>
+        ExtractCoreAsync(path, new(destination, false, ConflictChoice.Skip, WorkCopies.WorkCopyStore.MaxFileBytes, [id], identity, codePage),
+            null, null, token, password, privateCopy: true);
+
+    private async Task<ExtractionResult> ExtractCoreAsync(string path, ExtractionOptions options,
+        Func<string, CancellationToken, Task<ConflictDecision>>? conflict, IProgress<ExtractionProgress>? progress,
+        CancellationToken cancellationToken, string? password, bool privateCopy)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (options.SelectedIds?.Length > 100_000) throw new ArchiveOperationException("ResourceLimit");
@@ -49,7 +59,7 @@ public sealed partial class ArchiveWorkerClient
                             throw new ArchiveOperationException("ArchiveChanged");
                         if (password is null && metadata.Any(e => e.Encrypted))
                             throw new ArchiveOperationException("PasswordRequired");
-                        writer = new ExtractionWriter(path, metadata, options, conflict, cancellationToken);
+                        writer = new ExtractionWriter(path, metadata, options, conflict, cancellationToken, privateCopy);
                         await pipe.WriteAsync(new ExtractionCommand(options.SelectedIds is null ? null : writer.EntryIds));
                         process.StandardInput.Close();
                         break;
@@ -65,7 +75,9 @@ public sealed partial class ArchiveWorkerClient
                     case "completed" when writer is not null:
                         if (!writer.IsComplete) throw new ArchiveOperationException("ProtocolMismatch");
                         await pipe.WaitForExitAsync();
-                        return writer.Result(errorCode: process.ExitCode == 0 ? null : "WorkerFailed");
+                        if (process.ExitCode != 0) return writer.Result(errorCode: "WorkerFailed");
+                        await writer.FinishPrivateCopyAsync(cancellationToken);
+                        return writer.Result();
                     case "error": throw new ArchiveOperationException(message.ErrorCode ?? "WorkerFailed");
                     default: throw new ArchiveOperationException("ProtocolMismatch");
                 }
