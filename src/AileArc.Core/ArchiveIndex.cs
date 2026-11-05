@@ -2,20 +2,24 @@ using AileArc.Shared;
 
 namespace AileArc.Core;
 
-public sealed record BrowserEntry(long Id, string Name, string Path, string Parent, bool IsDirectory, ulong? Size, bool Encrypted);
-public enum EntrySort { Name, Size }
+public sealed record BrowserEntry(long Id, string Name, string Path, string Parent, bool IsDirectory, ulong? Size, bool Encrypted)
+{
+    public string Kind { get; } = IsDirectory ? "folder" : System.IO.Path.GetExtension(Name).ToLowerInvariant() switch { ".pdf" => "pdf", ".md" => "md", ".txt" => "text", ".json" or ".yml" or ".cs" or ".xml" => "code", ".png" or ".jpg" or ".svg" => "image", _ => "file" };
+}
+public enum EntrySort { Name, Size, Type, Path }
 
 /// <summary>Pure archive paths, never destination filesystem paths. Case and duplicate files are retained.</summary>
 public sealed class ArchiveIndex
 {
     private readonly BrowserEntry[] entries;
+    private readonly HashSet<string> directories = new(StringComparer.Ordinal);
+    public bool ContainsDirectory(string path) => directories.Contains(path);
     private readonly Dictionary<string, BrowserEntry[]> children;
     public IReadOnlyList<BrowserEntry> Entries => entries;
 
     public ArchiveIndex(IEnumerable<ArchiveEntry> source, CancellationToken cancellationToken = default)
     {
         var rows = new List<BrowserEntry>();
-        var directories = new HashSet<string>(StringComparer.Ordinal);
         long syntheticId = -1;
         foreach (var entry in source)
         {
@@ -41,7 +45,7 @@ public sealed class ArchiveIndex
     }
 
     public BrowserEntry[] Query(string directory, string search = "", bool currentDirectoryOnly = false,
-        EntrySort sort = EntrySort.Name, bool descending = false, CancellationToken cancellationToken = default)
+        EntrySort sort = EntrySort.Name, bool descending = false, CancellationToken cancellationToken = default, Func<string,string>? typeLabel = null)
     {
         var candidates = search.Length == 0 || currentDirectoryOnly
             ? children.GetValueOrDefault(directory, []) : entries;
@@ -56,8 +60,13 @@ public sealed class ArchiveIndex
             cancellationToken.ThrowIfCancellationRequested();
             int folder = right.IsDirectory.CompareTo(left.IsDirectory);
             if (folder != 0) return folder;
-            int comparison = sort == EntrySort.Size ? Nullable.Compare(left.Size, right.Size)
-                : StringComparer.OrdinalIgnoreCase.Compare(left.Name, right.Name);
+            int comparison = sort switch
+            {
+                EntrySort.Size => Nullable.Compare(left.Size, right.Size),
+                EntrySort.Path => StringComparer.OrdinalIgnoreCase.Compare(left.Path, right.Path),
+                EntrySort.Type => StringComparer.OrdinalIgnoreCase.Compare(typeLabel?.Invoke(left.Kind) ?? left.Kind, typeLabel?.Invoke(right.Kind) ?? right.Kind),
+                _ => StringComparer.OrdinalIgnoreCase.Compare(left.Name, right.Name)
+            };
             if (comparison == 0) comparison = StringComparer.Ordinal.Compare(left.Path, right.Path);
             if (comparison == 0) comparison = left.Id.CompareTo(right.Id);
             return descending ? -comparison : comparison;

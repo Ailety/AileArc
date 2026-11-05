@@ -23,7 +23,7 @@ internal sealed class ActionDialog : Window
         Accept.Click += (_, _) => DialogResult = true;
         actions.Children.Add(new Button { Content = ClientApp.Text[cancel], IsCancel = true }); actions.Children.Add(Accept);
         DockPanel.SetDock(actions, Dock.Bottom); layout.Children.Add(actions);
-        layout.Children.Add(new ScrollViewer { Content = Body, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }); Content = layout;
+        layout.Children.Add(new ScrollViewer { Content = Body, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }); Content = layout; GraphiteFrame.Install(this);
     }
     internal void Explain(string text) => Body.Children.Add(new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 16) });
     internal ComboBox Choices(string label, string[] items)

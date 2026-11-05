@@ -1,5 +1,9 @@
 # AileArc
 
+![AileArc · 像打开文件夹一样，打开压缩包。](assets/brand/banner.png)
+
+[Logo、应用图标和宣传素材](assets/brand/README.md)
+
 Modern archive management for Windows. **Archive should feel like a folder.**
 
 当前为 Windows 11 x64 开发预览，正在迭代首个里程碑。不是正式发布版本。

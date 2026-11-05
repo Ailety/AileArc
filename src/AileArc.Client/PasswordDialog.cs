@@ -23,7 +23,7 @@ internal sealed class PasswordDialog : Window
         var cancel = new Button { Content = ClientApp.Text["Cancel"], IsCancel = true };
         var accept = new Button { Content = ClientApp.Text["Continue"], IsDefault = true, Style = (Style)FindResource("Primary") };
         accept.Click += (_, _) => DialogResult = true;
-        actions.Children.Add(cancel); actions.Children.Add(accept); content.Children.Add(actions); Content = content;
+        actions.Children.Add(cancel); actions.Children.Add(accept); content.Children.Add(actions); Content = content; GraphiteFrame.Install(this);
         Loaded += (_, _) => input.Focus();
     }
     public void Clear() => input.Clear();

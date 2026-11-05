@@ -207,4 +207,10 @@ Ctrl + A：全选当前页</value></data>
   <data name="ClientChooseOutput"><value>选择输出位置…</value></data>
   <data name="ClientExtractAll"><value>解压全部</value></data>
   <data name="ClientExtractSelection"><value>解压所选 · {0:N0} 项</value></data>
+  <data name="Forward"><value>前进</value></data>
+  <data name="ClientAddress"><value>编辑包内地址</value></data>
+  <data name="ClientUnknownDirectory"><value>此压缩包中没有这个目录。</value></data>
+  <data name="ClientMinimize"><value>最小化</value></data>
+  <data name="ClientMaximize"><value>最大化</value></data>
+  <data name="ClientRestore"><value>还原</value></data>
 </root>

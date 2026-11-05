@@ -2,7 +2,8 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType><UseWPF>true</UseWPF>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier><AssemblyName>AileArc</AssemblyName>
+    <ApplicationIcon>../../assets/brand/AileArc.ico</ApplicationIcon>
     <ApplicationManifest>../../packaging/app.manifest</ApplicationManifest>
   </PropertyGroup>
-  <ItemGroup><ProjectReference Include="../AileArc.DesktopBridge/AileArc.DesktopBridge.csproj" /></ItemGroup>
+  <ItemGroup><Resource Include="../../assets/brand/mark.png" Link="Brand/mark.png"/><ProjectReference Include="../AileArc.DesktopBridge/AileArc.DesktopBridge.csproj" /></ItemGroup>
 </Project>

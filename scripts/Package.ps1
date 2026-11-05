@@ -54,17 +54,7 @@ if ($SigningCertificateThumbprint) {
     $manifestXml.Package.Identity.Publisher = $certificate.Subject
     $manifestXml.Save((Join-Path $identity 'AppxManifest.xml'))
 }
-# Simple code-drawn development icon; no downloaded artwork.
-Add-Type -AssemblyName System.Drawing
-$bitmap = [Drawing.Bitmap]::new(150, 150)
-$graphics = [Drawing.Graphics]::FromImage($bitmap)
-$brush = [Drawing.SolidBrush]::new([Drawing.Color]::FromArgb(42, 89, 170))
-try {
-    $graphics.Clear([Drawing.Color]::Transparent)
-    $graphics.FillRectangle($brush, 10, 25, 130, 110)
-    $graphics.FillRectangle([Drawing.Brushes]::White, 66, 25, 18, 80)
-    $bitmap.Save((Join-Path $identity 'Assets/Logo.png'), [Drawing.Imaging.ImageFormat]::Png)
-} finally { $brush.Dispose(); $graphics.Dispose(); $bitmap.Dispose() }
+Copy-Item -LiteralPath (Join-Path $taskRoot 'assets/brand/package-150.png') -Destination (Join-Path $identity 'Assets/Logo.png')
 & $dotnet restore (Join-Path $taskRoot 'packaging/AileArc.Packaging.csproj') -p:RestoreLockedMode=true -v minimal
 if ($LASTEXITCODE -ne 0) { throw 'Packaging tools restore failed.' }
 $sdkTools = Join-Path $nugetRoot 'microsoft.windows.sdk.buildtools/10.0.26100.4654/bin/10.0.26100.0/x64/makeappx.exe'

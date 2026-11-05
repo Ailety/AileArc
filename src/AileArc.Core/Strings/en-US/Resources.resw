@@ -207,4 +207,10 @@ Ctrl + A: select this page</value></data>
   <data name="ClientChooseOutput"><value>Choose output location…</value></data>
   <data name="ClientExtractAll"><value>Extract all</value></data>
   <data name="ClientExtractSelection"><value>Extract selected · {0:N0}</value></data>
+  <data name="Forward"><value>Forward</value></data>
+  <data name="ClientAddress"><value>Edit archive address</value></data>
+  <data name="ClientUnknownDirectory"><value>This folder does not exist in the archive.</value></data>
+  <data name="ClientMinimize"><value>Minimize</value></data>
+  <data name="ClientMaximize"><value>Maximize</value></data>
+  <data name="ClientRestore"><value>Restore</value></data>
 </root>

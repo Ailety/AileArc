@@ -3,14 +3,8 @@
   Background="{DynamicResource CanvasBrush}" Foreground="{DynamicResource TextBrush}" FontFamily="Microsoft YaHei UI, Segoe UI" FontSize="14" UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
   <Window.Resources><ResourceDictionary><ResourceDictionary.MergedDictionaries><ResourceDictionary Source="WarmGraphite.xaml" /></ResourceDictionary.MergedDictionaries></ResourceDictionary></Window.Resources>
   <Grid>
-    <Grid.RowDefinitions><RowDefinition Height="58" /><RowDefinition Height="*" /><RowDefinition Height="32" /></Grid.RowDefinitions>
-    <Border Grid.Row="0" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1">
-      <DockPanel Margin="20,0">
-        <StackPanel Orientation="Horizontal"><TextBlock Text="&#xE8B7;" FontFamily="Segoe Fluent Icons" Foreground="{StaticResource AccentBrush}" FontSize="24" Margin="0,0,12,0" /><TextBlock Text="AileArc" FontWeight="SemiBold" FontSize="18" /><TextBlock Text="{local:Text AppSubtitle}" Style="{StaticResource Muted}" Margin="16,0" /></StackPanel>
-        <Button x:Name="OpenButton" DockPanel.Dock="Right" HorizontalAlignment="Right" Click="Open_Click" Content="{local:Text Open}" Style="{StaticResource Primary}" AutomationProperties.AutomationId="OpenArchive" />
-      </DockPanel>
-    </Border>
-    <Grid Grid.Row="1">
+    <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="32" /></Grid.RowDefinitions>
+    <Grid>
       <Grid.ColumnDefinitions><ColumnDefinition Width="218" MinWidth="180" /><ColumnDefinition Width="1" /><ColumnDefinition Width="*" /><ColumnDefinition Width="1" /><ColumnDefinition Width="254" MinWidth="220" /></Grid.ColumnDefinitions>
       <Border Background="{StaticResource SurfaceBrush}" Padding="16,20">
         <DockPanel LastChildFill="True">
@@ -34,21 +28,20 @@
       </Border>
       <Border Grid.Column="1" Background="{StaticResource LineBrush}" />
       <Grid Grid.Column="2">
-        <Grid.RowDefinitions><RowDefinition Height="65" /><RowDefinition Height="52" /><RowDefinition Height="42" /><RowDefinition Height="*" /><RowDefinition Height="46" /></Grid.RowDefinitions>
+        <Grid.RowDefinitions><RowDefinition Height="65" /><RowDefinition Height="52" /><RowDefinition Height="0" /><RowDefinition Height="*" /><RowDefinition Height="46" /></Grid.RowDefinitions>
         <DockPanel Margin="18,12">
-          <Button x:Name="BackButton" DockPanel.Dock="Left" Content="{local:Text Back}" Click="Back_Click" Margin="0,0,8,0" />
+          <StackPanel DockPanel.Dock="Left" Orientation="Horizontal"><Button x:Name="BackButton" FontFamily="Segoe Fluent Icons" Content="&#xE72B;" ToolTip="{local:Text Back}" AutomationProperties.Name="{local:Text Back}" Click="Back_Click" Width="32" Padding="0" /><Button x:Name="ForwardButton" FontFamily="Segoe Fluent Icons" Content="&#xE72A;" ToolTip="{local:Text Forward}" AutomationProperties.Name="{local:Text Forward}" Click="Forward_Click" Width="32" Padding="0" /><Button x:Name="UpButton" FontFamily="Segoe Fluent Icons" Content="&#xE74A;" ToolTip="{local:Text Up}" AutomationProperties.Name="{local:Text Up}" Click="Up_Click" Width="32" Padding="0" /></StackPanel>
           <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-            <Button x:Name="UpButton" Content="{local:Text Up}" Click="Up_Click" IsEnabled="False" /><Button x:Name="EnterButton" Content="{local:Text ClientEnter}" Click="Enter_Click" IsEnabled="False" />
             <Button x:Name="ExtractButton" Content="{local:Text ClientExtractAll}" Click="Extract_Click" Style="{StaticResource Primary}" Margin="8,0,0,0" />
             <Button x:Name="ExtractMore" Content="▾" ToolTip="{local:Text ClientExtractMode}" AutomationProperties.Name="{local:Text ClientExtractMode}" Click="ExtractMore_Click">
-              <Button.ContextMenu><ContextMenu Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextBrush}">
+              <Button.ContextMenu><ContextMenu Style="{StaticResource ExtractMenu}" ItemContainerStyle="{StaticResource ExtractMenuItem}" Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextBrush}">
                 <MenuItem Header="{local:Text ClientExtractAll}" Click="AllExtract_Click"/>
                 <MenuItem Header="{local:Text SmartExtract}" Click="SmartExtract_Click"/>
                 <MenuItem Header="{local:Text ClientExtractHere}" Click="HereExtract_Click"/>
               </ContextMenu></Button.ContextMenu>
             </Button>
           </StackPanel>
-          <TextBlock x:Name="LocationText" Text="{local:Text Root}" Foreground="{StaticResource MutedBrush}" />
+          <Grid Margin="6,0" Background="{StaticResource SurfaceBrush}"><ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"><StackPanel x:Name="Crumbs" Orientation="Horizontal" MouseLeftButtonDown="Address_MouseDown" Background="Transparent" /></ScrollViewer><TextBox x:Name="AddressInput" Visibility="Collapsed" KeyDown="Address_KeyDown" LostKeyboardFocus="Address_Blur" AutomationProperties.Name="{local:Text Path}" /></Grid>
         </DockPanel>
         <Grid Grid.Row="1" Margin="18,0,18,14"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
           <Grid>
@@ -58,32 +51,28 @@
           <CheckBox Grid.Column="1" x:Name="LocalSearchBox" Content="{local:Text CurrentDirectory}" Click="Scope_Click" Margin="10,0,0,0" />
           <Button x:Name="SearchSubmit" Grid.Column="2" Content="{local:Text ClientSearchButton}" Click="Search_Click" Margin="8,0,0,0" Style="{StaticResource Primary}" AutomationProperties.AutomationId="SearchSubmit" />
         </Grid>
-        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="18,0,18,8">
-          <ComboBox x:Name="SortBox" Width="135" SelectionChanged="Sort_Changed" AutomationProperties.Name="{local:Text SortName}" />
-          <CheckBox x:Name="DescendingBox" Content="{local:Text Descending}" Click="Sort_Changed" Margin="12,0" />
-          <ComboBox x:Name="EncodingBox" Width="220" SelectionChanged="Encoding_Changed" IsEnabled="False" AutomationProperties.Name="{local:Text FilenameEncoding}" />
-        </StackPanel>
+
         <DataGrid x:Name="EntryGrid" Grid.Row="3" Background="{StaticResource CanvasBrush}" BorderThickness="0" AutoGenerateColumns="False" IsReadOnly="True"
-          SelectionMode="Extended" SelectionUnit="FullRow" CanUserAddRows="False" CanUserDeleteRows="False" CanUserSortColumns="False" CanUserReorderColumns="False"
+          SelectionMode="Extended" SelectionUnit="FullRow" CanUserAddRows="False" CanUserDeleteRows="False" CanUserSortColumns="True" Sorting="Grid_Sorting" CanUserReorderColumns="False"
           HeadersVisibility="Column" RowHeight="40" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#2E2B28"
           EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.CanContentScroll="True"
           ScrollViewer.HorizontalScrollBarVisibility="Disabled" SelectionChanged="Grid_SelectionChanged" MouseDoubleClick="Grid_DoubleClick" PreviewKeyDown="Grid_KeyDown"
           AutomationProperties.Name="{local:Text ClientEntryList}" AutomationProperties.AutomationId="ArchiveEntries">
           <DataGrid.Columns>
-            <DataGridTemplateColumn Width="46" CanUserResize="False"><DataGridTemplateColumn.Header><CheckBox x:Name="SelectAllBox" IsThreeState="True" Click="All_Click" AutomationProperties.Name="{local:Text ClientSelectAll}" /></DataGridTemplateColumn.Header>
+            <DataGridTemplateColumn Width="46" CanUserSort="False" CanUserResize="False"><DataGridTemplateColumn.Header><CheckBox x:Name="SelectAllBox" IsThreeState="True" Click="All_Click" AutomationProperties.Name="{local:Text ClientSelectAll}" /></DataGridTemplateColumn.Header>
               <DataGridTemplateColumn.CellTemplate><DataTemplate><CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}" PreviewMouseLeftButtonDown="RowCheck_MouseDown" AutomationProperties.Name="{Binding Name}" /></DataTemplate></DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
-            <DataGridTemplateColumn Header="{local:Text Name}" Width="*" MinWidth="180"><DataGridTemplateColumn.CellTemplate><DataTemplate>
+            <DataGridTemplateColumn x:Name="NameColumn" SortMemberPath="Name" Header="{local:Text Name}" Width="*" MinWidth="180"><DataGridTemplateColumn.CellTemplate><DataTemplate>
               <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions><TextBlock Text="{Binding Glyph}" FontFamily="Segoe Fluent Icons" Foreground="{StaticResource AccentBrush}" Margin="0,0,10,0" /><TextBlock Grid.Column="1" Text="{Binding Name}" ToolTip="{Binding Path}" /></Grid>
             </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-            <DataGridTextColumn x:Name="PathColumn" Header="{local:Text Path}" Binding="{Binding Path}" Width="*" MinWidth="100" Visibility="Collapsed" />
-            <DataGridTextColumn Header="{local:Text ClientType}" Binding="{Binding TypeLabel}" Width="110" />
-            <DataGridTextColumn Header="{local:Text ClientSize}" Binding="{Binding SizeLabel}" Width="100" />
+            <DataGridTextColumn x:Name="PathColumn" SortMemberPath="Path" Header="{local:Text Path}" Binding="{Binding Path}" Width="*" MinWidth="100" Visibility="Collapsed" />
+            <DataGridTextColumn x:Name="TypeColumn" SortMemberPath="Type" Header="{local:Text ClientType}" Binding="{Binding TypeLabel}" Width="110" />
+            <DataGridTextColumn x:Name="SizeColumn" SortMemberPath="Size" Header="{local:Text ClientSize}" Binding="{Binding SizeLabel}" Width="100" />
           </DataGrid.Columns>
         </DataGrid>
         <TextBlock x:Name="EmptyText" Grid.Row="3" Text="{local:Text NoResults}" Style="{StaticResource Muted}" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" Visibility="Collapsed" />
         <DockPanel Grid.Row="4" Margin="18,0">
-          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"><Button x:Name="PreviousButton" Content="{local:Text ClientPrevious}" Click="Previous_Click" IsEnabled="False" /><Button x:Name="NextButton" Content="{local:Text ClientNext}" Click="Next_Click" IsEnabled="False" /></StackPanel>
+          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"><ComboBox x:Name="EncodingBox" Width="180" SelectionChanged="Encoding_Changed" AutomationProperties.Name="{local:Text FilenameEncoding}" /><Button x:Name="PreviousButton" Content="{local:Text ClientPrevious}" Click="Previous_Click" IsEnabled="False" /><Button x:Name="NextButton" Content="{local:Text ClientNext}" Click="Next_Click" IsEnabled="False" /></StackPanel>
           <TextBlock x:Name="SelectionText" Text="{local:Text ClientEmptySelection}" Style="{StaticResource Muted}" />
         </DockPanel>
       </Grid>
@@ -104,7 +93,7 @@
         </DockPanel>
       </Border>
     </Grid>
-    <Border Grid.Row="2" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0" Background="{StaticResource SurfaceBrush}"><DockPanel Margin="16,0">
+    <Border Grid.Row="1" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0" Background="{StaticResource SurfaceBrush}"><DockPanel Margin="16,0">
       <Button x:Name="CancelButton" DockPanel.Dock="Right" Content="{local:Text Cancel}" Click="Cancel_Click" Visibility="Collapsed" Padding="8,0" MinHeight="24" />
       <TextBlock x:Name="StatusText" Text="{local:Text ClientIdle}" Style="{StaticResource Muted}" />
     </DockPanel></Border>

@@ -23,6 +23,9 @@ public partial class MainWindow : Window
     private sealed record View(string Directory, string Search, bool Local, int Sort, bool Descending, int Offset);
     private View view = new("", "", false, 0, false, 0);
     private readonly List<(View Page, string[] Selected)> history = [];
+    private readonly List<(View Page, string[] Selected)> future = [];
+    private static readonly string[] SortKeys = ["name", "size", "type", "path"];
+    private readonly Button OpenButton = new();
     private bool composing, closed, changingItems, configuring = true;
     private LanguageService Text => ClientApp.Text;
     public string? OpenedPath { get; private set; }
@@ -37,7 +40,10 @@ public partial class MainWindow : Window
         InitializeComponent();
         LanguageBox.ItemsSource = new[] { "简体中文", "English (United States)" };
         LanguageBox.SelectedIndex = Text.Language == "en-US" ? 1 : 0;
-        SortBox.ItemsSource = new[] { Text["SortName"], Text["SortSize"] }; SortBox.SelectedIndex = 0;
+        OpenButton.Content = Text["Open"]; OpenButton.Click += Open_Click; OpenButton.Style = (Style)FindResource("Primary");
+        System.Windows.Automation.AutomationProperties.SetAutomationId(OpenButton,"OpenArchive");
+        GraphiteFrame.Install(this, OpenButton);
+        PreviewKeyDown += NavigationKey;
         EncodingBox.ItemsSource = new[] { Text["FilenameEncodingAuto"], "UTF-8 (65001)", "GBK (936)", "Shift-JIS (932)" }; EncodingBox.SelectedIndex = 0;
         TextCompositionManager.AddPreviewTextInputStartHandler(SearchBox, (_, _) => composing = true);
         TextCompositionManager.AddPreviewTextInputUpdateHandler(SearchBox, (_, _) => composing = true);
@@ -81,8 +87,8 @@ public partial class MainWindow : Window
     }
     private Task OpenAsync(string path, int requestedCodePage = 0, string? existingPassword = null)
     {
-        string order = SortBox.SelectedIndex == 1 ? "size" : "name";
-        bool descending = DescendingBox.IsChecked == true;
+        string order = SortKeys[view.Sort];
+        bool descending = view.Descending;
         return RunAsync(Text["Scanning"], async token =>
         {
             string fullPath = Path.GetFullPath(path);
@@ -104,44 +110,49 @@ public partial class MainWindow : Window
             var result = await Task.Run(() =>
             {
                 var presentation = new ArchivePresentation(scan, token);
-                return (presentation, page: presentation.Query(Request("", "", 0, order, descending), token), folders: presentation.GetRootFolders(token));
+                return (presentation, page: presentation.Query(Request("", "", 0, order, descending), token, typeLabel: EntryView.LabelFor), folders: presentation.GetRootFolders(token));
             }, token);
             return () =>
             {
                 archive = result.presentation; archiveName = Path.GetFileName(fullPath); OpenedPath = fullPath; password = candidatePassword;
                 ((ClientApp)Application.Current).RegisterOpened(this, fullPath, scan.Identity?.FileId);
                 directory = ""; codePage = requestedCodePage;
-                history.Clear(); LocalSearchBox.IsChecked = false; PathColumn.Visibility = Visibility.Collapsed;
-                view = new("", "", false, SortBox.SelectedIndex, descending, 0);
+                history.Clear(); future.Clear(); LocalSearchBox.IsChecked = false; PathColumn.Visibility = Visibility.Collapsed;
+                view = new("", "", false, view.Sort, descending, 0);
                 RootButton.Content = archiveName; Title = archiveName + " — AileArc";
                 SearchBox.Clear(); Folders.ItemsSource = result.folders; ApplyPage(result.page);
             };
         });
     }
     private static BrowserRequest Request(string directory, string search, int offset, string sort, bool descending) => new(1, Guid.NewGuid().ToString(), "query", Directory: directory, Search: search, Sort: sort, Descending: descending, Offset: offset);
-    private async Task QueryAsync(string targetDirectory, int targetOffset, bool clearSearch = false, bool submit = false, bool back = false)
+    private async Task QueryAsync(string targetDirectory, int targetOffset, bool clearSearch = false, bool submit = false, bool back = false, bool forward = false, int? sort = null, bool? descending = null)
     {
-        if (back && history.Count == 0) return;
-        var target = back ? history[^1].Page : new View(targetDirectory, clearSearch ? "" : submit ? SearchBox.Text : view.Search,
-            LocalSearchBox.IsChecked == true, SortBox.SelectedIndex, DescendingBox.IsChecked == true, targetOffset);
+        if ((back && history.Count == 0) || (forward && future.Count == 0)) return;
+        var target = back ? history[^1].Page : forward ? future[^1].Page : new View(targetDirectory, clearSearch ? "" : submit ? SearchBox.Text : view.Search,
+            LocalSearchBox.IsChecked == true, sort ?? view.Sort, descending ?? view.Descending, targetOffset);
         var current = archive;
         if (target.Search.Length > 512 || current is null || IsBusy) return;
         var selected = EntryGrid.SelectedItems.Cast<EntryView>().Select(row => row.Row.Id).ToArray();
         await RunAsync(Text["BuildingIndex"], async token =>
         {
             var page = await Task.Run(() => current.Query(Request(target.Directory, target.Search, target.Offset,
-                target.Sort == 1 ? "size" : "name", target.Descending), token, target.Local), token);
+                SortKeys[target.Sort], target.Descending), token, target.Local, EntryView.LabelFor), token);
             return () =>
             {
                 string[] restore = [];
-                if (back) { restore = history[^1].Selected; history.RemoveAt(history.Count - 1); }
+                if (back || forward)
+                {
+                    var source = back ? history : future; var destination = back ? future : history;
+                    destination.Add((view, selected)); restore = source[^1].Selected; source.RemoveAt(source.Count - 1);
+                }
                 else if (target.Directory != view.Directory || target.Search != view.Search || target.Local != view.Local && target.Search.Length > 0)
                 {
+                    future.Clear();
                     if (history.Count == 32) history.RemoveAt(0);
                     history.Add((view, selected));
                 }
                 view = target with { Offset = page.Offset }; directory = target.Directory;
-                if (clearSearch || back) SearchBox.Text = target.Search;
+                if (clearSearch || back || forward) SearchBox.Text = target.Search;
                 PathColumn.Visibility = target.Search.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
                 ApplyPage(page);
                 if (restore.Length > 0)
@@ -154,7 +165,7 @@ public partial class MainWindow : Window
         });
         // Commit controls to the view actually displayed, including after cancellation.
         configuring = true;
-        SortBox.SelectedIndex = view.Sort; DescendingBox.IsChecked = view.Descending; LocalSearchBox.IsChecked = view.Local;
+        UpdateHeaders(); LocalSearchBox.IsChecked = view.Local;
         configuring = false;
     }
     private void ApplyPage(BrowserPage page)
@@ -175,7 +186,7 @@ public partial class MainWindow : Window
     {
         bool idle = !IsBusy && ((ClientApp)Application.Current).CanStart(this);
         OpenButton.IsEnabled = idle; LanguageBox.IsEnabled = idle; RestartButton.IsEnabled = idle;
-        SearchBox.IsEnabled = idle && archive is not null; SortBox.IsEnabled = DescendingBox.IsEnabled = SearchBox.IsEnabled;
+        SearchBox.IsEnabled = idle && archive is not null;
         LocalSearchBox.IsEnabled = SearchBox.IsEnabled;
         configuring = true; EncodingBox.SelectedIndex = Array.IndexOf(CodePages, codePage); configuring = false;
         EncodingBox.IsEnabled = idle && archive?.Scan.Format == "ZIP";
@@ -187,7 +198,8 @@ public partial class MainWindow : Window
     }
     private void UpdateNavigation()
     {
-        LocationText.Text = directory.Length == 0 ? Text["Root"] : directory;
+        RefreshAddress(); UpdateHeaders();
+        ForwardButton.IsEnabled = !IsBusy && future.Count > 0;
         UpButton.IsEnabled = !IsBusy && directory.Length > 0;
         BackButton.IsEnabled = !IsBusy && history.Count > 0;
         PreviousButton.IsEnabled = !IsBusy && offset > 0;
@@ -209,7 +221,6 @@ public partial class MainWindow : Window
         var row = EntryGrid.SelectedItem as EntryView;
         DetailName.Text = count > 1 ? Text.Format("ClientManySelected", count) : row?.Name ?? Text["ClientSelectHint"];
         DetailPath.Text = count > 1 ? Text["ClientPageSelection"] : row?.Path ?? Text["ClientCheckboxHint"];
-        EnterButton.IsEnabled = !IsBusy && count == 1 && row?.Row.Type == "folder";
         OpenFileButton.IsEnabled = !IsBusy && count == 1 && row?.Row.Type != "folder" && archive is not null;
     }
     private void RowCheck_MouseDown(object sender, MouseButtonEventArgs e)
@@ -236,12 +247,10 @@ public partial class MainWindow : Window
     private async void Restart_Click(object sender, RoutedEventArgs e) { if (Application.Current.Windows.OfType<MainWindow>().Any(w => w.IsBusy)) StatusText.Text = Text["TaskRunning"]; else await ((ClientApp)Application.Current).RestartAsync(); }
     private async void Encoding_Changed(object sender, SelectionChangedEventArgs e)
     { if (!configuring && !IsBusy && OpenedPath is { } path && archive?.Scan.Format == "ZIP" && EncodingBox.SelectedIndex >= 0) await OpenAsync(path, CodePages[EncodingBox.SelectedIndex], password); }
-    private async void Sort_Changed(object sender, RoutedEventArgs e) { if (!configuring) await QueryAsync(directory, 0); }
     private async void Root_Click(object sender, RoutedEventArgs e) => await QueryAsync("", 0, true);
     private async void Folder_Click(object sender, RoutedEventArgs e) => await QueryAsync(((Button)sender).Tag?.ToString() ?? "", 0, true);
     private async void Up_Click(object sender, RoutedEventArgs e) => await QueryAsync(ArchiveIndex.ParentOf(directory), 0, true);
-    private async void Enter_Click(object sender, RoutedEventArgs e) => await ActivateAsync();
-    private Task ActivateAsync()
+    internal Task ActivateAsync()
     {
         if (IsBusy || EntryGrid.SelectedItems.Count != 1 || EntryGrid.SelectedItem is not EntryView row) return Task.CompletedTask;
         if (row.Row.Type == "folder") return QueryAsync(row.Path, 0, true);

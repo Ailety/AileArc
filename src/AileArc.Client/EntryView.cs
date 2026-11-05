@@ -11,7 +11,8 @@ public sealed class EntryView(BrowserRow row) : INotifyPropertyChanged
     public string Name => Row.Name;
     public override string ToString() => Name;
     public string Path => Row.Path;
-    public string TypeLabel => Row.Type switch { "folder" => ClientApp.Text["ClientFolder"], "md" => "Markdown", "code" => ClientApp.Text["ClientCode"], "text" => ClientApp.Text["ClientText"], _ => ClientApp.Text["ClientFile"] };
+    public string TypeLabel => LabelFor(Row.Type);
+    internal static string LabelFor(string kind) => kind switch { "folder" => ClientApp.Text["ClientFolder"], "md" => "Markdown", "code" => ClientApp.Text["ClientCode"], "text" => ClientApp.Text["ClientText"], _ => ClientApp.Text["ClientFile"] };
     public string SizeLabel => Row.Type == "folder" ? "—" : Row.Size?.ToString("N2", CultureInfo.CurrentCulture) ?? "—";
     public string Glyph => Row.Type == "folder" ? "\uE8B7" : "\uE8A5";
     public bool IsSelected

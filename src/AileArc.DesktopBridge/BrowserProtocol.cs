@@ -53,10 +53,10 @@ public sealed class ArchivePresentation
     }
     public BrowserRow[] RootFolders => GetRootFolders();
     public BrowserRow[] GetRootFolders(CancellationToken token = default) => Bound(Index.Query("", cancellationToken: token).Where(row => row.IsDirectory).Take(100), 128 * 1024);
-    public BrowserPage Query(BrowserRequest request, CancellationToken token = default, bool currentDirectoryOnly = false)
+    public BrowserPage Query(BrowserRequest request, CancellationToken token = default, bool currentDirectoryOnly = false, Func<string,string>? typeLabel = null)
     {
-        var rows = Index.Query(request.Directory.TrimEnd('/'), request.Search, currentDirectoryOnly, sort: request.Sort == "size" ? EntrySort.Size : EntrySort.Name,
-            descending: request.Descending, cancellationToken: token);
+        var rows = Index.Query(request.Directory.TrimEnd('/'), request.Search, currentDirectoryOnly, sort: request.Sort switch { "size" => EntrySort.Size, "type" => EntrySort.Type, "path" => EntrySort.Path, _ => EntrySort.Name },
+            descending: request.Descending, cancellationToken: token, typeLabel: typeLabel);
         int offset = Math.Min(request.Offset, rows.Length);
         var page = Bound(rows.Skip(offset).Take(200), 512 * 1024);
         return new(page, rows.Length, offset, offset + page.Length < rows.Length);
@@ -66,8 +66,7 @@ public sealed class ArchivePresentation
         var result = new List<BrowserRow>(); int bytes = 0;
         foreach (var row in rows)
         {
-            string extension = System.IO.Path.GetExtension(row.Name).ToLowerInvariant();
-            string type = row.IsDirectory ? "folder" : extension switch { ".pdf" => "pdf", ".md" => "md", ".txt" => "text", ".json" or ".yml" or ".cs" or ".xml" => "code", ".png" or ".jpg" or ".svg" => "image", _ => "file" };
+            string type = row.Kind;
             var item = new BrowserRow(row.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), row.Name,
                 row.Parent.Length > 0 ? row.Parent + "/" : "", row.Path, type, row.Size is null ? null : row.Size.Value / 1024d, "—", row.Encrypted);
             int length = JsonSerializer.SerializeToUtf8Bytes(item, BrowserProtocol.Json).Length;
