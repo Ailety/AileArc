@@ -2,6 +2,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Windows;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 
 namespace AileArc.Client;
 
@@ -22,16 +23,45 @@ internal static partial class ClientChecks
             var limit = DateTime.UtcNow.AddSeconds(10);
             while (window.IsBusy && DateTime.UtcNow < limit) await Task.Delay(10);
             Require(!window.IsBusy, "navigation completed");
+            await window.SearchSettled.WaitAsync(TimeSpan.FromSeconds(10));
         }
         await window.TestOpenAsync(path);
+        window.SearchBox.Text = "obsolete";
+        window.TestGrid.Focus();
+        var find = window.InputBindings.OfType<KeyBinding>().Single(k => k.Key == Key.F && k.Modifiers == ModifierKeys.Control);
+        ((RoutedCommand)find.Command).Execute(null, window);
+        Require(FocusManager.GetFocusedElement(window) == window.SearchBox && window.SearchBox.SelectedText == "obsolete", "Ctrl+F focuses search and selects its content");
+        void Composition(RoutedEvent stage)
+        {
+            var composition = new TextComposition(InputManager.Current, window.SearchBox, "");
+            window.SearchBox.RaiseEvent(new TextCompositionEventArgs(Keyboard.PrimaryDevice, composition) { RoutedEvent = stage, Handled = true });
+        }
+        Composition(TextCompositionManager.PreviewTextInputStartEvent);
+        window.SearchBox.Text = "nei";
+        Composition(TextCompositionManager.PreviewTextInputUpdateEvent);
+        await Task.Delay(300);
+        Require(window.TestGrid.Items.Count == 200 && window.PathColumn.Visibility == Visibility.Collapsed, "IME preedit never filters even after debounce");
+        window.SearchBox.Text = "内容";
+        Composition(TextCompositionManager.PreviewTextInputEvent);
+        await window.SearchSettled.WaitAsync(TimeSpan.FromSeconds(10));
+        Require(window.TestGrid.Items.Cast<EntryView>().All(r => r.Name == "内容.txt") && window.TestGrid.Items.Count == 200, "IME commit filters the final Chinese word");
+        await Click(window.ClearSearch);
+        Require(window.SearchBox.Text == "" && window.PathColumn.Visibility == Visibility.Collapsed && window.TestGrid.Items.Count == 200, "one-click clear restores directory");
+        window.SearchBox.Text = "MatchH";
+        await window.SearchSettled.WaitAsync(TimeSpan.FromSeconds(10));
+        window.SearchBox.Text = "matchhidd";
+        window.SearchBox.Text = "invalid";
         window.SearchBox.Text = "match";
-        await Click(window.SearchSubmit);
+        await window.SearchSettled.WaitAsync(TimeSpan.FromSeconds(10));
         Require(window.PathColumn.Visibility == Visibility.Visible, "show archive paths in search");
-        window.SearchBox.Text = "unsubmitted";
+        await Click(window.BackButton);
+        Require(window.SearchBox.Text == "" && window.PathColumn.Visibility == Visibility.Collapsed, "back skips intermediate search prefixes");
+        await Click(window.ForwardButton);
+        Require(window.SearchBox.Text == "match", "forward restores latest search");
         await Click(window.NextButton);
         var rows = window.TestGrid.Items.Cast<EntryView>().ToArray();
         Require(rows.Length == 3 && rows.Where(r => r.Name == "MatchHidden.txt").Select(r => r.Path).Distinct().Count() == 2,
-            "whole archive search, distinct result paths and paging use submitted query");
+            "latest live search, distinct result paths and paging");
         var folder = rows.Single(r => r.Name == "Match200");
         window.TestGrid.SelectedItem = folder;
         await window.ActivateAsync();

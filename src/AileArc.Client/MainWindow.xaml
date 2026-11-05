@@ -44,13 +44,14 @@
           </StackPanel>
           <Grid Margin="6,0" Background="{StaticResource SurfaceBrush}"><ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"><StackPanel x:Name="Crumbs" Orientation="Horizontal" MouseLeftButtonDown="Address_MouseDown" Background="Transparent" /></ScrollViewer><TextBox x:Name="AddressInput" Visibility="Collapsed" KeyDown="Address_KeyDown" LostKeyboardFocus="Address_Blur" AutomationProperties.Name="{local:Text Path}" /></Grid>
         </DockPanel>
-        <Grid Grid.Row="1" Margin="18,0,18,14"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+        <Grid Grid.Row="1" Margin="18,0,18,14"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
           <Grid>
-            <TextBox x:Name="SearchBox" MaxLength="512" KeyDown="Search_KeyDown" TextChanged="Search_TextChanged" AutomationProperties.Name="{local:Text Search}" AutomationProperties.AutomationId="ArchiveSearch" />
+            <TextBox x:Name="SearchBox" MaxLength="512" Padding="12,0,48,0" VerticalContentAlignment="Center" KeyDown="Search_KeyDown" TextChanged="Search_TextChanged" AutomationProperties.Name="{local:Text Search}" AutomationProperties.AcceleratorKey="Ctrl+F" AutomationProperties.AutomationId="ArchiveSearch" />
             <TextBlock x:Name="SearchHint" Text="{local:Text Search}" Style="{StaticResource Muted}" Margin="13,0" IsHitTestVisible="False" />
+            <TextBlock x:Name="ShortcutHint" Text="Ctrl+F" Style="{StaticResource Muted}" HorizontalAlignment="Right" Margin="0,0,10,0" IsHitTestVisible="False" />
+            <Button x:Name="ClearSearch" Content="×" HorizontalAlignment="Right" Width="32" Margin="0,0,3,0" Padding="0" Visibility="Collapsed" Click="ClearSearch_Click" ToolTip="{local:Text ClientClearSearch}" AutomationProperties.Name="{local:Text ClientClearSearch}" />
           </Grid>
           <CheckBox Grid.Column="1" x:Name="LocalSearchBox" Content="{local:Text CurrentDirectory}" Click="Scope_Click" Margin="10,0,0,0" />
-          <Button x:Name="SearchSubmit" Grid.Column="2" Content="{local:Text ClientSearchButton}" Click="Search_Click" Margin="8,0,0,0" Style="{StaticResource Primary}" AutomationProperties.AutomationId="SearchSubmit" />
         </Grid>
 
         <DataGrid x:Name="EntryGrid" Grid.Row="3" Background="{StaticResource CanvasBrush}" BorderThickness="0" AutoGenerateColumns="False" IsReadOnly="True"

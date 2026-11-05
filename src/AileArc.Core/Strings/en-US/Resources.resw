@@ -220,4 +220,5 @@ Ctrl + A: select this page</value></data>
   <data name="ClientExactSize"><value>{0:N0} bytes</value></data>
   <data name="ClientPathCopied"><value>Archive path copied.</value></data>
   <data name="ClientClipboardBusy"><value>Clipboard is busy. Please try again.</value></data>
+  <data name="ClientClearSearch"><value>Clear search</value></data>
 </root>

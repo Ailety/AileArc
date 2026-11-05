@@ -45,19 +45,17 @@ public partial class MainWindow : Window
         GraphiteFrame.Install(this, OpenButton);
         PreviewKeyDown += NavigationKey;
         EncodingBox.ItemsSource = new[] { Text["FilenameEncodingAuto"], "UTF-8 (65001)", "GBK (936)", "Shift-JIS (932)" }; EncodingBox.SelectedIndex = 0;
-        TextCompositionManager.AddPreviewTextInputStartHandler(SearchBox, (_, _) => composing = true);
-        TextCompositionManager.AddPreviewTextInputUpdateHandler(SearchBox, (_, _) => composing = true);
-        TextCompositionManager.AddPreviewTextInputHandler(SearchBox, (_, _) => composing = false);
-        SearchBox.LostKeyboardFocus += (_, _) => composing = false;
+        InitializeSearch();
         EmptyText.Text = Text["WelcomeDetail"]; EmptyText.Visibility = Visibility.Visible;
         configuring = false; SetControls();
         InitializeOperations();
         Loaded += async (_, _) => { if (initialPath is not null) await OpenAsync(initialPath, this.initialCodePage); };
-        Closed += (_, _) => { closed = true; generation++; operation?.Cancel(); password = null; ((ClientApp)Application.Current).Unregister(this); };
+        Closed += (_, _) => { closed = true; CancelLiveSearch(); generation++; operation?.Cancel(); password = null; ((ClientApp)Application.Current).Unregister(this); };
     }
     private async Task RunAsync(string status, Func<CancellationToken, Task<Action>> prepare, bool resetStatus = true)
     {
         if (IsBusy || closingCheck || !((ClientApp)Application.Current).CanStart(this)) return;
+        CancelLiveSearch();
         operation?.Cancel();
         idleCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
         using var cancellation = new CancellationTokenSource(); operation = cancellation;
@@ -125,7 +123,7 @@ public partial class MainWindow : Window
         });
     }
     private static BrowserRequest Request(string directory, string search, int offset, string sort, bool descending) => new(1, Guid.NewGuid().ToString(), "query", Directory: directory, Search: search, Sort: sort, Descending: descending, Offset: offset);
-    private async Task QueryAsync(string targetDirectory, int targetOffset, bool clearSearch = false, bool submit = false, bool back = false, bool forward = false, int? sort = null, bool? descending = null)
+    private async Task QueryAsync(string targetDirectory, int targetOffset, bool clearSearch = false, bool submit = false, bool back = false, bool forward = false, int? sort = null, bool? descending = null, CancellationToken? live = null)
     {
         if ((back && history.Count == 0) || (forward && future.Count == 0)) return;
         var target = back ? history[^1].Page : forward ? future[^1].Page : new View(targetDirectory, clearSearch ? "" : submit ? SearchBox.Text : view.Search,
@@ -133,7 +131,7 @@ public partial class MainWindow : Window
         var current = archive;
         if (target.Search.Length > 512 || current is null || IsBusy) return;
         var selected = EntryGrid.SelectedItems.Cast<EntryView>().Select(row => row.Row.Id).ToArray();
-        await RunAsync(Text["BuildingIndex"], async token =>
+        async Task<Action> Prepare(CancellationToken token)
         {
             var page = await Task.Run(() => current.Query(Request(target.Directory, target.Search, target.Offset,
                 SortKeys[target.Sort], target.Descending), token, target.Local, EntryView.LabelFor), token);
@@ -148,8 +146,12 @@ public partial class MainWindow : Window
                 else if (target.Directory != view.Directory || target.Search != view.Search || target.Local != view.Local && target.Search.Length > 0)
                 {
                     future.Clear();
-                    if (history.Count == 32) history.RemoveAt(0);
-                    history.Add((view, selected));
+                    // Refining an active search is one navigation step, even with pauses between letters.
+                    if (!(live.HasValue && view.Directory == target.Directory && view.Local == target.Local && view.Search.Length > 0 && target.Search.Length > 0))
+                    {
+                        if (history.Count == 32) history.RemoveAt(0);
+                        history.Add((view, selected));
+                    }
                 }
                 view = target with { Offset = page.Offset }; directory = target.Directory;
                 if (clearSearch || back || forward) SearchBox.Text = target.Search;
@@ -162,7 +164,15 @@ public partial class MainWindow : Window
                     if (EntryGrid.SelectedItem is EntryView first) EntryGrid.ScrollIntoView(first);
                 }
             };
-        });
+        }
+        if (live is { } latest)
+        {
+            var commit = await Prepare(latest);
+            latest.ThrowIfCancellationRequested();
+            if (!closed && !IsBusy && !composing && ReferenceEquals(current, archive) && SearchBox.Text == target.Search) commit();
+            return;
+        }
+        await RunAsync(Text["BuildingIndex"], Prepare);
         // Commit controls to the view actually displayed, including after cancellation.
         configuring = true;
         UpdateHeaders(); LocalSearchBox.IsChecked = view.Local;
@@ -188,6 +198,9 @@ public partial class MainWindow : Window
         OpenButton.IsEnabled = idle; LanguageBox.IsEnabled = idle; RestartButton.IsEnabled = idle;
         SearchBox.IsEnabled = idle && archive is not null;
         LocalSearchBox.IsEnabled = SearchBox.IsEnabled;
+        ClearSearch.IsEnabled = SearchBox.IsEnabled;
+        if (!idle) CancelLiveSearch();
+        else if (SearchBox.Text != view.Search && pendingSearch is null) ScheduleSearch();
         configuring = true; EncodingBox.SelectedIndex = Array.IndexOf(CodePages, codePage); configuring = false;
         EncodingBox.IsEnabled = idle && archive?.Scan.Format == "ZIP";
         EntryGrid.IsEnabled = idle; RootButton.IsEnabled = idle; Folders.IsEnabled = idle;
@@ -284,10 +297,7 @@ public partial class MainWindow : Window
     private async void Previous_Click(object sender, RoutedEventArgs e) => await QueryAsync(directory, Math.Max(0, offset - 200));
     private async void Next_Click(object sender, RoutedEventArgs e) => await QueryAsync(directory, offset + displayed.Length);
     private async void Back_Click(object sender, RoutedEventArgs e) => await QueryAsync(directory, 0, back: true);
-    private async void Scope_Click(object sender, RoutedEventArgs e) => await QueryAsync(directory, 0, submit: true);
-    private async void Search_Click(object sender, RoutedEventArgs e) => await QueryAsync(directory, 0, submit: true);
-    private async void Search_KeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Escape) composing = false; if (e.Key == Key.Enter && !composing) { e.Handled = true; await QueryAsync(directory, 0, submit: true); } }
-    private void Search_TextChanged(object sender, TextChangedEventArgs e) { if (SearchHint is not null) SearchHint.Visibility = SearchBox.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed; }
+    private void Scope_Click(object sender, RoutedEventArgs e) => ScheduleSearch(immediate: true);
     private void Cancel_Click(object sender, RoutedEventArgs e) => operation?.Cancel();
     private static T? FindAncestor<T>(DependencyObject? element) where T : DependencyObject
     { while (element is not null) { if (element is T result) return result; element = element is Visual ? VisualTreeHelper.GetParent(element) : LogicalTreeHelper.GetParent(element); } return null; }
