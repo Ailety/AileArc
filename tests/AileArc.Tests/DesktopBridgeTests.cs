@@ -48,6 +48,32 @@ public sealed class DesktopBridgeTests
         Assert.DoesNotContain("<img",JsonSerializer.Serialize(model.Query(Query(search:"onerror")),BrowserProtocol.Json));
     }
     [Fact]
+    public void PagingReusesOrderButRespectsNewSortScopeAndCancellation()
+    {
+        var entries = Enumerable.Range(0,450).Select(i=>new ArchiveEntry(i,i%2==0 ? $"a/{i}.md" : $"b/{i}.txt",false,(ulong)i,false)).ToArray();
+        var model = new ArchivePresentation(new("ZIP",entries));
+        int comparisons = 0;
+        string Label(string kind) { comparisons++; return kind; }
+        var query = Query(search:".") with { Sort="type" };
+        var first = model.Query(query, typeLabel:Label);
+        int cold = comparisons;
+        var next = model.Query(query with { Offset=200 }, typeLabel:Label);
+        Assert.True(cold > 0); Assert.Equal(450,next.Total); Assert.Equal(cold,comparisons);
+        Assert.Empty(first.Rows.Select(r=>r.Id).Intersect(next.Rows.Select(r=>r.Id)));
+        Assert.Throws<OperationCanceledException>(()=>model.Query(query,new CancellationToken(true),typeLabel:Label));
+        Assert.All(model.Query(query with { Descending=true },typeLabel:Label).Rows,r=>Assert.Equal("text",r.Type));
+        Assert.Equal(225,model.Query(query with { Directory="a" },currentDirectoryOnly:true,typeLabel:Label).Total);
+    }
+    [Fact]
+    public void LocateWorksWhenMetadataBudgetShortensTheContainingPage()
+    {
+        string common = new string('文',1000);
+        var entries = Enumerable.Range(0,100).Select(i=>new ArchiveEntry(i,common+i.ToString("D3"),false,0,false)).ToArray();
+        var model = new ArchivePresentation(new("ZIP",entries));
+        Assert.True(model.Query(Query()).Rows.Length < 90);
+        Assert.Contains(model.Query(Query(),revealId:90).Rows,r=>r.Id=="90");
+    }
+    [Fact]
     public void DeepImplicitPathsAreRejectedBeforeIndexExpansion()
     {
         var path=string.Concat(Enumerable.Repeat("a/",16000))+"x";

@@ -37,6 +37,10 @@ public sealed record BrowserRow(string Id, string Name, string Parent, string Pa
 public sealed record BrowserPage(BrowserRow[] Rows, int Total, int Offset, bool HasMore);
 public sealed class ArchivePresentation
 {
+    private sealed record OrderKey(string Directory, string Search, bool Local, string Sort, bool Descending, Func<string,string>? TypeLabel);
+    private sealed record OrderedView(OrderKey Key, BrowserEntry[] Rows);
+    private OrderedView? lastView;
+    private long queryVersion;
     public ArchiveIndex Index { get; }
     public ArchiveScan Scan { get; }
     public ArchivePresentation(ArchiveScan scan, CancellationToken token = default)
@@ -56,12 +60,36 @@ public sealed class ArchivePresentation
     }
     public BrowserRow[] RootFolders => GetRootFolders();
     public BrowserRow[] GetRootFolders(CancellationToken token = default) => Bound(Index.Query("", cancellationToken: token).Where(row => row.IsDirectory).Take(100), 128 * 1024);
-    public BrowserPage Query(BrowserRequest request, CancellationToken token = default, bool currentDirectoryOnly = false, Func<string,string>? typeLabel = null)
+    public BrowserPage Query(BrowserRequest request, CancellationToken token = default, bool currentDirectoryOnly = false, Func<string,string>? typeLabel = null, long? revealId = null)
     {
-        var rows = Index.Query(request.Directory.TrimEnd('/'), request.Search, currentDirectoryOnly, sort: request.Sort switch { "size" => EntrySort.Size, "type" => EntrySort.Type, "path" => EntrySort.Path, _ => EntrySort.Name },
-            descending: request.Descending, cancellationToken: token, typeLabel: typeLabel);
+        token.ThrowIfCancellationRequested();
+        long version = Interlocked.Increment(ref queryVersion);
+        var key = new OrderKey(request.Directory.TrimEnd('/'), request.Search, currentDirectoryOnly, request.Sort, request.Descending,
+            request.Sort == "type" ? typeLabel : null);
+        var cached = Volatile.Read(ref lastView);
+        var rows = cached?.Key == key ? cached.Rows : Index.Query(key.Directory, key.Search, key.Local,
+            sort: key.Sort switch { "size" => EntrySort.Size, "type" => EntrySort.Type, "path" => EntrySort.Path, _ => EntrySort.Name },
+            descending: key.Descending, cancellationToken: token, typeLabel: key.TypeLabel);
+        token.ThrowIfCancellationRequested();
+        if (cached?.Key != key && Volatile.Read(ref queryVersion) == version)
+            Volatile.Write(ref lastView, new OrderedView(key, rows));
         int offset = Math.Min(request.Offset, rows.Length);
+        int at = -1;
+        if (revealId is long id)
+        {
+            at = Array.FindIndex(rows, r => r.Id == id);
+            if (at < 0) throw new ArchiveOperationException("ArchiveChanged");
+            offset = at / 200 * 200;
+        }
         var page = Bound(rows.Skip(offset).Take(200), 512 * 1024);
+        if (at >= 0 && !page.Any(r => r.Id == revealId!.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)))
+        {
+            // Long paths can shorten the nominal page. Ensure the requested item itself fits.
+            offset = at; page = Bound(rows.Skip(offset).Take(200), 512 * 1024);
+            if (page.Length == 0 || page[0].Id != rows[at].Id.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                throw new ArchiveOperationException("ResourceLimit");
+        }
+        token.ThrowIfCancellationRequested();
         return new(page, rows.Length, offset, offset + page.Length < rows.Length);
     }
     private static BrowserRow[] Bound(IEnumerable<BrowserEntry> rows, int limit)
