@@ -43,6 +43,7 @@ public partial class MainWindow
         {
             clear.IsEnabled = sources.Count > 0;
             bool validPath = ActionDialog.IsLocalDestination(destination.Text) && Path.GetFileName(destination.Text).Length != 0;
+            hint.Text = Text["ClientLocalFileHint"];
             hint.Visibility = !validPath && destination.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
             dialog.Accept.IsEnabled = sources.Count > 0 && validPath;
             names.IsEnabled = format.SelectedIndex == 1 && secret.Password.Length > 0;
@@ -81,15 +82,27 @@ public partial class MainWindow
         format.SelectionChanged += (_, _) => { if (destination.Text.Length > 0) destination.Text = Path.ChangeExtension(destination.Text, format.SelectedIndex == 0 ? ".zip" : ".7z"); Refresh(); };
         Refresh();
         Add(initialSources);
+        CompressionDestination? captured = null;
+        dialog.BeforeAccept = async () =>
+        {
+            string destinationPath = destination.Text.Trim();
+            try { captured = await Task.Run(() => CompressionDestination.Capture(destinationPath)); }
+            catch (AileArc.Core.ArchiveOperationException e)
+            {
+                hint.Text = Text[e.Code]; hint.Visibility = Visibility.Visible; return false;
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or System.ComponentModel.Win32Exception)
+            { hint.Text = Text["CompressionTargetUnavailable"]; hint.Visibility = Visibility.Visible; return false; }
+            return dialog.IsVisible && (captured.Existing is null || Confirm("ReplaceArchive",
+                captured.FullPath + Environment.NewLine + Text["ReplaceArchiveHint"], "Replace", owner: dialog));
+        };
         try
         {
-            if (dialog.ShowDialog() != true) return;
-            string target = destination.Text.Trim();
-            bool overwrite = File.Exists(target);
-            if (overwrite && !Confirm("ReplaceArchive", target + Environment.NewLine + Text["ReplaceArchiveHint"], "Replace")) return;
-            var options = new CompressionOptions(sources.ToArray(), target, format.SelectedIndex == 0 ? "ZIP" : "7Z",
+            if (dialog.ShowDialog() != true || captured is null) return;
+            var options = new CompressionOptions(sources.ToArray(), captured.FullPath, format.SelectedIndex == 0 ? "ZIP" : "7Z",
                 preset.SelectedIndex switch { 0 => "Fast", 2 => "Maximum", _ => "Balanced" },
-                secret.Password.Length == 0 ? null : secret.Password, names.IsChecked == true, overwrite);
+                secret.Password.Length == 0 ? null : secret.Password, names.IsChecked == true,
+                Overwrite: captured.Existing is not null, ConfirmedDestination: captured);
             secret.Clear();
             await CreateArchiveAsync(options);
         }
@@ -97,9 +110,9 @@ public partial class MainWindow
     }
     internal Task CreateArchiveAsync(CompressionOptions options)
     {
-        LastCreated = null;
         return RunAsync(Text["Compressing"], async token =>
         {
+            LastCreated = null;
             int version = generation;
             using var report = new WindowProgress<CompressionProgress>(Dispatcher, p =>
             {
@@ -109,5 +122,10 @@ public partial class MainWindow
             var result = await Task.Run(() => worker.CreateAsync(options, report, token), token);
             return () => { LastCreated = result; StatusText.Text = Text.Format("ArchiveCreated", result.Entries, result.Destination); };
         }, false);
+    }
+
+    private void ShowCreatedFolder_Click(object sender, RoutedEventArgs e)
+    {
+        if (!IsBusy && LastCreated is { } result) LaunchFolder(Path.GetDirectoryName(result.Destination)!);
     }
 }

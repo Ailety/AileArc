@@ -8,6 +8,8 @@ internal class ActionDialog : Window
 {
     internal StackPanel Body { get; } = new() { Margin = new Thickness(24) };
     internal Button Accept { get; }
+    internal Func<Task<bool>>? BeforeAccept { get; set; }
+    private bool validating;
     internal ActionDialog(Window owner, string title, string accept = "Continue", string cancel = "Cancel")
     {
         Owner = owner; Title = ClientApp.Text[title]; Width = 560; MaxHeight = 700;
@@ -20,7 +22,14 @@ internal class ActionDialog : Window
         var layout = new DockPanel();
         var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(24, 0, 24, 20) };
         Accept = new Button { Content = ClientApp.Text[accept], Style = (Style)FindResource("Primary") };
-        Accept.Click += (_, _) => DialogResult = true;
+        Accept.Click += async (_, _) =>
+        {
+            if (validating || !Accept.IsEnabled) return;
+            if (BeforeAccept is null) { DialogResult = true; return; }
+            validating = true; Accept.IsEnabled = Body.IsEnabled = false;
+            try { if (await BeforeAccept() && IsVisible) DialogResult = true; }
+            finally { validating = false; if (IsVisible) Accept.IsEnabled = Body.IsEnabled = true; }
+        };
         if (accept == cancel) Accept.IsCancel = true;
         else actions.Children.Add(new Button { Content = ClientApp.Text[cancel], IsCancel = true });
         actions.Children.Add(Accept);

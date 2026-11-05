@@ -73,7 +73,11 @@ public partial class MainWindow : Window
         catch (InvalidOperationException) when (cancellation.IsCancellationRequested) { }
         catch (ArchiveOperationException error)
         {
-            if (!closed && version == generation) StatusText.Text = Text[error.Code == "ArchiveChanged" && archive is not null ? "ClientReloadRequired" : error.Code];
+            if (!closed && version == generation)
+            {
+                var message = Text[error.Code == "ArchiveChanged" && archive is not null ? "ClientReloadRequired" : error.Code];
+                StatusText.Text = error.AffectedPath is { } affected ? Text.Format("ClientIssueAtPath", message, affected) : message;
+            }
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException or System.ComponentModel.Win32Exception)
         { if (!closed && version == generation) StatusText.Text = Text["OpenFailed"]; }
@@ -271,6 +275,7 @@ public partial class MainWindow : Window
         ExtractButton.IsEnabled = ExtractMore.IsEnabled = idle && archive is not null;
         TestArchiveButton.IsEnabled = idle && archive is not null;
         ResultButton.Visibility = idle && LastExtraction is not null ? Visibility.Visible : Visibility.Collapsed;
+        CreatedFolderButton.Visibility = idle && LastCreated is not null ? Visibility.Visible : Visibility.Collapsed;
         CopiesButton.IsEnabled = idle;
         CreateButton.IsEnabled = RecoveryButton.IsEnabled = idle;
     }

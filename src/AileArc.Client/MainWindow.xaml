@@ -183,9 +183,10 @@
     <Border Grid.Row="1" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0" Background="{StaticResource SurfaceBrush}"><DockPanel Margin="16,0">
       <Button x:Name="CancelButton" DockPanel.Dock="Right" Content="{local:Text Cancel}" Click="Cancel_Click" Visibility="Collapsed" Padding="8,0" MinHeight="24" />
       <Button x:Name="ResultButton" DockPanel.Dock="Right" Content="{local:Text ClientResult}" Click="Result_Click" Visibility="Collapsed" Padding="8,0" MinHeight="24" />
+      <Button x:Name="CreatedFolderButton" DockPanel.Dock="Right" Content="{local:Text ClientCreatedFolder}" Click="ShowCreatedFolder_Click" Visibility="Collapsed" Padding="8,0" MinHeight="24" />
       <CheckBox x:Name="CompactList" DockPanel.Dock="Right" Content="{local:Text ClientCompact}" Click="Density_Click" VerticalAlignment="Center" Margin="8,0"/>
       <Border x:Name="ActivityDot" DockPanel.Dock="Left" Background="{StaticResource AccentBrush}" Width="7" Height="7" CornerRadius="4" Margin="0,0,8,0" Visibility="Collapsed"/>
-      <TextBlock x:Name="StatusText" Text="{local:Text ClientIdle}" Style="{StaticResource Muted}" />
+      <TextBlock x:Name="StatusText" Text="{local:Text ClientIdle}" Style="{StaticResource Muted}" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
     </DockPanel></Border>
     <Border x:Name="DropHint" Grid.RowSpan="2" Margin="12" CornerRadius="8" BorderThickness="2" BorderBrush="{StaticResource AccentBrush}" Background="{StaticResource SurfaceBrush}" Visibility="Collapsed" IsHitTestVisible="False">
       <TextBlock Text="{local:Text ClientDropHint}" HorizontalAlignment="Center" FontSize="22"/>

@@ -75,7 +75,13 @@ internal static partial class ClientChecks
             var dialog = app.Windows.OfType<ActionDialog>().FirstOrDefault(w => w.Title == title);
             if (dialog is null) return;
             timer.Stop();
-            try { inspect(dialog); if (dialog.IsVisible) dialog.DialogResult = accept; done.TrySetResult(); }
+            try
+            {
+                inspect(dialog);
+                if (dialog.IsVisible && accept && dialog.BeforeAccept is not null) dialog.Accept.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                else if (dialog.IsVisible) dialog.DialogResult = accept;
+                done.TrySetResult();
+            }
             catch (Exception error) { if (dialog.IsVisible) dialog.DialogResult = false; done.TrySetException(error); }
         };
         timer.Start();

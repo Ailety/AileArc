@@ -32,10 +32,10 @@ public partial class MainWindow
     internal string? LastCopyPath { get; private set; }
     internal Func<string, string, bool>? ConfirmOverride { get; set; }
 
-    private bool Confirm(string title, string detail, string accept = "Continue", string cancel = "Cancel")
+    private bool Confirm(string title, string detail, string accept = "Continue", string cancel = "Cancel", Window? owner = null)
     {
         if (ConfirmOverride is { } test) return test(title, detail);
-        var dialog = new ActionDialog(this, title, accept, cancel); dialog.Explain(detail); return dialog.ShowDialog() == true;
+        var dialog = new ActionDialog(owner ?? this, title, accept, cancel); dialog.Explain(detail); return dialog.ShowDialog() == true;
     }
     private void InitializeOperations()
     {

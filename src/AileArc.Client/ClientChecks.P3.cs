@@ -42,6 +42,58 @@ internal static partial class ClientChecks
         var created = await worker.ScanAsync(zip);
         Require(window.LastCreated?.Entries == 1 && created.Format == "ZIP" && created.Entries.Single().Path == Path.GetFileName(source),
             "created ZIP contains just the retained input");
+        string? openedFolder = null; var previousOpenFolder = window.OpenFolder;
+        window.OpenFolder = value => openedFolder = value;
+        try
+        {
+            Require(window.CreatedFolderButton.IsVisible, "successful creation exposes the output folder");
+            window.CreatedFolderButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Require(openedFolder == root, "creation result opens its own destination directory");
+        }
+        finally { window.OpenFolder = previousOpenFolder; }
+        string changing = Path.Combine(root, "正在替换.zip");
+        await File.WriteAllTextAsync(changing, "first");
+        var priorConfirm = window.ConfirmOverride;
+        try
+        {
+            window.ConfirmOverride = (title, _) =>
+            {
+                Require(title == "ReplaceArchive", "overwrite requires explicit confirmation");
+                string other = changing + ".new";
+                File.WriteAllText(other, "created by another task"); File.Move(other, changing, true);
+                return true;
+            };
+            await ObserveDialogAsync(app, ClientApp.Text["CreateArchive"], () => window.ShowCreateDialogAsync([source]), dialog =>
+                dialog.Body.Children.OfType<TextBox>().Single().Text = changing, accept: true);
+            Require(window.LastCreated is null && !window.CreatedFolderButton.IsVisible &&
+                window.StatusText.Text == ClientApp.Text.Format("ClientIssueAtPath", ClientApp.Text["CompressionTargetChanged"], changing) && File.ReadAllText(changing) == "created by another task",
+                "confirming a stale destination cannot replace the newer file or show a success action");
+        }
+        finally { window.ConfirmOverride = priorConfirm; }
+        string alternate = Path.Combine(root, "保留输入另存.zip");
+        bool retained = false;
+        try
+        {
+            window.ConfirmOverride = (_, _) =>
+            {
+                var form = app.Windows.OfType<ActionDialog>().Single(d => d.Title == ClientApp.Text["CreateArchive"]);
+                _ = form.Dispatcher.BeginInvoke(new Action(async () =>
+                {
+                    var until = DateTime.UtcNow.AddSeconds(5);
+                    while (form.IsVisible && !form.Body.IsEnabled && DateTime.UtcNow < until) await Task.Delay(10);
+                    if (!form.IsVisible || !form.Body.IsEnabled) { if (form.IsVisible) form.Close(); return; }
+                    retained = form.Body.Children.OfType<ListBox>().Single().Items.Cast<string>().SequenceEqual([source]);
+                    form.Body.Children.OfType<TextBox>().Single().Text = alternate;
+                    form.Accept.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                }));
+                return false;
+            };
+            await ObserveDialogAsync(app, ClientApp.Text["CreateArchive"], () => window.ShowCreateDialogAsync([source]), dialog =>
+                dialog.Body.Children.OfType<TextBox>().Single().Text = changing, accept: true);
+            Require(retained && window.LastCreated?.Destination == alternate && File.ReadAllText(changing) == "created by another task",
+                "declining overwrite keeps the same source list and lets the user choose another destination");
+        }
+        finally { window.ConfirmOverride = priorConfirm; }
         byte[] original = await File.ReadAllBytesAsync(zip);
         await window.CreateArchiveAsync(new([source], zip));
         byte[] preserved = await File.ReadAllBytesAsync(zip);
