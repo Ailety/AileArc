@@ -16,6 +16,13 @@ jobs:
       - name: Verify installation, upgrade and uninstall
         shell: pwsh
         run: ./scripts/Test-Install.ps1 -BundleDirectory .artifacts/ci-package
+      - name: Exercise rendered first-page and scan cancellation measurements
+        shell: pwsh
+        run: |
+          python scripts/Create-UIValidationSamples.py .artifacts/measure-fixtures
+          if ($LASTEXITCODE -ne 0) { throw 'Measurement fixtures failed.' }
+          ./scripts/Measure-Client.ps1 -Archive .artifacts/measure-fixtures/entries-1000.zip -Runs 1
+          ./scripts/Measure-Client.ps1 -Archive .artifacts/measure-fixtures/entries-100000.zip -Mode cancel -Runs 1
       - name: Build isolated design prototype
         shell: pwsh
         working-directory: prototypes/ailearc-ui

@@ -60,6 +60,9 @@ public sealed class ClientApp : Application
     [STAThread]
     public static int Main(string[] args)
     {
+        if (args is ["--self-test", "measure", var mode, var archive, var stamp] &&
+            mode is "open" or "cancel" && long.TryParse(stamp, out long launchTick))
+            return ClientMeasurement.Run(archive, mode, launchTick);
         if (args is ["--self-test", "recovery-probe", var target, var journal]) return ClientChecks.RecoveryProbe(target, journal);
         if (args is ["--self-test", var language]) { Text = new(language); return ClientChecks.Run(new ClientApp()); }
         if (args is ["--restart-from", var pidText, "--restore-session", var session])

@@ -382,6 +382,7 @@ public partial class MainWindow : Window
     {
         if (!IsVisible) Show();
         if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+        if (!ShowActivated) return;
         Activate();
         OwnedWindows.OfType<Window>().LastOrDefault()?.Activate();
     }
