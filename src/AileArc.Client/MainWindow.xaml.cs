@@ -40,14 +40,14 @@ public partial class MainWindow : Window
         InitializeComponent();
         LanguageBox.ItemsSource = new[] { "简体中文", "English (United States)" };
         LanguageBox.SelectedIndex = Text.Language == "en-US" ? 1 : 0;
-        OpenButton.Content = Text["Open"]; OpenButton.Click += Open_Click; OpenButton.Style = (Style)FindResource("Primary");
+        OpenButton.Content = Text["Open"]; OpenButton.Click += Open_Click;
         System.Windows.Automation.AutomationProperties.SetAutomationId(OpenButton,"OpenArchive");
         GraphiteFrame.Install(this, OpenButton);
         PreviewKeyDown += NavigationKey;
         PreviewKeyDown += OverlayKey;
         BrowserBody.PreviewMouseDown += (_, _) =>
         {
-            if ((treeOverlayOpen && !TreePane.IsMouseOver && !ShowFolders.IsMouseOver) ||
+            if ((treeOverlayOpen && !TreePane.IsMouseOver && !ShowFolders.IsMouseOver && !HomeTools.IsMouseOver) ||
                 (detailOverlayOpen && !DetailPane.IsMouseOver && !ShowDetails.IsMouseOver)) CloseOverlay(false);
         };
         EntryGrid.PreviewMouseDown += (_, _) => ResetKeyboardRange();
@@ -57,8 +57,7 @@ public partial class MainWindow : Window
         EncodingBox.ItemsSource = new[] { Text["FilenameEncodingAuto"], "UTF-8 (65001)", "GBK (936)", "Shift-JIS (932)" }; EncodingBox.SelectedIndex = 0;
         InitializeSearch();
         InitializeWorkspaceActions();
-        EmptyText.Text = Text["ClientDropWelcome"];
-        configuring = false; SetControls();
+        configuring = false; ApplyPaneLayout(); SetControls();
         InitializeOperations();
         Loaded += async (_, _) => { if (initialPath is not null) await OpenAsync(initialPath, this.initialCodePage); };
         Closed += (_, _) => { closed = true; CancelLiveSearch(); generation++; operation?.Cancel(); password = null; ((ClientApp)Application.Current).Unregister(this); };
@@ -165,6 +164,11 @@ public partial class MainWindow : Window
             return () =>
             {
                 archive = result.presentation; archiveName = Path.GetFileName(fullPath); OpenedPath = fullPath; password = candidatePassword;
+                treeOverlayOpen = false;
+                ApplyPaneLayout();
+                OverviewFormat.Text = scan.Format;
+                OverviewSize.Text = scan.Identity is { Length: >= 0 } identity ? EntryView.FormatSize(identity.Length) : "—";
+                OverviewPath.Text = fullPath;
                 if (result.location is null || previous?.Scan.NameCodePage != scan.NameCodePage) { LastExtraction = null; retryDestination = null; }
                 ((ClientApp)Application.Current).RegisterOpened(this, fullPath, scan.Identity?.FileId);
                 view = result.next with { Offset = result.page.Offset }; directory = view.Directory; codePage = requestedCodePage;
@@ -172,7 +176,7 @@ public partial class MainWindow : Window
                 else { RemapHistory(history, result.map); RemapHistory(future, result.map); }
                 LocalSearchBox.IsChecked = view.Local; PathColumn.Visibility = view.Search.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
                 Title = archiveName + " — AileArc";
-                folderTree = result.tree; currentFolder = null; TreeWelcome.Visibility = Visibility.Collapsed;
+                folderTree = result.tree; currentFolder = null;
                 AddressInput.Visibility = Visibility.Collapsed;
                 SearchBox.Text = view.Search; ApplyPage(result.page);
                 RestoreSelection(result.restored);
@@ -269,16 +273,16 @@ public partial class MainWindow : Window
         finally { changingItems = false; }
         if (rows.Length > 0) EntryGrid.ScrollIntoView(rows[0]);
         EmptyPanel.Visibility = rows.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
-        WelcomeMark.Visibility = Visibility.Collapsed;
         EmptyHeading.Text = Text[view.Search.Length > 0 ? "NoResults" : archive?.Scan.Entries.Count == 0 ? "ClientArchiveEmpty" : "ClientEmptyFolder"];
         EmptyText.Text = view.Search.Length == 0 ? "" : Text["ClientTryAnotherSearch"];
-        EmptyAction.Content = Text["ClientClearSearch"]; EmptyAction.Visibility = view.Search.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+        EmptyAction.Visibility = view.Search.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
         UpdateSelection();
     }
     private void SetControls()
     {
         bool idle = !IsBusy && ((ClientApp)Application.Current).CanStart(this);
         EmptyAction.IsEnabled = idle; SetActivity(IsBusy);
+        HomeCreate.IsEnabled = HomeOpen.IsEnabled = idle;
         OpenButton.IsEnabled = idle; LanguageBox.IsEnabled = idle; ShowLanguageChoice();
         SearchBox.IsEnabled = idle && archive is not null;
         LocalSearchBox.IsEnabled = SearchBox.IsEnabled;
@@ -287,6 +291,7 @@ public partial class MainWindow : Window
         else if (SearchBox.Text != view.Search && pendingSearch is null) ScheduleSearch();
         configuring = true; EncodingBox.SelectedIndex = Array.IndexOf(CodePages, codePage); configuring = false;
         EncodingBox.IsEnabled = idle && archive?.Scan.Format == "ZIP";
+        EncodingBox.Visibility = archive?.Scan.Format == "ZIP" ? Visibility.Visible : Visibility.Collapsed;
         EntryGrid.IsEnabled = idle; Folders.IsEnabled = idle && archive is not null;
         UpdateNavigation(); UpdateSelection();
         ExtractButton.IsEnabled = ExtractMore.IsEnabled = idle && archive is not null;
@@ -305,8 +310,7 @@ public partial class MainWindow : Window
         RefreshButton.IsEnabled = !IsBusy && archive is not null;
         PreviousButton.IsEnabled = !IsBusy && offset > 0;
         NextButton.IsEnabled = !IsBusy && offset + displayed.Length < total;
-        SummaryText.Text = archive is null ? Text["WelcomeDetail"] : total == 0 ? Text["NoResults"] :
-            Text.Format("ClientSummary", total, offset + 1, offset + displayed.Length);
+        PreviousButton.Visibility = NextButton.Visibility = total > displayed.Length ? Visibility.Visible : Visibility.Collapsed;
     }
     private void Grid_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
@@ -319,19 +323,35 @@ public partial class MainWindow : Window
         int count = EntryGrid.SelectedItems.Count;
         ExtractButton.Content = ExtractionLabel(count);
         SelectAllBox.IsChecked = count == 0 ? false : count == displayed.Length ? true : null;
-        SelectionText.Text = Text.Format("ClientSelectionCount", displayed.Length, count);
+        SelectionText.Text = count == 0 && total > displayed.Length
+            ? Text.Format("ClientSummary", total, offset + 1, offset + displayed.Length)
+            : Text.Format("ClientSelectionCount", displayed.Length, count);
+        SelectionText.ToolTip = SelectionText.Text;
         var row = count == 1 ? EntryGrid.SelectedItem as EntryView : null;
-        DetailName.Text = count > 1 ? Text.Format("ClientManySelected", count) : row?.Name ?? Text["ClientSelectHint"];
+        InspectorHeading.Text = Text[count == 0 ? "ClientArchive" : "ClientDetails"];
+        ArchiveProperties.Visibility = count == 0 && archive is not null ? Visibility.Visible : Visibility.Collapsed;
+        ArchiveFolderButton.IsEnabled = !IsBusy && OpenedPath is not null;
+        DetailName.Text = count > 1 ? Text.Format("ClientManySelected", count) : row?.Name ?? archiveName;
         DetailProperties.Visibility = row is null ? Visibility.Collapsed : Visibility.Visible;
         DetailClear.Visibility = count == 0 ? Visibility.Collapsed : Visibility.Visible;
-        SummaryText.Visibility = row is null ? Visibility.Visible : Visibility.Collapsed;
+        SummaryText.Visibility = count > 1 ? Visibility.Visible : Visibility.Collapsed;
+        if (count > 1)
+        {
+            var files = EntryGrid.SelectedItems.Cast<EntryView>().Where(entry => entry.Row.Type != "folder").ToArray();
+            decimal totalBytes = files.Sum(entry => (decimal)(entry.Row.UnpackedBytes ?? 0));
+            SummaryText.Text = files.All(entry => entry.Row.UnpackedBytes.HasValue)
+                ? Text.Format("ClientSelectedFileSize", files.Length, EntryView.FormatSize((double)totalBytes))
+                : Text.Format("ClientManySelected", count);
+        }
         DetailPath.Text = row?.Path ?? "";
         DetailType.Text = row?.TypeLabel ?? "";
         DetailModified.Text = row?.Row.Date ?? "—";
         DetailSize.Text = row?.Row.Type != "folder" && row?.Row.UnpackedBytes is ulong bytes ? Text.Format("ClientExactSize", bytes) : "—";
         bool enabled = row is not null && !IsBusy && archive is not null && ((ClientApp)Application.Current).CanStart(this);
         OpenFileButton.IsEnabled = enabled && row!.Row.Type != "folder";
+        CopyPolicyHint.Visibility = row is not null && row.Row.Type != "folder" ? Visibility.Visible : Visibility.Collapsed;
         CopyPathButton.IsEnabled = enabled;
+        CopyPathButton.Content = Text["ClientCopyPath"];
     }
     private void ToggleDetails_Click(object sender, RoutedEventArgs e)
     {
@@ -345,8 +365,13 @@ public partial class MainWindow : Window
     private void CopyPath_Click(object sender, RoutedEventArgs e)
     {
         if (!CopyPathButton.IsEnabled || EntryGrid.SelectedItems.Count != 1 || EntryGrid.SelectedItem is not EntryView row) return;
-        try { CopyText(row.Path); StatusText.Text = Text["ClientPathCopied"]; }
+        try { CopyText(row.Path); StatusText.Text = Text["ClientPathCopied"]; CopyPathButton.Content = Text["ClientCopied"]; }
         catch (System.Runtime.InteropServices.ExternalException) { StatusText.Text = Text["ClientClipboardBusy"]; }
+    }
+    private void ArchiveFolder_Click(object sender, RoutedEventArgs e)
+    {
+        if (!IsBusy && OpenedPath is { } path && Path.GetDirectoryName(path) is { } directoryPath)
+            LaunchFolder(directoryPath);
     }
     private void RowCheck_MouseDown(object sender, MouseButtonEventArgs e)
     {

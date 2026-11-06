@@ -20,11 +20,15 @@ public sealed class EntryView(BrowserRow row) : INotifyPropertyChanged
         {
             if (Row.Type == "folder") return "—";
             double bytes = Row.UnpackedBytes is ulong exact ? exact : (Row.Size ?? double.NaN) * 1024;
-            if (!double.IsFinite(bytes) || bytes < 0) return "—";
-            int unit = 0;
-            while (bytes >= 1024 && unit < Units.Length - 1) { bytes /= 1024; unit++; }
-            return ClientApp.Text.Format("ClientScaledSize", bytes.ToString(unit == 0 ? "N0" : "#,0.##", CultureInfo.CurrentCulture), Units[unit]);
+            return FormatSize(bytes);
         }
+    }
+    internal static string FormatSize(double bytes)
+    {
+        if (!double.IsFinite(bytes) || bytes < 0) return "—";
+        int unit = 0;
+        while (bytes >= 1024 && unit < Units.Length - 1) { bytes /= 1024; unit++; }
+        return ClientApp.Text.Format("ClientScaledSize", bytes.ToString(unit == 0 ? "N0" : "#,0.##", CultureInfo.CurrentCulture), Units[unit]);
     }
     public string Glyph => Row.Type == "folder" ? "\uE8B7" : "\uE8A5";
     public bool IsSelected

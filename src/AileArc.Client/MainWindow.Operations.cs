@@ -18,6 +18,7 @@ public partial class MainWindow
     private readonly DispatcherTimer copyTimer = new() { Interval = TimeSpan.FromSeconds(10) };
     private bool checkingCopies, closingCheck, allowClose;
     private TaskCompletionSource idleCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    internal Task WhenIdle => IsBusy ? idleCompletion.Task : Task.CompletedTask;
     internal Action<string, IntPtr> LaunchFile { get; set; } = ExternalApplication.Open;
     internal Action<string> OpenFolder { get; set; } = folder =>
     {

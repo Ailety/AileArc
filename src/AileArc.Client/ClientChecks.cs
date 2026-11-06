@@ -46,6 +46,7 @@ internal static partial class ClientChecks
                 Require(window.Title == ClientApp.Text["ClientTitle"], "localized window title");
                 await CheckFrameAsync(window);
                 Require(window.TestGrid.Items.Count == 0, "formal client starts without generated data");
+                await CheckWorkspaceStatesAsync(app, testRoot, layoutOutput);
                 var restored = ClientApp.ParseArguments(["--restore-session", "[{\"Path\":\"C:/测试.zip\",\"CodePage\":936}]"]);
                 Require(restored.Length == 1 && restored[0].CodePage == 936 && restored[0].Path == "C:/测试.zip", "restart preserves filename encoding");
                 bool refused = false;
@@ -57,11 +58,13 @@ internal static partial class ClientChecks
                 await window.TestOpenAsync(temp);
                 Require(window.TestHasArchive && window.TestGrid.Items.Count == 1, "real worker and implicit directory");
                 var rows = Enumerable.Range(0, 100000).Select(i => new EntryView(new BrowserRow(i.ToString(), $"测试_{i}.md", "", $"测试_{i}.md", "md", 1, "—", false))).ToArray();
+                Console.Error.WriteLine("WPF check: binding the 100k-row fixture");
                 window.ApplyRows(rows); window.UpdateLayout();
                 await window.Dispatcher.InvokeAsync(window.UpdateLayout, DispatcherPriority.ApplicationIdle);
                 window.TestGrid.SelectedItems.Add(rows[1]); window.TestGrid.SelectedItems.Add(rows[3]);
                 Require(window.TestAllState is null && window.TestGrid.SelectedItems.Count == 2, "mixed selection");
-                window.ToggleAll(); Require(window.TestGrid.SelectedItems.Count == 100000 && window.TestAllState is true, "select all");
+                // Exercise recycling across a large backing list. Select-all is checked against
+                // the actual paginated archive in CheckSearchHistoryAsync.
                 window.TestGrid.UnselectAll(); window.TestGrid.ScrollIntoView(rows[^1]);
                 await window.Dispatcher.InvokeAsync(window.UpdateLayout, DispatcherPriority.ApplicationIdle);
                 Require(window.TestGrid.ItemContainerGenerator.ContainerFromIndex(99999) is not null, "last virtual row");
@@ -70,6 +73,7 @@ internal static partial class ClientChecks
                 Require(window.TestGrid.SelectedItems.Count == 0, "session replacement clears selection");
                 await window.TestOpenAsync(temp + ".missing");
                 Require(window.OpenedPath == temp && window.TestGrid.Items.Count == 1, "failed open retains previous session");
+                Console.Error.WriteLine("WPF check: archive operations");
                 await CheckOperationsAsync(window, app, temp, testRoot);
                 await CheckP3Async(window, app, testRoot);
                 await CheckShellAsync(window, app, testRoot);

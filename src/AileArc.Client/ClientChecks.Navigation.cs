@@ -113,6 +113,15 @@ internal static partial class ClientChecks
                 stream.Write(new byte[205-i]);
             }
         await window.TestOpenAsync(sortable);
+        window.ToggleAll();
+        Require(window.TestGrid.SelectedItems.Count == 200 && window.TestAllState == true, "select-all matches the real first page");
+        await Click(window.NextButton);
+        Require(window.TestGrid.SelectedItems.Count == 0 && window.TestGrid.Items.Count == 5, "next page excludes the previous selection");
+        window.ToggleAll();
+        Require(window.TestGrid.SelectedItems.Count == 5 && window.TestAllState == true, "select-all covers the last short page");
+        window.ToggleAll();
+        Require(window.TestGrid.SelectedItems.Count == 0 && window.TestAllState == false, "select-all toggle clears the page");
+        await Click(window.PreviousButton);
         async Task Header(System.Windows.Controls.DataGridColumn column)
         {
             window.UpdateLayout();
@@ -126,6 +135,8 @@ internal static partial class ClientChecks
                 }
             }
             var header = Headers(window.TestGrid).Single(h => h.Column == column);
+            var mark = (FrameworkElement)header.Template.FindName("SortMark", header);
+            var bounds = mark.RenderSize;
             // WPF's header peer does not expose Invoke on every theme/runtime. Exercise
             // the actual header Click implementation without injecting desktop input.
             typeof(DataGridColumnHeader).GetMethod("OnClick", System.Reflection.BindingFlags.Instance |
@@ -133,6 +144,15 @@ internal static partial class ClientChecks
             await window.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
             var limit = DateTime.UtcNow.AddSeconds(10);
             while (window.IsBusy && DateTime.UtcNow < limit) await Task.Delay(10);
+            window.UpdateLayout();
+            var up = (System.Windows.Shapes.Path)header.Template.FindName("UpMark", header);
+            var down = (System.Windows.Shapes.Path)header.Template.FindName("DownMark", header);
+            bool ascending = header.SortDirection == System.ComponentModel.ListSortDirection.Ascending;
+            Require(bounds.Width > 0 && bounds.Height > 0 && mark.RenderSize == bounds &&
+                up.Data.Bounds.Size == down.Data.Bounds.Size && up.StrokeThickness == down.StrokeThickness &&
+                (ascending ? up : down).Opacity > (ascending ? down : up).Opacity &&
+                System.Windows.Automation.AutomationProperties.GetItemStatus(header) == ClientApp.Text[ascending ? "ClientAscending" : "Descending"],
+                "header uses matching chevrons and exposes the committed sort direction");
         }
         await Header(window.SizeColumn);
         Require(window.TestGrid.Items.Cast<EntryView>().First().Name == "204.md", "size header sorts entire archive before pagination");

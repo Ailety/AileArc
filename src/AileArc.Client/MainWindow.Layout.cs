@@ -24,7 +24,16 @@ public partial class MainWindow
 
     private void ApplyPaneLayout()
     {
-        bool showDetails = compactDetails ? detailOverlayOpen : dockedDetails;
+        bool browsing = archive is not null;
+        bool showDetails = browsing && (compactDetails ? detailOverlayOpen : dockedDetails);
+        var browserVisibility = browsing ? Visibility.Visible : Visibility.Collapsed;
+        ArchiveBody.Visibility = FolderArea.Visibility = ToolsSeparator.Visibility = browserVisibility;
+        TestArchiveButton.Visibility = CreateButton.Visibility = OpenButton.Visibility = browserVisibility;
+        HomePanel.Visibility = browsing ? Visibility.Collapsed : Visibility.Visible;
+        HomeTools.Visibility = !browsing && compactTree ? Visibility.Visible : Visibility.Collapsed;
+        CompactList.Visibility = browserVisibility;
+        SideHeading.Text = Text[browsing ? "ClientArchive" : "ClientToolsAndSettings"];
+        DockPanel.SetDock(ToolsGroup, browsing ? Dock.Bottom : Dock.Top);
         TreeColumn.Width = new GridLength(compactTree ? 0 : 218);
         TreeDivider.Width = new GridLength(compactTree ? 0 : 1);
         DetailColumn.Width = new GridLength(!compactDetails && showDetails ? 254 : 0);
@@ -41,15 +50,14 @@ public partial class MainWindow
         KeyboardNavigation.SetTabNavigation(TreePane, treeOverlayOpen ? KeyboardNavigationMode.Cycle : KeyboardNavigationMode.Continue);
         KeyboardNavigation.SetTabNavigation(DetailPane, detailOverlayOpen ? KeyboardNavigationMode.Cycle : KeyboardNavigationMode.Continue);
         ShowDetails.Visibility = showDetails ? Visibility.Collapsed : Visibility.Visible;
-        ToggleTools.Visibility = shortWindow ? Visibility.Visible : Visibility.Collapsed;
+        ToggleTools.Visibility = shortWindow && browsing ? Visibility.Visible : Visibility.Collapsed;
         NavigationRow.Height = new GridLength(shortWindow ? 44 : 65);
         SearchRow.Height = new GridLength(shortWindow ? 38 : 52);
         PagerRow.Height = new GridLength(shortWindow ? 36 : 46);
         NavigationBar.Margin = shortWindow ? new Thickness(12, 4, 12, 3) : new Thickness(18, 12, 18, 12);
         SearchBar.Margin = shortWindow ? new Thickness(12, 0, 12, 4) : new Thickness(18, 0, 18, 14);
         ToolsChevron.Text = toolsOpen ? "▾" : "▸";
-        CopyPolicyHint.Visibility = shortWindow ? Visibility.Collapsed : Visibility.Visible;
-        SideCommands.Visibility = !shortWindow || toolsOpen ? Visibility.Visible : Visibility.Collapsed;
+        SideCommands.Visibility = !shortWindow || toolsOpen || !browsing ? Visibility.Visible : Visibility.Collapsed;
         if (!shortWindow) SideCommands.MaxHeight = double.PositiveInfinity;
     }
 
@@ -58,7 +66,7 @@ public partial class MainWindow
         treeOverlayOpen = !treeOverlayOpen; detailOverlayOpen = false;
         ApplyPaneLayout();
         if (treeOverlayOpen) { FadeIn(TreePane); HideFolders.Focus(); }
-        else ShowFolders.Focus();
+        else (archive is null ? HomeTools : ShowFolders).Focus();
     }
     private void ToggleTools_Click(object sender, RoutedEventArgs e)
     {
@@ -76,6 +84,6 @@ public partial class MainWindow
         bool tree = treeOverlayOpen;
         treeOverlayOpen = detailOverlayOpen = false;
         ApplyPaneLayout();
-        if (focusButton) (tree ? ShowFolders : ShowDetails).Focus();
+        if (focusButton) (tree ? (archive is null ? HomeTools : ShowFolders) : ShowDetails).Focus();
     }
 }

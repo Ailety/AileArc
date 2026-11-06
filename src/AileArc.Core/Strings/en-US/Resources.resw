@@ -16,6 +16,7 @@
   <data name="SortName"><value>Sort by name</value></data>
   <data name="SortSize"><value>Sort by size</value></data>
   <data name="Descending"><value>Descending</value></data>
+  <data name="ClientAscending"><value>Ascending</value></data>
   <data name="Welcome"><value>Start with an archive</value></data>
   <data name="WelcomeDetail"><value>Open a ZIP, 7Z or RAR to browse folders and find files.</value></data>
   <data name="ReadOnlyNotice"><value>Development preview: browsing, search, extraction, ZIP/7Z creation and default-application opening. Explorer integration is still in development.</value></data>
@@ -313,4 +314,11 @@ Ctrl + A: select this page</value></data>
   <data name="ClientExtractParent"><value>Extract containing folder…</value></data>
   <data name="ClientParentScope"><value>Extract “{0}” and everything inside it.</value></data>
   <data name="ClientParentIsRoot"><value>The file is at the archive root. The entire archive will be extracted.</value></data>
+  <data name="ClientChooseFile"><value>Choose file…</value></data>
+  <data name="ClientOpenHint"><value>Drop a ZIP, 7Z or RAR file here, or press Ctrl+O to browse.</value></data>
+  <data name="ClientFormat"><value>Format</value></data>
+  <data name="ClientShowArchiveFolder"><value>Open containing folder</value></data>
+  <data name="ClientFileLocation"><value>File location</value></data>
+  <data name="ClientSelectedFileSize"><value>Directly selected files: {0:N0} ({1})</value></data>
+  <data name="ClientCopied"><value>Copied</value></data>
 </root>

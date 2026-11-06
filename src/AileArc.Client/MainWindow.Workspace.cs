@@ -23,6 +23,10 @@ public partial class MainWindow
         StateChanged += (_, _) => ApplyMotionPreference(SystemAllowsMotion);
         IsVisibleChanged += (_, _) => ApplyMotionPreference(SystemAllowsMotion);
         InputBindings.Add(new KeyBinding(ApplicationCommands.Open, Key.O, ModifierKeys.Control));
+        InputBindings.Add(new KeyBinding(NavigationCommands.GoToPage, Key.L, ModifierKeys.Control));
+        CommandBindings.Add(new CommandBinding(NavigationCommands.GoToPage, (_, _) => EditAddress(),
+            (_, e) => e.CanExecute = archive is not null && !IsBusy && !composing));
+        PreviewMouseDown += HistoryMouseDown;
         CommandBindings.Add(new CommandBinding(ApplicationCommands.Open, Open_Click, (_,e) => e.CanExecute = OpenButton.IsEnabled));
         EntryGrid.PreviewMouseRightButtonDown += (_, e) =>
         {
@@ -49,9 +53,16 @@ public partial class MainWindow
             if (e.Key == Key.E) { e.Handled = true; await ShowExtractDialogAsync(ExtractionMode.Selected); }
         };
     }
-    private void Density_Click(object sender, RoutedEventArgs e) => EntryGrid.RowHeight = CompactList.IsChecked == true ? 30 : 40;
-    private void EmptyAction_Click(object sender, RoutedEventArgs e)
-    { if (archive is null) Open_Click(sender,e); else ClearSearch_Click(sender,e); }
+    private async void HistoryMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.Handled || IsBusy || composing || OwnedWindows.Count > 0) return;
+        bool back = e.ChangedButton == MouseButton.XButton1 && BackButton.IsEnabled;
+        bool forward = e.ChangedButton == MouseButton.XButton2 && ForwardButton.IsEnabled;
+        if (!back && !forward) return;
+        e.Handled = true;
+        await QueryAsync(directory, 0, back: back, forward: forward);
+    }
+    private void Density_Click(object sender, RoutedEventArgs e) => EntryGrid.RowHeight = CompactList.IsChecked == true ? 30 : 36;
     private void SetActivity(bool active)
     {
         if ((ActivityDot.Visibility == Visibility.Visible) == active) return;

@@ -16,6 +16,7 @@
   <data name="SortName"><value>按名称排序</value></data>
   <data name="SortSize"><value>按大小排序</value></data>
   <data name="Descending"><value>降序</value></data>
+  <data name="ClientAscending"><value>升序</value></data>
   <data name="Welcome"><value>从一个压缩包开始</value></data>
   <data name="WelcomeDetail"><value>打开 ZIP、7Z 或 RAR，浏览目录并搜索文件。</value></data>
   <data name="ReadOnlyNotice"><value>开发预览：支持浏览、搜索、解压、创建 ZIP/7Z 和默认应用打开。系统右键集成仍在开发中。</value></data>
@@ -313,4 +314,11 @@ Ctrl + A：全选当前页</value></data>
   <data name="ClientExtractParent"><value>解压所在文件夹…</value></data>
   <data name="ClientParentScope"><value>将解压「{0}」及其全部子项。</value></data>
   <data name="ClientParentIsRoot"><value>所选文件位于根目录，将解压整个压缩包。</value></data>
+  <data name="ClientChooseFile"><value>选择文件…</value></data>
+  <data name="ClientOpenHint"><value>拖入 ZIP、7Z 或 RAR 文件，或按 Ctrl+O 从电脑中选择。</value></data>
+  <data name="ClientFormat"><value>格式</value></data>
+  <data name="ClientShowArchiveFolder"><value>打开所在文件夹</value></data>
+  <data name="ClientFileLocation"><value>文件位置</value></data>
+  <data name="ClientSelectedFileSize"><value>直接选中的文件：{0:N0} 个，共 {1}</value></data>
+  <data name="ClientCopied"><value>已复制</value></data>
 </root>

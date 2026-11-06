@@ -91,12 +91,8 @@ public partial class MainWindow
     private void UpdateHeaders()
     {
         DataGridColumn[] columns = [NameColumn, SizeColumn, TypeColumn, PathColumn, ModifiedColumn];
-        string[] labels = ["Name", "ClientSize", "ClientType", "Path", "ClientModified"];
         for (int i = 0; i < columns.Length; i++)
-        {
             columns[i].SortDirection = i != view.Sort ? null : view.Descending ? ListSortDirection.Descending : ListSortDirection.Ascending;
-            columns[i].Header = Text[labels[i]] + (i == view.Sort ? view.Descending ? " ↓" : " ↑" : " ↕");
-        }
     }
     private async void Grid_Sorting(object sender, DataGridSortingEventArgs e)
     {

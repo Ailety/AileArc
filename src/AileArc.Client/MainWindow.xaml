@@ -4,6 +4,16 @@
   <Window.Resources>
     <ResourceDictionary>
       <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="WarmGraphite.xaml" /></ResourceDictionary.MergedDictionaries>
+      <Style x:Key="SideAction" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+        <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        <Setter Property="Padding" Value="8,4"/>
+        <Setter Property="ContentTemplate"><Setter.Value><DataTemplate>
+          <StackPanel Orientation="Horizontal">
+            <TextBlock FontFamily="Segoe Fluent Icons" Text="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}}" Foreground="{StaticResource MutedBrush}" Margin="0,0,10,0"/>
+            <TextBlock Text="{Binding}"/>
+          </StackPanel>
+        </DataTemplate></Setter.Value></Setter>
+      </Style>
       <DataTemplate x:Key="WorkCopyItem">
         <StackPanel Margin="3,2">
           <DockPanel>
@@ -48,21 +58,20 @@
       <Grid.ColumnDefinitions><ColumnDefinition x:Name="TreeColumn" Width="218" /><ColumnDefinition x:Name="TreeDivider" Width="1" /><ColumnDefinition Width="*" /><ColumnDefinition x:Name="DetailDivider" Width="1" /><ColumnDefinition x:Name="DetailColumn" Width="254" /></Grid.ColumnDefinitions>
       <Border x:Name="TreePane" Panel.ZIndex="2" Background="{StaticResource SurfaceBrush}" Padding="16,20">
         <DockPanel LastChildFill="True">
-          <TextBlock x:Name="CopyPolicyHint" DockPanel.Dock="Bottom" Text="{local:Text ClientReadOnly}" Style="{StaticResource Muted}" TextWrapping="Wrap" />
           <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
             <Button x:Name="HideFolders" DockPanel.Dock="Right" Visibility="Collapsed" Content="×" Width="32" Padding="0" Click="ToggleFolders_Click" AutomationProperties.Name="{local:Text Close}"/>
-            <TextBlock Text="{local:Text ClientArchive}" Style="{StaticResource Muted}" />
+            <TextBlock x:Name="SideHeading" Text="{local:Text ClientArchive}" Style="{StaticResource Muted}" />
           </DockPanel>
-          <StackPanel DockPanel.Dock="Bottom">
+          <StackPanel x:Name="ToolsGroup" DockPanel.Dock="Bottom">
             <Button x:Name="ToggleTools" AutomationProperties.Name="{local:Text ClientToolsAndSettings}" Click="ToggleTools_Click" Visibility="Collapsed">
               <StackPanel Orientation="Horizontal"><TextBlock x:Name="ToolsChevron" Text="▸" Margin="0,0,6,0"/><TextBlock Text="{local:Text ClientToolsAndSettings}"/></StackPanel>
             </Button>
             <ScrollViewer x:Name="SideCommands" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel>
-            <Border Height="1" Background="{StaticResource LineBrush}" Margin="0,20" />
-            <Button x:Name="CreateButton" Content="{local:Text CreateArchive}" Click="Create_Click" Margin="0,0,0,8" />
-            <Button x:Name="TestArchiveButton" Content="{local:Text TestArchive}" Click="TestArchive_Click" ToolTip="{local:Text TestArchiveHint}" Margin="0,0,0,8" />
-            <Button x:Name="CopiesButton" Content="{local:Text WorkCopies}" Click="Copies_Click" Margin="0,0,0,16" />
-            <Button x:Name="RecoveryButton" Content="{local:Text Recovery}" Click="Recovery_Click" Margin="0,0,0,8" />
+            <Border x:Name="ToolsSeparator" Height="1" Background="{StaticResource LineBrush}" Margin="0,12" />
+            <Button x:Name="CreateButton" Style="{StaticResource SideAction}" Tag="&#xE710;" Content="{local:Text CreateArchive}" Click="Create_Click"/>
+            <Button x:Name="TestArchiveButton" Style="{StaticResource SideAction}" Tag="&#xE73E;" Content="{local:Text TestArchive}" Click="TestArchive_Click" ToolTip="{local:Text TestArchiveHint}"/>
+            <Button x:Name="CopiesButton" Style="{StaticResource SideAction}" Tag="&#xE8C8;" Content="{local:Text WorkCopies}" Click="Copies_Click"/>
+            <Button x:Name="RecoveryButton" Style="{StaticResource SideAction}" Tag="&#xE777;" Content="{local:Text Recovery}" Click="Recovery_Click"/>
             <TextBlock x:Name="CopyNotice" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,8" />
             <TextBlock Text="{local:Text Language}" Style="{StaticResource Muted}" Margin="0,0,0,8" />
             <ComboBox x:Name="LanguageBox" SelectionChanged="Language_Changed" AutomationProperties.Name="{local:Text Language}" />
@@ -73,9 +82,8 @@
             </WrapPanel>
             </StackPanel></ScrollViewer>
           </StackPanel>
-          <Grid>
-            <TextBlock x:Name="TreeWelcome" Text="{local:Text Welcome}" Style="{StaticResource Muted}" VerticalAlignment="Top" Margin="2,8" />
-            <ListBox x:Name="Folders" AutomationProperties.Name="{local:Text ClientFolderTree}" SelectionChanged="TreeSelectionChanged"
+          <Grid x:Name="FolderArea">
+            <ListBox x:Name="Folders" Style="{StaticResource FolderList}" AutomationProperties.Name="{local:Text ClientFolderTree}" SelectionChanged="TreeSelectionChanged"
                      PreviewKeyDown="Tree_KeyDown" BorderThickness="0" Background="Transparent" Foreground="{StaticResource TextBrush}"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto"
                      ScrollViewer.CanContentScroll="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
@@ -108,7 +116,7 @@
         </DockPanel>
       </Border>
       <Border Grid.Column="1" Background="{StaticResource LineBrush}" />
-      <Grid Grid.Column="2">
+      <Grid x:Name="ArchiveBody" Grid.Column="2">
         <Grid.RowDefinitions><RowDefinition x:Name="NavigationRow" Height="65" /><RowDefinition x:Name="SearchRow" Height="52" /><RowDefinition Height="0" /><RowDefinition Height="*" /><RowDefinition x:Name="PagerRow" Height="46" /></Grid.RowDefinitions>
         <DockPanel x:Name="NavigationBar" Margin="18,12">
           <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
@@ -143,7 +151,7 @@
 
         <DataGrid x:Name="EntryGrid" Grid.Row="3" Background="{StaticResource CanvasBrush}" BorderThickness="0" AutoGenerateColumns="False" IsReadOnly="True"
           SelectionMode="Extended" SelectionUnit="FullRow" CanUserAddRows="False" CanUserDeleteRows="False" CanUserSortColumns="True" Sorting="Grid_Sorting" CanUserReorderColumns="False"
-          HeadersVisibility="Column" RowHeight="40" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#2E2B28"
+          HeadersVisibility="Column" RowHeight="36" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#2E2B28"
           EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.CanContentScroll="True"
           ScrollViewer.HorizontalScrollBarVisibility="Auto" SelectionChanged="Grid_SelectionChanged" MouseDoubleClick="Grid_DoubleClick" PreviewKeyDown="Grid_KeyDown"
           AutomationProperties.Name="{local:Text ClientEntryList}" AutomationProperties.AutomationId="ArchiveEntries">
@@ -170,26 +178,50 @@
           </DataGrid.Columns>
         </DataGrid>
         <StackPanel x:Name="EmptyPanel" Grid.Row="3" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="370" Margin="16,32,16,0">
-          <Image x:Name="WelcomeMark" Source="/Brand/mark.png" Width="56" Height="56" Margin="0,0,0,12"/>
           <TextBlock x:Name="EmptyHeading" HorizontalAlignment="Center" FontSize="18" FontWeight="SemiBold" Text="{local:Text Welcome}"/>
           <TextBlock x:Name="EmptyText" Style="{StaticResource Muted}" TextAlignment="Center" TextWrapping="Wrap" Margin="0,8"/>
-          <Button x:Name="EmptyAction" Content="{local:Text Open}" Click="EmptyAction_Click" HorizontalAlignment="Center" Style="{StaticResource Primary}" Margin="0,6"/>
+          <Button x:Name="EmptyAction" Content="{local:Text ClientClearSearch}" Click="ClearSearch_Click" HorizontalAlignment="Center" Style="{StaticResource Primary}" Margin="0,6"/>
         </StackPanel>
         <DockPanel Grid.Row="4" Margin="18,0">
           <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"><ComboBox x:Name="EncodingBox" Width="180" SelectionChanged="Encoding_Changed" AutomationProperties.Name="{local:Text FilenameEncoding}" /><Button x:Name="PreviousButton" Content="{local:Text ClientPrevious}" Click="Previous_Click" IsEnabled="False" /><Button x:Name="NextButton" Content="{local:Text ClientNext}" Click="Next_Click" IsEnabled="False" /></StackPanel>
           <TextBlock x:Name="SelectionText" Text="{local:Text ClientEmptySelection}" Style="{StaticResource Muted}" />
         </DockPanel>
       </Grid>
+      <Grid x:Name="HomePanel" Grid.Column="2" Margin="20,12">
+        <Button x:Name="HomeTools" Content="{local:Text ClientToolsAndSettings}" Visibility="Collapsed" Click="ToggleFolders_Click" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+        <StackPanel x:Name="HomeActions" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="440" Margin="8,30">
+          <TextBlock FontFamily="Segoe Fluent Icons" Text="&#xE8B7;" FontSize="36" Foreground="{StaticResource AccentBrush}" Margin="0,0,0,14"/>
+          <TextBlock Text="{local:Text Open}" FontSize="25" FontWeight="SemiBold"/>
+          <TextBlock x:Name="HomeHint" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,8,0,20">
+            <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+              <Setter Property="Text" Value="{Binding Text, ElementName=StatusText}"/>
+              <Style.Triggers><DataTrigger Binding="{Binding Text, ElementName=StatusText}" Value="{local:Text ClientIdle}">
+                <Setter Property="Text" Value="{local:Text ClientOpenHint}"/>
+              </DataTrigger></Style.Triggers>
+            </Style></TextBlock.Style>
+          </TextBlock>
+          <WrapPanel>
+            <Button x:Name="HomeOpen" Content="{local:Text ClientChooseFile}" Click="Open_Click" Style="{StaticResource Primary}" Padding="16,7" Margin="0,0,8,4"/>
+            <Button x:Name="HomeCreate" Content="{local:Text CreateArchive}" Click="Create_Click" Padding="12,7" Margin="0,0,0,4"/>
+          </WrapPanel>
+        </StackPanel>
+      </Grid>
       <Border Grid.Column="3" Background="{StaticResource LineBrush}" />
       <Border x:Name="DetailPane" Grid.Column="4" Panel.ZIndex="2" Background="{StaticResource SurfaceBrush}" Padding="18">
         <DockPanel>
           <DockPanel DockPanel.Dock="Top" Margin="0,0,0,16">
             <Button x:Name="HideDetails" DockPanel.Dock="Right" Content="×" Width="32" Padding="0" Click="ToggleDetails_Click" ToolTip="{local:Text ClientHideDetails}" AutomationProperties.Name="{local:Text ClientHideDetails}" />
-            <TextBlock Text="{local:Text ClientDetails}" Style="{StaticResource Muted}" />
+            <TextBlock x:Name="InspectorHeading" Text="{local:Text ClientDetails}" Style="{StaticResource Muted}" />
           </DockPanel>
           <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
           <StackPanel>
             <TextBlock x:Name="DetailName" Text="{local:Text ClientSelectHint}" FontWeight="SemiBold" TextWrapping="Wrap" />
+            <StackPanel x:Name="ArchiveProperties" Margin="0,16,0,0">
+              <TextBlock Text="{local:Text ClientFormat}" Style="{StaticResource Muted}"/><TextBlock x:Name="OverviewFormat" Margin="0,3,0,12"/>
+              <TextBlock Text="{local:Text Size}" Style="{StaticResource Muted}"/><TextBlock x:Name="OverviewSize" Margin="0,3,0,12"/>
+              <TextBlock Text="{local:Text ClientFileLocation}" Style="{StaticResource Muted}"/><TextBlock x:Name="OverviewPath" TextWrapping="Wrap" Margin="0,3,0,12"/>
+              <Button x:Name="ArchiveFolderButton" Content="{local:Text ClientShowArchiveFolder}" Click="ArchiveFolder_Click"/>
+            </StackPanel>
             <StackPanel x:Name="DetailProperties" Margin="0,10">
               <TextBlock x:Name="DetailType" Foreground="{StaticResource AccentBrush}" Margin="0,0,0,12"/>
               <TextBlock Text="{local:Text Size}" Style="{StaticResource Muted}" />
@@ -200,6 +232,7 @@
               <TextBlock x:Name="DetailPath" TextWrapping="Wrap" TextTrimming="None" Margin="0,2,0,12"/>
               <Button x:Name="OpenFileButton" Content="{local:Text ClientDefaultOpen}" Click="OpenFile_Click" Style="{StaticResource Primary}" />
               <Button x:Name="CopyPathButton" Content="{local:Text ClientCopyPath}" Click="CopyPath_Click" Margin="0,6,0,0"/>
+              <TextBlock x:Name="CopyPolicyHint" Text="{local:Text ClientReadOnly}" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,10,0,0"/>
             </StackPanel>
             <TextBlock x:Name="SummaryText" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,20" />
             <Button x:Name="DetailClear" Content="{local:Text ClientClearSelection}" Click="Clear_Click" />

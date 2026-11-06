@@ -19,6 +19,13 @@ internal static partial class ClientChecks
             zip.CreateEntry("甲/空目录/");
         }
         await window.TestOpenAsync(zipPath);
+        var folderList = window.Folders;
+        folderList.IsEnabled = false;
+        folderList.ApplyTemplate();
+        Require(VisualTreeHelper.GetChild(folderList, 0) is Border { Background: SolidColorBrush { Color.A: 0 } } &&
+            folderList.Template.FindName("PART_ScrollViewer", folderList) is ScrollViewer { CanContentScroll: true },
+            "disabled tree keeps its graphite surface and item-scrolling template");
+        folderList.IsEnabled = true;
         FolderNode Node(string path) => window.Folders.Items.Cast<FolderNode>().Single(n => n.Path == path);
         bool Visible(string path) => window.Folders.Items.Cast<FolderNode>().Any(n => n.Path == path);
         string? Current() => (window.Folders.SelectedItem as FolderNode)?.Path;

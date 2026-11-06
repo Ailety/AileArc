@@ -141,6 +141,13 @@ internal static partial class ClientChecks
             var horizontal = (ScrollViewer)grid.Template.FindName("DG_ScrollViewer", grid);
             Require(horizontal.ScrollableWidth > 0 && horizontal.ComputedHorizontalScrollBarVisibility == Visibility.Visible,
                 "resized columns remain horizontally reachable");
+            var bar = (System.Windows.Controls.Primitives.ScrollBar)horizontal.Template.FindName("PART_HorizontalScrollBar", horizontal);
+            Require(bar.ActualWidth >= grid.ActualWidth / 2 && !bar.Track.IsDirectionReversed &&
+                bar.Track.IncreaseRepeatButton.Command == System.Windows.Controls.Primitives.ScrollBar.PageRightCommand,
+                "horizontal scroll track spans the viewport and offers forward paging");
+            System.Windows.Controls.Primitives.ScrollBar.PageRightCommand.Execute(null, bar.Track.IncreaseRepeatButton);
+            grid.UpdateLayout();
+            Require(horizontal.HorizontalOffset > 0, "paging the horizontal track reveals off-screen columns");
             window.NameColumn.Width = new DataGridLength(1, DataGridLengthUnitType.Star);
             var dialog = new ActionDialog(window, "Extract", "Extract")
             {
@@ -173,7 +180,7 @@ internal static partial class ClientChecks
         }
     }
 
-    private static void RenderViewport(MainWindow window, uint dpi, string? outputDirectory)
+    private static void RenderViewport(MainWindow window, uint dpi, string? outputDirectory, string? scene = null)
     {
         var surface = (FrameworkElement)window.Content;
         int width = (int)Math.Ceiling(surface.ActualWidth * dpi / 96), height = (int)Math.Ceiling(surface.ActualHeight * dpi / 96);
@@ -199,7 +206,8 @@ internal static partial class ClientChecks
         if (outputDirectory is not null)
         {
             var png = new PngBitmapEncoder(); png.Frames.Add(BitmapFrame.Create(bitmap));
-            using var output = new FileStream(Path.Combine(outputDirectory, $"{ClientApp.Text.Language}-{dpi}.png"), FileMode.CreateNew, FileAccess.Write);
+            var name = scene is null ? $"{ClientApp.Text.Language}-{dpi}" : $"{ClientApp.Text.Language}-{scene}";
+            using var output = new FileStream(Path.Combine(outputDirectory, name + ".png"), FileMode.CreateNew, FileAccess.Write);
             png.Save(output);
         }
         Require(opaque > pixels.Length * .98 && light > 200, $"painted viewport at {dpi} DPI ({opaque} opaque, {light} light)");
