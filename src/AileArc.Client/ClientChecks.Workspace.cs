@@ -23,6 +23,22 @@ internal static partial class ClientChecks
         var window = app.CreateWindow(); window.Show();
         try
         {
+            // Exercise a preference change on the live visual without changing Windows settings.
+            window.ActivityDot.Visibility = Visibility.Visible;
+            window.ApplyMotionPreference(true);
+            Require(window.ActivityDot.HasAnimatedProperties, "active visible window pulses");
+            window.ApplyMotionPreference(false);
+            Require(!window.ActivityDot.HasAnimatedProperties && window.ActivityDot.IsVisible && window.ActivityDot.Opacity == 1,
+                "reduced motion immediately switches the running indicator to a steady dot");
+            window.WindowState = WindowState.Minimized;
+            window.ApplyMotionPreference(true);
+            Require(!window.ActivityDot.HasAnimatedProperties, "minimized window suspends the running clock");
+            window.WindowState = WindowState.Normal;
+            window.ApplyMotionPreference(true);
+            Require(window.ActivityDot.HasAnimatedProperties, "restored window resumes a permitted animation");
+            window.ActivityDot.Visibility = Visibility.Collapsed;
+            window.ApplyMotionPreference(true);
+            Require(!window.ActivityDot.HasAnimatedProperties, "idle indicator releases its clock");
             await window.OpenDroppedAsync([zipPath, root]);
             Require(window.OpenedPath == null, "mixed folder drop rejected as a whole");
             await window.OpenDroppedAsync([zipPath, zipPath]); Require(window.OpenedPath == zipPath, "drop opens the archive in the empty window");

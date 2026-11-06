@@ -9,14 +9,19 @@ namespace AileArc.Client;
 
 public partial class MainWindow
 {
-    private static void FadeIn(UIElement surface)
+    private static bool SystemAllowsMotion => SystemParameters.ClientAreaAnimation && !SystemParameters.HighContrast;
+    private void FadeIn(UIElement surface)
     {
-        if (!SystemParameters.ClientAreaAnimation || SystemParameters.HighContrast) return;
+        if (!SystemAllowsMotion || WindowState == WindowState.Minimized) return;
         surface.BeginAnimation(OpacityProperty, new DoubleAnimation(.72, 1, TimeSpan.FromMilliseconds(120))
         { FillBehavior = FillBehavior.Stop, EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut } });
     }
     private void InitializeWorkspaceActions()
     {
+        SourceInitialized += (_, _) => SystemParameters.StaticPropertyChanged += MotionSettingChanged;
+        Closed += (_, _) => SystemParameters.StaticPropertyChanged -= MotionSettingChanged;
+        StateChanged += (_, _) => ApplyMotionPreference(SystemAllowsMotion);
+        IsVisibleChanged += (_, _) => ApplyMotionPreference(SystemAllowsMotion);
         InputBindings.Add(new KeyBinding(ApplicationCommands.Open, Key.O, ModifierKeys.Control));
         CommandBindings.Add(new CommandBinding(ApplicationCommands.Open, Open_Click, (_,e) => e.CanExecute = OpenButton.IsEnabled));
         EntryGrid.PreviewMouseRightButtonDown += (_, e) =>
@@ -51,8 +56,26 @@ public partial class MainWindow
     {
         if ((ActivityDot.Visibility == Visibility.Visible) == active) return;
         ActivityDot.Visibility = active ? Visibility.Visible : Visibility.Collapsed;
-        ActivityDot.BeginAnimation(OpacityProperty, active && SystemParameters.ClientAreaAnimation && !SystemParameters.HighContrast
-            ? new DoubleAnimation(.5, 1, TimeSpan.FromMilliseconds(650)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever } : null);
+        ApplyMotionPreference(SystemAllowsMotion);
+    }
+    private void MotionSettingChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(e.PropertyName) || e.PropertyName is nameof(SystemParameters.ClientAreaAnimation) or nameof(SystemParameters.HighContrast))
+            ApplyMotionPreference(SystemAllowsMotion);
+    }
+    internal void ApplyMotionPreference(bool enabled)
+    {
+        bool visibleMotion = enabled && IsVisible && WindowState != WindowState.Minimized;
+        if (!visibleMotion)
+        {
+            DetailPane.BeginAnimation(OpacityProperty, null);
+            TreePane.BeginAnimation(OpacityProperty, null);
+            DropHint.BeginAnimation(OpacityProperty, null);
+        }
+        bool pulse = visibleMotion && ActivityDot.Visibility == Visibility.Visible;
+        if (pulse == ActivityDot.HasAnimatedProperties) return;
+        ActivityDot.BeginAnimation(OpacityProperty, pulse ? new DoubleAnimation(.5, 1, TimeSpan.FromMilliseconds(650))
+            { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever } : null);
     }
     private async void Locate_Click(object sender, RoutedEventArgs e) => await LocateSelectedAsync();
     private async void ParentExtract_Click(object sender, RoutedEventArgs e) => await ShowExtractDialogAsync(ExtractionMode.ParentFolder);
