@@ -27,6 +27,20 @@ public sealed class DesktopBridgeTests
         Assert.True(BrowserProtocol.TrustedResource("https://ailearc.local/assets/app.js"));
     }
     [Fact]
+    public void BrowserRowsExposeStableKindsForMixedFiles()
+    {
+        (string Path, string Kind)[] entries = [
+            ("folder.jpg", "folder"), ("report.PDF", "pdf"), ("readme.md", "md"), ("notes.txt", "text"),
+            ("config.YAML", "code"), ("图像.JPEG", "image"), ("assets.tar.gz", "archive"), ("report.docx", "document"),
+            ("统计.xlsx", "spreadsheet"), ("slides.odp", "presentation"), ("song.FLAC", "audio"), ("movie.webm", "video"),
+            ("setup.pdf.EXE", "application"), ("unknown.ext", "file"), ("无扩展名", "file")];
+        var model = new ArchivePresentation(new("ZIP", entries.Select((item, id) =>
+            new ArchiveEntry(id, item.Path, item.Kind == "folder", null, false)).ToArray()));
+        var actual = model.Query(Query()).Rows.ToDictionary(row => row.Path, row => row.Type);
+        foreach (var item in entries) Assert.Equal(item.Kind, actual[item.Path]);
+    }
+
+    [Fact]
     public void PagingPreservesDuplicateEntryIdsAndLimitsRows()
     {
         var rows = Enumerable.Range(0,450).Select(i=>new ArchiveEntry(i,"same.txt",false,(ulong)i,false)).ToArray();

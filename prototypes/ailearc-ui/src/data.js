@@ -59,9 +59,16 @@ export const typeName = (f) =>
     pdf: "PDF 文档",
     code: "配置与代码",
     image: "图片",
+    archive: "压缩包",
+    document: "文档",
+    spreadsheet: "电子表格",
+    presentation: "演示文稿",
+    audio: "音频",
+    video: "视频",
+    application: "应用程序",
     file: "文件",
     text: "文本",
-  })[f.type];
+  })[f.type] ?? "文件";
 export const size = (n) =>
   n == null
     ? "未知"

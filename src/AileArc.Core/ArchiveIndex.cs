@@ -4,7 +4,25 @@ namespace AileArc.Core;
 
 public sealed record BrowserEntry(long Id, string Name, string Path, string Parent, bool IsDirectory, ulong? Size, bool Encrypted, long? ModifiedFileTime = null)
 {
-    public string Kind { get; } = IsDirectory ? "folder" : System.IO.Path.GetExtension(Name).ToLowerInvariant() switch { ".pdf" => "pdf", ".md" => "md", ".txt" => "text", ".json" or ".yml" or ".cs" or ".xml" => "code", ".png" or ".jpg" or ".svg" => "image", _ => "file" };
+    // Classify the displayed filename once during indexing. Format detection and launch policy use their own checks.
+    public string Kind { get; } = IsDirectory ? "folder" : System.IO.Path.GetExtension(Name).ToLowerInvariant() switch
+    {
+        ".pdf" => "pdf",
+        ".md" or ".markdown" => "md",
+        ".txt" or ".log" => "text",
+        ".json" or ".yaml" or ".yml" or ".xml" or ".toml" or ".ini" or ".cfg" or ".conf" or
+        ".cs" or ".c" or ".h" or ".cpp" or ".hpp" or ".py" or ".rs" or ".go" or ".java" or
+        ".js" or ".jsx" or ".ts" or ".tsx" or ".css" or ".html" or ".sql" or ".ps1" or ".sh" => "code",
+        ".png" or ".jpg" or ".jpeg" or ".gif" or ".webp" or ".svg" or ".bmp" or ".ico" or ".tif" or ".tiff" or ".avif" or ".heic" => "image",
+        ".zip" or ".7z" or ".rar" or ".tar" or ".gz" or ".tgz" or ".bz2" or ".xz" or ".zst" => "archive",
+        ".doc" or ".docx" or ".odt" or ".rtf" => "document",
+        ".xls" or ".xlsx" or ".ods" or ".csv" or ".tsv" => "spreadsheet",
+        ".ppt" or ".pptx" or ".odp" => "presentation",
+        ".mp3" or ".wav" or ".flac" or ".aac" or ".m4a" or ".ogg" or ".opus" => "audio",
+        ".mp4" or ".mkv" or ".mov" or ".avi" or ".webm" or ".wmv" => "video",
+        ".exe" or ".com" or ".msi" or ".msp" or ".scr" => "application",
+        _ => "file"
+    };
 }
 public enum EntrySort { Name, Size, Type, Path, Modified }
 

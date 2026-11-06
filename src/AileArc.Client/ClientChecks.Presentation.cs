@@ -73,6 +73,7 @@ internal static partial class ClientChecks
             Require(window.EntryGrid.Items.Count == 6, "mouse back restores archive root");
             await SideButton(MouseButton.XButton2);
             Require(window.EntryGrid.Items.Cast<EntryView>().Single().Path == "docs/制作说明.md", "mouse forward restores directory");
+            await CheckFileKindsAsync(window, root, outputDirectory);
         }
         finally { window.ApproveClose(); window.Close(); }
     }

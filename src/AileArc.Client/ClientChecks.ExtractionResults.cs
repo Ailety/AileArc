@@ -1,6 +1,7 @@
 using System.IO;
 using System.IO.Compression;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Threading;
 using AileArc.Core;
@@ -19,6 +20,27 @@ internal static partial class ClientChecks
         string encrypted = Path.Combine(root, "加密数据.zip");
         await worker.CreateAsync(new([source], encrypted, Password: secret));
         await window.TestOpenAsync(encrypted);
+        async Task CheckProtection(string name, bool encryptedContents)
+        {
+            var grid = window.TestGrid;
+            var item = grid.Items.Cast<EntryView>().Single(entry => entry.Name == name);
+            grid.SelectedItem = item;
+            grid.ScrollIntoView(item, window.NameColumn);
+            await window.Dispatcher.InvokeAsync(window.UpdateLayout, DispatcherPriority.ApplicationIdle);
+            string label = ClientApp.Text["ClientEncryptedEntry"];
+            Require(item.Row.Encrypted == encryptedContents &&
+                grid.ItemContainerGenerator.ContainerFromItem(item) is DataGridRow row &&
+                (encryptedContents ? AutomationProperties.GetItemStatus(row) == label : string.IsNullOrEmpty(AutomationProperties.GetItemStatus(row))) &&
+                window.NameColumn.GetCellContent(item) is { } cell &&
+                HasGlyph(cell, "\uE72E") == encryptedContents,
+                "file lock icon and row status match the archive entry");
+            Require(window.DetailProtection.Visibility == (encryptedContents ? Visibility.Visible : Visibility.Collapsed) &&
+                window.DetailProtection.Children.OfType<TextBlock>().Any(text => text.Text == label),
+                "selected file describes encrypted contents in the session language");
+            grid.UnselectAll();
+            Require(window.DetailProtection.Visibility == Visibility.Collapsed, "clearing selection removes the protection detail");
+        }
+        await CheckProtection(Path.GetFileName(source), true);
         var opened = new List<string>();
         window.OpenFolder = opened.Add;
         string target = Path.Combine(root, "密码重试");
@@ -90,6 +112,7 @@ internal static partial class ClientChecks
         bytes[at] ^= 1;
         await File.WriteAllBytesAsync(damaged, bytes);
         await window.TestOpenAsync(damaged);
+        await CheckProtection("good.bin", false);
         await ObserveDialogAsync(app, ClientApp.Text["TestArchive"], window.TestCurrentArchiveAsync, report =>
         {
             var failed = report.Body.Children.OfType<ListBox>().Single().Items.Cast<ExtractionFailure>().Single();

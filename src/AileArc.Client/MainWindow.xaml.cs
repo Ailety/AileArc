@@ -345,6 +345,7 @@ public partial class MainWindow : Window
         }
         DetailPath.Text = row?.Path ?? "";
         DetailType.Text = row?.TypeLabel ?? "";
+        DetailProtection.Visibility = row?.Row.Encrypted == true ? Visibility.Visible : Visibility.Collapsed;
         DetailModified.Text = row?.Row.Date ?? "—";
         DetailSize.Text = row?.Row.Type != "folder" && row?.Row.UnpackedBytes is ulong bytes ? Text.Format("ClientExactSize", bytes) : "—";
         bool enabled = row is not null && !IsBusy && archive is not null && ((ClientApp)Application.Current).CanStart(this);

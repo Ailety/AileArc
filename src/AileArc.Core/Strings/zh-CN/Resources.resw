@@ -319,6 +319,17 @@ Ctrl + A：全选当前页</value></data>
   <data name="ClientFormat"><value>格式</value></data>
   <data name="ClientShowArchiveFolder"><value>打开所在文件夹</value></data>
   <data name="ClientFileLocation"><value>文件位置</value></data>
+  <data name="ClientEncryptedEntry"><value>内容已加密</value></data>
   <data name="ClientSelectedFileSize"><value>直接选中的文件：{0:N0} 个，共 {1}</value></data>
   <data name="ClientCopied"><value>已复制</value></data>
+  <data name="ClientKindArchive"><value>压缩包</value></data>
+  <data name="ClientKindPdf"><value>PDF</value></data>
+  <data name="ClientKindDocument"><value>文档</value></data>
+  <data name="ClientKindSpreadsheet"><value>电子表格</value></data>
+  <data name="ClientKindPresentation"><value>演示文稿</value></data>
+  <data name="ClientKindMarkdown"><value>Markdown</value></data>
+  <data name="ClientKindImage"><value>图像</value></data>
+  <data name="ClientKindAudio"><value>音频</value></data>
+  <data name="ClientKindVideo"><value>视频</value></data>
+  <data name="ClientKindApplication"><value>应用程序</value></data>
 </root>

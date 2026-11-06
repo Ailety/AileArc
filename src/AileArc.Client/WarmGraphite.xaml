@@ -139,6 +139,9 @@
     <Setter Property="BorderThickness" Value="0" /><Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
     <Setter Property="AutomationProperties.Name" Value="{Binding Name}" />
     <Style.Triggers>
+      <DataTrigger Binding="{Binding Row.Encrypted}" Value="True">
+        <Setter Property="AutomationProperties.ItemStatus" Value="{local:Text ClientEncryptedEntry}"/>
+      </DataTrigger>
       <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{StaticResource HoverBrush}" /></Trigger>
       <Trigger Property="IsSelected" Value="True"><Setter Property="Background" Value="{StaticResource SelectionBrush}" /></Trigger>
     </Style.Triggers>
