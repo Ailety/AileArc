@@ -15,7 +15,7 @@ namespace AileArc.Client;
 // paths, while keeping the measurement out of the user's foreground session.
 internal static class ClientMeasurement
 {
-    internal static int Run(string path, string mode, long launchTick)
+    internal static int Run(string path, string mode, long launchTick, int scrollSeconds = 0)
     {
         if (Console.ReadLine() != "start") return 2;
         ClientApp.Text = new(LanguageService.DefaultLanguage);
@@ -87,7 +87,8 @@ internal static class ClientMeasurement
                     await frame.Task.WaitAsync(TimeSpan.FromSeconds(15));
                     await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
                 }
-                Console.WriteLine(JsonSerializer.Serialize(new { mode, scanStartMs, indexStartMs, boundMs, frameMs, cancelAtMs, cancelMs, entriesAtCancel,
+                var scroll = mode == "scroll" ? await ExerciseScrollingAsync(window, scrollSeconds) : null;
+                Console.WriteLine(JsonSerializer.Serialize(new { mode, scanStartMs, indexStartMs, boundMs, frameMs, cancelAtMs, cancelMs, entriesAtCancel, scroll,
                     pageRows = grid.Items.Count, dpi = VisualTreeHelper.GetDpi(window).PixelsPerInchX, width = window.ActualWidth, height = window.ActualHeight }));
                 exitCode = 0;
             }
@@ -99,6 +100,49 @@ internal static class ClientMeasurement
             }
         };
         app.Run(); return exitCode;
+    }
+
+    private sealed record ScrollResult(double Seconds, int Movements, int PageChanges, int PeakRealizedRows, long ManagedStartBytes, long ManagedEndBytes);
+    private static async Task<ScrollResult> ExerciseScrollingAsync(MainWindow window, int seconds)
+    {
+        var grid = window.TestGrid;
+        if (grid.Items.Count < 100 || !window.NextButton.IsEnabled) throw new InvalidOperationException("Use a paged measurement fixture.");
+        long initial = GC.GetTotalMemory(forceFullCollection: true);
+        var clock = Stopwatch.StartNew();
+        int movements = 0, pages = 0, peakRows = 0;
+        bool forward = true;
+        while (clock.Elapsed.TotalSeconds < seconds || pages == 0)
+        {
+            if (movements > 0 && movements % 24 == 0)
+            {
+                if (!window.NextButton.IsEnabled) forward = false;
+                if (!window.PreviousButton.IsEnabled) forward = true;
+                var button = forward ? window.NextButton : window.PreviousButton;
+                string previousId = ((EntryView)grid.Items[0]).Row.Id;
+                button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                while (window.IsBusy) await Task.Delay(5);
+                if (grid.Items.Count == 0 || grid.SelectedItems.Count != 0 || ((EntryView)grid.Items[0]).Row.Id == previousId)
+                    throw new InvalidOperationException("Paging failed to commit a new page and clear its old selection.");
+                pages++;
+            }
+            if (movements % 24 == 0) grid.SelectedIndex = grid.Items.Count / 2;
+            var expectedSelection = grid.Items[grid.Items.Count / 2];
+            int nearEnd = (movements * 7) % Math.Max(1, grid.Items.Count / 4);
+            int index = movements % 2 == 0 ? grid.Items.Count - 1 - nearEnd : nearEnd;
+            var item = (EntryView)grid.Items[index];
+            grid.ScrollIntoView(item, window.NameColumn);
+            await window.Dispatcher.InvokeAsync(window.UpdateLayout, DispatcherPriority.ApplicationIdle);
+            if (grid.ItemContainerGenerator.ContainerFromItem(item) is not DataGridRow row || row.Item != item ||
+                window.NameColumn.GetCellContent(row) is not { } cell || !ContainsName(cell, item.Name) ||
+                grid.SelectedItems.Count != 1 || grid.SelectedItem != expectedSelection)
+                throw new InvalidOperationException("Recycled row or selection does not match the requested entry.");
+            int realized = VisualTreeHelper.GetChildrenCount(VisualTreeHelper.GetParent(row));
+            if (realized <= 0 || realized > Math.Ceiling(grid.ActualHeight / grid.RowHeight) * 3 + 8)
+                throw new InvalidOperationException("Realized rows exceed the virtualized viewport.");
+            peakRows = Math.Max(peakRows, realized); movements++;
+            await Task.Delay(35);
+        }
+        return new(clock.Elapsed.TotalSeconds, movements, pages, peakRows, initial, GC.GetTotalMemory(forceFullCollection: true));
     }
 
     private static bool ContainsName(DependencyObject element, string name)

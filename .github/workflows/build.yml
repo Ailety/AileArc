@@ -23,6 +23,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Measurement fixtures failed.' }
           ./scripts/Measure-Client.ps1 -Archive .artifacts/measure-fixtures/entries-1000.zip -Runs 1
           ./scripts/Measure-Client.ps1 -Archive .artifacts/measure-fixtures/entries-100000.zip -Mode cancel -Runs 1
+          ./scripts/Measure-Client.ps1 -Archive .artifacts/measure-fixtures/entries-100000.zip -Mode scroll -ScrollSeconds 15
       - name: Build isolated design prototype
         shell: pwsh
         working-directory: prototypes/ailearc-ui

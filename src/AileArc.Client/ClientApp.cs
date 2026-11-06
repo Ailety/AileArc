@@ -86,6 +86,9 @@ public sealed partial class ClientApp : Application
     [STAThread]
     public static int Main(string[] args)
     {
+        if (args is ["--self-test", "measure", "scroll", var scrollArchive, var scrollStamp, var duration] &&
+            long.TryParse(scrollStamp, out long scrollTick) && int.TryParse(duration, out int seconds) && seconds is >= 5 and <= 3600)
+            return ClientMeasurement.Run(scrollArchive, "scroll", scrollTick, seconds);
         if (args is ["--self-test", "measure", var mode, var archive, var stamp] &&
             mode is "open" or "cancel" && long.TryParse(stamp, out long launchTick))
             return ClientMeasurement.Run(archive, mode, launchTick);

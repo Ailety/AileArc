@@ -1,12 +1,14 @@
 #requires -Version 7.0
 param(
     [Parameter(Mandatory)][string]$Archive,
-    [ValidateSet('open','cancel')][string]$Mode = 'open',
+    [ValidateSet('open','cancel','scroll')][string]$Mode = 'open',
+    [ValidateRange(5,3600)][int]$ScrollSeconds = 30,
     [ValidateRange(1,20)][int]$Runs = 3,
     [string]$Executable = '',
     [string]$Report = ''
 )
 $ErrorActionPreference = 'Stop'
+if ($Mode -eq 'scroll' -and !$PSBoundParameters.ContainsKey('Runs')) { $Runs = 1 }
 $root = Split-Path -Parent $PSScriptRoot
 if (!$Executable) { $Executable = Join-Path $root '.artifacts/client/Release/AileArc.exe' }
 $exe = (Resolve-Path -LiteralPath $Executable).Path
@@ -27,6 +29,7 @@ $records = @(
             foreach ($arg in '--self-test','measure',$Mode,$sample.FullName) { $start.ArgumentList.Add($arg) }
             $process.StartInfo = $start
             $start.ArgumentList.Add([Diagnostics.Stopwatch]::GetTimestamp().ToString([Globalization.CultureInfo]::InvariantCulture))
+            if ($Mode -eq 'scroll') { $start.ArgumentList.Add($ScrollSeconds.ToString()) }
             $started = $process.Start()
             if (!$started) { throw 'Could not start the client.' }
             $job.Attach($process)
@@ -36,7 +39,8 @@ $records = @(
             [long]$peakWs = 0
             do {
                 $peakWs = [Math]::Max($peakWs, $job.SampleWorkingSet())
-                if ($timer.Elapsed.TotalSeconds -gt 90) { throw 'Client measurement timed out.' }
+                $limit = if ($Mode -eq 'scroll') { $ScrollSeconds + 90 } else { 90 }
+                if ($timer.Elapsed.TotalSeconds -gt $limit) { throw 'Client measurement timed out.' }
             } while (!$process.WaitForExit(20))
             $message = $stderr.GetAwaiter().GetResult()
             if ($process.ExitCode -ne 0) { throw "Client measurement failed ($($process.ExitCode)): $message" }
@@ -49,8 +53,9 @@ $records = @(
             if ($row.processes -lt 2 -or $row.sampledProcesses -notcontains 'AileArc.Worker') { throw 'Did not observe the archive worker.' }
             $row.sampledPeakTreeWorkingSetBytes = $peakWs
             if ($row.peakTreeCommitBytes -le 0) { throw 'Missing job memory high-water mark.' }
-            if ($Mode -eq 'open' -and ($row.pageRows -le 0 -or $null -eq $row.frameMs -or $row.frameMs -lt $row.boundMs -or
+            if ($Mode -ne 'cancel' -and ($row.pageRows -le 0 -or $null -eq $row.frameMs -or $row.frameMs -lt $row.boundMs -or
                 $row.boundMs -lt $row.indexStartMs -or $row.indexStartMs -lt $row.scanStartMs)) { throw 'Invalid render milestones.' }
+            if ($Mode -eq 'scroll' -and ($row.scroll.Seconds -lt $ScrollSeconds -or $row.scroll.PageChanges -lt 1)) { throw 'Incomplete scrolling exercise.' }
             if ($Mode -eq 'cancel' -and ($row.pageRows -ne 0 -or $row.entriesAtCancel -le 0 -or $null -eq $row.cancelMs)) { throw 'Invalid cancellation milestones.' }
             [pscustomobject]$row
         } finally {
@@ -62,7 +67,7 @@ $records = @(
 )
 $os = Get-CimInstance Win32_OperatingSystem
 $median = [ordered]@{}
-$metrics = @('peakTreeCommitBytes','sampledPeakTreeWorkingSetBytes') + $(if ($Mode -eq 'open') {
+$metrics = @('peakTreeCommitBytes','sampledPeakTreeWorkingSetBytes') + $(if ($Mode -ne 'cancel') {
     'scanStartMs','indexStartMs','boundMs','frameMs'
 } else { 'cancelAtMs','entriesAtCancel','cancelMs' })
 foreach ($metric in $metrics) {
