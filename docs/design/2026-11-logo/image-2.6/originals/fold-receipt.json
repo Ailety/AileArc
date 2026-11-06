@@ -1,0 +1,11 @@
+{
+  "model": "gpt-image-2.6-sunburst",
+  "endpoint": "https://api.openai.com/v1/images/generations",
+  "asset": "fold.png",
+  "startedUtc": "2026-11-06T22:07:48.5925036Z",
+  "completedUtc": "2026-11-06T22:08:13.2813151Z",
+  "background": "transparent",
+  "quality": "medium",
+  "size": "1024x1024",
+  "sha256": "7BC2DA6824FEE9B3F86F1E32B3A50FB916552C8F2B1B934856A8ECADC4690F6D"
+}
