@@ -66,18 +66,29 @@ public sealed class DesktopBridgeTests
     {
         var entries = Enumerable.Range(0,450).Select(i=>new ArchiveEntry(i,i%2==0 ? $"a/{i}.md" : $"b/{i}.txt",false,(ulong)i,false)).ToArray();
         var model = new ArchivePresentation(new("ZIP",entries));
-        int comparisons = 0;
-        string Label(string kind) { comparisons++; return kind; }
+        var translated = new List<string>();
+        string Label(string kind) { translated.Add(kind); return kind; }
         var query = Query(search:".") with { Sort="type" };
         var first = model.Query(query, typeLabel:Label);
-        int cold = comparisons;
+        Assert.Equal(new[] { "md", "text" }, translated.Order());
         var next = model.Query(query with { Offset=200 }, typeLabel:Label);
-        Assert.True(cold > 0); Assert.Equal(450,next.Total); Assert.Equal(cold,comparisons);
+        Assert.Equal(450,next.Total); Assert.Equal(2,translated.Count);
         Assert.Empty(first.Rows.Select(r=>r.Id).Intersect(next.Rows.Select(r=>r.Id)));
         Assert.Throws<OperationCanceledException>(()=>model.Query(query,new CancellationToken(true),typeLabel:Label));
         Assert.All(model.Query(query with { Descending=true },typeLabel:Label).Rows,r=>Assert.Equal("text",r.Type));
         Assert.Equal(225,model.Query(query with { Directory="a" },currentDirectoryOnly:true,typeLabel:Label).Total);
     }
+    [Fact]
+    public void CancellationInsideTypeSortRetainsItsToken()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var index = new ArchiveIndex([new(0, "z.txt", false, 1, false), new(1, "a.pdf", false, 1, false), new(2, "b.txt", false, 1, false)]);
+        string Label(string kind) { cancellation.Cancel(); return kind; }
+        var error = Assert.Throws<OperationCanceledException>(() => index.Query("", sort: EntrySort.Type,
+            cancellationToken: cancellation.Token, typeLabel: Label));
+        Assert.Equal(cancellation.Token, error.CancellationToken);
+    }
+
     [Fact]
     public void LocateWorksWhenMetadataBudgetShortensTheContainingPage()
     {

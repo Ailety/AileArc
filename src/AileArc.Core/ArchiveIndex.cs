@@ -92,6 +92,18 @@ public sealed class ArchiveIndex
             }
             result = matches.ToArray();
         }
+        Dictionary<string, string>? labels = null;
+        string Label(string kind)
+        {
+            if (typeLabel is null) return kind;
+            labels ??= new(StringComparer.Ordinal);
+            if (!labels.TryGetValue(kind, out var label))
+            {
+                label = typeLabel(kind) ?? kind;
+                labels.Add(kind, label);
+            }
+            return label;
+        }
         int Compare(BrowserEntry left, BrowserEntry right)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -104,7 +116,7 @@ public sealed class ArchiveIndex
                 EntrySort.Size => Nullable.Compare(left.Size, right.Size),
                 EntrySort.Modified => Nullable.Compare(left.ModifiedFileTime, right.ModifiedFileTime),
                 EntrySort.Path => StringComparer.OrdinalIgnoreCase.Compare(left.Path, right.Path),
-                EntrySort.Type => StringComparer.OrdinalIgnoreCase.Compare(typeLabel?.Invoke(left.Kind) ?? left.Kind, typeLabel?.Invoke(right.Kind) ?? right.Kind),
+                EntrySort.Type => left.Kind == right.Kind ? 0 : StringComparer.OrdinalIgnoreCase.Compare(Label(left.Kind), Label(right.Kind)),
                 _ => StringComparer.OrdinalIgnoreCase.Compare(left.Name, right.Name)
             };
             if (comparison == 0) comparison = StringComparer.Ordinal.Compare(left.Path, right.Path);
@@ -114,9 +126,15 @@ public sealed class ArchiveIndex
         for (int i = 1; i < result.Length; i++)
         {
             if (Compare(result[i - 1], result[i]) <= 0) continue;
-            Array.Sort(result, Compare);
+            try { Array.Sort(result, Compare); }
+            catch (InvalidOperationException e) when (e.InnerException is OperationCanceledException && cancellationToken.IsCancellationRequested)
+            {
+                // Array.Sort wraps exceptions raised by its comparison delegate.
+                throw new OperationCanceledException(cancellationToken);
+            }
             break;
         }
+        cancellationToken.ThrowIfCancellationRequested();
         return result;
     }
 
