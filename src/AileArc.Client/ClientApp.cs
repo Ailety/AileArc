@@ -33,6 +33,30 @@ public sealed class ClientApp : Application
         }
     }
     internal bool HideTestWindows { get; set; }
+    private readonly Dictionary<(AileArc.Shared.ArchiveIdentity Identity, long Id, string EntryPath), (MainWindow Owner, Task Request)> pendingFileOpens = [];
+
+    internal Task OpenEntryOnceAsync(MainWindow owner, AileArc.Shared.ArchiveIdentity identity, long id, string entryPath, Func<Task> open)
+    {
+        Dispatcher.VerifyAccess();
+        var key = (identity, id, entryPath);
+        if (pendingFileOpens.TryGetValue(key, out var pending))
+        {
+            if (pending.Owner != owner && pending.Owner.IsVisible) pending.Owner.BringForward();
+            return pending.Request;
+        }
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        pendingFileOpens.Add(key, (owner, completion.Task)); // Before any modal prompt can reenter the dispatcher.
+        _ = CompleteAsync();
+        return completion.Task;
+
+        async Task CompleteAsync()
+        {
+            try { await open(); completion.TrySetResult(); }
+            catch (OperationCanceledException error) { completion.TrySetCanceled(error.CancellationToken); }
+            catch (Exception error) { completion.TrySetException(error); }
+            finally { pendingFileOpens.Remove(key); }
+        }
+    }
     private volatile bool restarting;
     internal bool Restarting { get => restarting; private set => restarting = value; }
     private readonly WindowCatalog<MainWindow> catalog = new();

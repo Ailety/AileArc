@@ -302,17 +302,23 @@ public partial class MainWindow
     private async void OpenFile_Click(object sender, RoutedEventArgs e) => await ActivateAsync();
     internal Task OpenExternalAsync(long id)
     {
-        if (archive?.Scan.Identity is null || OpenedPath is null || IsBusy) return Task.CompletedTask;
+        if (archive?.Scan.Identity is null || OpenedPath is null) return Task.CompletedTask;
         var snapshot = archive.Scan; string path = OpenedPath;
-        var entry = snapshot.Entries.SingleOrDefault(e => e.Id == id);
+        var entry = id >= 0 && id < snapshot.Entries.Count && snapshot.Entries[(int)id].Id == id
+            ? snapshot.Entries[(int)id] : snapshot.Entries.SingleOrDefault(e => e.Id == id);
         if (entry is null || entry.IsDirectory) return Task.CompletedTask;
-        if (ExternalOpenPolicy.RequiresConfirmation(entry.Path) && !Confirm("ConfirmExecutable", Text.Format("ExecutableHint", Path.GetFileName(entry.Path)), "OpenFile")) return Task.CompletedTask;
-        return RunAsync(Text["PreparingExternal"], async token =>
+        var app = (ClientApp)Application.Current;
+        return app.OpenEntryOnceAsync(this, snapshot.Identity, id, entry.Path, () =>
         {
-            var record = await WithPasswordAsync(secret => Task.Run(() =>
-                Copies.PrepareForOpenAsync(worker, path, snapshot.Identity, entry, snapshot.NameCodePage, secret, token), token), token);
-            return await PrepareCopyLaunchAsync(record, token);
-        }, false);
+            if (IsBusy || closingCheck || closed || !app.CanStart(this)) return Task.CompletedTask;
+            if (ExternalOpenPolicy.RequiresConfirmation(entry.Path) && !Confirm("ConfirmExecutable", Text.Format("ExecutableHint", Path.GetFileName(entry.Path)), "OpenFile")) return Task.CompletedTask;
+            return RunAsync(Text["PreparingExternal"], async token =>
+            {
+                var record = await WithPasswordAsync(secret => Task.Run(() =>
+                    Copies.PrepareForOpenAsync(worker, path, snapshot.Identity, entry, snapshot.NameCodePage, secret, token), token), token);
+                return await PrepareCopyLaunchAsync(record, token);
+            }, false);
+        });
     }
 
     private async Task<Action> PrepareCopyLaunchAsync(WorkCopyRecord record, CancellationToken token)
@@ -330,13 +336,14 @@ public partial class MainWindow
         await Task.Run(() => Copies.RestoreSourceMarkAsync(record, token), token);
         return () =>
         {
-            openedCopies[record.Id] = state; LastCopyPath = state.FilePath;
             try
             {
                 LaunchFile(state.FilePath, new WindowInteropHelper(this).Handle);
+                openedCopies[record.Id] = state; LastCopyPath = state.FilePath;
                 StatusText.Text = Text[record.Damage is not null ? "ClientUnverifiedOpened" :
                     state.State == WorkCopyState.Modified ? "CopyStateModified" : "ExternalCopyNotice"];
             }
+            catch (OperationCanceledException) { StatusText.Text = Text["ClientExternalCancelled"]; }
             catch (Exception error) when (error is Win32Exception or IOException or System.Runtime.InteropServices.COMException)
             { StatusText.Text = Text["ExternalOpenFailed"]; }
         };

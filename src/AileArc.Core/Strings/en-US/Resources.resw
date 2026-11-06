@@ -140,6 +140,7 @@
   <data name="CopyChangedDuringConfirmation"><value>The working copy changed or became unreadable during confirmation. Review it again before opening.</value></data>
   <data name="ClientOpenAvailable"><value>Open available content</value></data>
   <data name="ClientKeepCopy"><value>Keep without opening</value></data>
+  <data name="ClientExternalCancelled"><value>Opening was cancelled. The working copy is available in Working copies.</value></data>
   <data name="ClientUnverifiedKept"><value>Unverified content retained in Working copies.</value></data>
   <data name="ClientUnverifiedOpened"><value>Opened the unverified working copy. Edits stay in the copy.</value></data>
   <data name="ClientDamagedCopyState"><value>Unverified source · {0} {1}</value></data>

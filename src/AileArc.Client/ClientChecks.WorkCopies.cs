@@ -9,6 +9,68 @@ namespace AileArc.Client;
 
 internal static partial class ClientChecks
 {
+    private static async Task CheckConcurrentOpenAsync(ClientApp app, string root)
+    {
+        string path = Path.Combine(root, "同时打开.zip");
+        using (var zip = ZipFile.Open(path, ZipArchiveMode.Create))
+        {
+            zip.CreateEntry("coalesce.cmd");
+            using var stream = zip.CreateEntry("inner.zip").Open();
+            using var inner = new ZipArchive(stream, ZipArchiveMode.Create);
+            inner.CreateEntry("inner.txt");
+        }
+        var first = app.CreateWindow(); var second = app.CreateWindow();
+        first.Show(); second.Show();
+        try
+        {
+            await first.TestOpenAsync(path); await second.TestOpenAsync(path);
+            int prompts = 0, launches = 0;
+            first.LaunchFile = second.LaunchFile = (_, _) => launches++;
+            second.ConfirmOverride = (_, _) => { prompts++; return true; };
+            Task? joined = null;
+            bool accept = false;
+            first.ConfirmOverride = (_, _) =>
+            {
+                prompts++;
+                joined = second.OpenExternalAsync(0);
+                return accept;
+            };
+            var declined = first.OpenExternalAsync(0);
+            await declined;
+            Require(ReferenceEquals(declined, joined) && prompts == 1 && launches == 0, "concurrent request cannot override declined execution");
+            accept = true;
+            var accepted = first.OpenExternalAsync(0);
+            await accepted;
+            Require(ReferenceEquals(accepted, joined) && prompts == 2 && launches == 1, "two windows share one prompt, preparation and launch");
+            await second.OpenExternalAsync(0);
+            Require(prompts == 3 && launches == 2 && first.LastCopyPath == second.LastCopyPath,
+                "later explicit open reuses the working copy and may launch again");
+            string? before = first.LastCopyPath, chooserPath = null;
+            first.LaunchFile = (file, hwnd) => ExternalApplication.Open(file, hwnd,
+                _ => throw new System.ComponentModel.Win32Exception(1155), (candidate, ownerHwnd) =>
+                {
+                    Require(ownerHwnd == hwnd && hwnd != IntPtr.Zero, "system chooser receives the owning window");
+                    chooserPath = candidate; return unchecked((int)0x800704C7);
+                });
+            await first.OpenExternalAsync(1);
+            Require(first.LastCopyPath == before && first.StatusText.Text == ClientApp.Text["ClientExternalCancelled"] && File.Exists(chooserPath),
+                "cancelled system chooser keeps the copy and does not report a successful launch");
+            Task? activation = null;
+            first.LaunchFile = (file, _) => activation = app.OpenPathAsync(file);
+            await first.OpenExternalAsync(1);
+            Require(activation is not null, "nested archive handed to the registered application");
+            await activation!;
+            var nested = app.Windows.OfType<MainWindow>().Single(w => w.OpenedPath == chooserPath);
+            try
+            {
+                Require(first.OpenedPath == path && nested.TestGrid.Items.Cast<EntryView>().Single().Name == "inner.txt",
+                    "activation opens the nested working copy in its own window");
+            }
+            finally { nested.ApproveClose(); nested.Close(); }
+        }
+        finally { first.ApproveClose(); second.ApproveClose(); first.Close(); second.Close(); }
+    }
+
     private static async Task CheckRetainedCopiesAsync(ClientApp app, string root)
     {
         var prepare = app.CreateWindow(); prepare.Show();

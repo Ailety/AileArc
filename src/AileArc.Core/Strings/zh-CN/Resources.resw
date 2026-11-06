@@ -141,6 +141,7 @@
   <data name="CopyChangedDuringConfirmation"><value>确认期间副本已变化或无法读取，请重新核对后打开。</value></data>
   <data name="ClientOpenAvailable"><value>打开可用内容</value></data>
   <data name="ClientKeepCopy"><value>仅保留副本</value></data>
+  <data name="ClientExternalCancelled"><value>已取消打开，可在“工作副本”中找到准备好的文件。</value></data>
   <data name="ClientUnverifiedKept"><value>已保留未通过校验的内容，可在“工作副本”中查看。</value></data>
   <data name="ClientUnverifiedOpened"><value>已打开未通过校验的工作副本，修改会保存在副本中。</value></data>
   <data name="ClientDamagedCopyState"><value>来源未通过校验 · {0} {1}</value></data>
