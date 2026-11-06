@@ -83,10 +83,12 @@ internal static partial class ClientChecks
         window.TestGrid.SelectedIndex = 0;
         Require(window.DetailPath.Text == "Match120/内容.txt" && window.DetailSize.Text == ClientApp.Text.Format("ClientExactSize", 0), "selected nested file shows its path and exact length");
         var selectedFile = window.TestGrid.SelectedItem;
+        if (!window.DetailPane.IsVisible) await Click(window.ShowDetails);
         await Click(window.HideDetails); window.UpdateLayout();
         Require(window.DetailColumn.ActualWidth == 0 && window.ShowDetails.IsVisible, "hidden inspector gives its width to the list");
         await Click(window.ShowDetails); window.UpdateLayout();
-        Require(window.DetailColumn.ActualWidth > 0 && window.TestGrid.SelectedItem == selectedFile, "reopened inspector retains selection");
+        Require(window.DetailPane.IsVisible && (window.BrowserBody.ActualWidth < 1120 || window.DetailColumn.ActualWidth > 0) &&
+            window.TestGrid.SelectedItem == selectedFile, "reopened inspector retains selection in docked and narrow windows");
         string? copied = null, launched = null;
         var realCopy = window.CopyText; var previousLauncher = window.LaunchFile;
         try

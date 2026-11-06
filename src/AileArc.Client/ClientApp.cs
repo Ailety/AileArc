@@ -88,6 +88,8 @@ public sealed class ClientApp : Application
             mode is "open" or "cancel" && long.TryParse(stamp, out long launchTick))
             return ClientMeasurement.Run(archive, mode, launchTick);
         if (args is ["--self-test", "recovery-probe", var target, var journal]) return ClientChecks.RecoveryProbe(target, journal);
+        if (args is ["--self-test", var layoutLanguage, "--layout-output", var output] && LanguageService.Supported.Contains(layoutLanguage))
+        { Text = new(layoutLanguage); return ClientChecks.Run(new ClientApp(), Path.GetFullPath(output)); }
         if (args is ["--self-test", var language]) { Text = new(language); return ClientChecks.Run(new ClientApp()); }
         if (args is ["--restart-from", var pidText, "--restore-session", var session])
         {

@@ -231,7 +231,8 @@
   <data name="ClientEntryList" xml:space="preserve"><value>归档文件列表</value></data>
   <data name="ClientSelectAll" xml:space="preserve"><value>选择当前页全部项目</value></data>
   <data name="ClientType" xml:space="preserve"><value>类型</value></data>
-  <data name="ClientSize" xml:space="preserve"><value>大小 / KiB</value></data>
+  <data name="ClientSize" xml:space="preserve"><value>大小</value></data>
+  <data name="ClientScaledSize"><value>{0} {1}</value></data>
   <data name="ClientEmptySelection" xml:space="preserve"><value>当前 0 项 · 已选 0 项</value></data>
   <data name="ClientPrevious" xml:space="preserve"><value>上一页</value></data>
   <data name="ClientNext" xml:space="preserve"><value>下一页</value></data>
@@ -242,6 +243,8 @@
   <data name="ClientFooter" xml:space="preserve"><value>开发预览 · 浏览与解压</value></data>
   <data name="ClientSelectionHint" xml:space="preserve"><value>Ctrl + 单击：增减选择
 Shift + 单击：连续选择
+Ctrl + ↑/↓：移动焦点
+空格：切换焦点行的选择
 Ctrl + A：全选当前页</value></data>
   <data name="ClientIdle" xml:space="preserve"><value>就绪</value></data>
   <data name="ClientFolder" xml:space="preserve"><value>文件夹</value></data>
@@ -289,6 +292,7 @@ Ctrl + A：全选当前页</value></data>
   <data name="ClientClipboardBusy"><value>剪贴板正被占用，请重试。</value></data>
   <data name="ClientClearSearch"><value>清除搜索</value></data>
   <data name="ClientFolderTree"><value>压缩包目录树</value></data>
+  <data name="ClientToolsAndSettings"><value>工具与设置</value></data>
   <data name="ClientExpandFolder"><value>展开 {0}</value></data>
   <data name="ClientCollapseFolder"><value>折叠 {0}</value></data>
   <data name="ClientLocate"><value>在所在目录中定位</value></data>

@@ -1,5 +1,5 @@
 <Window x:Class="AileArc.Client.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:AileArc.Client"
-  Title="{local:Text ClientTitle}" Width="1320" Height="850" MinWidth="1060" MinHeight="650" WindowStartupLocation="CenterScreen"
+  Title="{local:Text ClientTitle}" Width="1320" Height="850" MinWidth="640" MinHeight="340" WindowStartupLocation="CenterScreen"
   Background="{DynamicResource CanvasBrush}" Foreground="{DynamicResource TextBrush}" FontFamily="Microsoft YaHei UI, Segoe UI" FontSize="14" UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
   <Window.Resources>
     <ResourceDictionary>
@@ -44,13 +44,20 @@
   </Window.Resources>
   <Grid x:Name="Workspace" AllowDrop="True" PreviewDragOver="Workspace_DragOver" PreviewDragLeave="Workspace_DragLeave" PreviewDrop="Workspace_Drop">
     <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="32" /></Grid.RowDefinitions>
-    <Grid>
-      <Grid.ColumnDefinitions><ColumnDefinition Width="218" MinWidth="180" /><ColumnDefinition Width="1" /><ColumnDefinition Width="*" /><ColumnDefinition x:Name="DetailDivider" Width="1" /><ColumnDefinition x:Name="DetailColumn" Width="254" /></Grid.ColumnDefinitions>
-      <Border Background="{StaticResource SurfaceBrush}" Padding="16,20">
+    <Grid x:Name="BrowserBody" SizeChanged="BrowserBody_SizeChanged">
+      <Grid.ColumnDefinitions><ColumnDefinition x:Name="TreeColumn" Width="218" /><ColumnDefinition x:Name="TreeDivider" Width="1" /><ColumnDefinition Width="*" /><ColumnDefinition x:Name="DetailDivider" Width="1" /><ColumnDefinition x:Name="DetailColumn" Width="254" /></Grid.ColumnDefinitions>
+      <Border x:Name="TreePane" Panel.ZIndex="2" Background="{StaticResource SurfaceBrush}" Padding="16,20">
         <DockPanel LastChildFill="True">
-          <TextBlock DockPanel.Dock="Bottom" Text="{local:Text ClientReadOnly}" Style="{StaticResource Muted}" TextWrapping="Wrap" />
-          <TextBlock DockPanel.Dock="Top" Text="{local:Text ClientArchive}" Style="{StaticResource Muted}" Margin="0,0,0,8" />
+          <TextBlock x:Name="CopyPolicyHint" DockPanel.Dock="Bottom" Text="{local:Text ClientReadOnly}" Style="{StaticResource Muted}" TextWrapping="Wrap" />
+          <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+            <Button x:Name="HideFolders" DockPanel.Dock="Right" Visibility="Collapsed" Content="×" Width="32" Padding="0" Click="ToggleFolders_Click" AutomationProperties.Name="{local:Text Close}"/>
+            <TextBlock Text="{local:Text ClientArchive}" Style="{StaticResource Muted}" />
+          </DockPanel>
           <StackPanel DockPanel.Dock="Bottom">
+            <Button x:Name="ToggleTools" AutomationProperties.Name="{local:Text ClientToolsAndSettings}" Click="ToggleTools_Click" Visibility="Collapsed">
+              <StackPanel Orientation="Horizontal"><TextBlock x:Name="ToolsChevron" Text="▸" Margin="0,0,6,0"/><TextBlock Text="{local:Text ClientToolsAndSettings}"/></StackPanel>
+            </Button>
+            <ScrollViewer x:Name="SideCommands" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel>
             <Border Height="1" Background="{StaticResource LineBrush}" Margin="0,20" />
             <Button x:Name="CreateButton" Content="{local:Text CreateArchive}" Click="Create_Click" Margin="0,0,0,8" />
             <Button x:Name="TestArchiveButton" Content="{local:Text TestArchive}" Click="TestArchive_Click" ToolTip="{local:Text TestArchiveHint}" Margin="0,0,0,8" />
@@ -60,6 +67,7 @@
             <TextBlock Text="{local:Text Language}" Style="{StaticResource Muted}" Margin="0,0,0,8" />
             <ComboBox x:Name="LanguageBox" SelectionChanged="Language_Changed" AutomationProperties.Name="{local:Text Language}" />
             <Button x:Name="RestartButton" Content="{local:Text RestartNow}" Click="Restart_Click" Visibility="Collapsed" Margin="0,8,0,0" />
+            </StackPanel></ScrollViewer>
           </StackPanel>
           <Grid>
             <TextBlock x:Name="TreeWelcome" Text="{local:Text Welcome}" Style="{StaticResource Muted}" VerticalAlignment="Top" Margin="2,8" />
@@ -97,9 +105,10 @@
       </Border>
       <Border Grid.Column="1" Background="{StaticResource LineBrush}" />
       <Grid Grid.Column="2">
-        <Grid.RowDefinitions><RowDefinition Height="65" /><RowDefinition Height="52" /><RowDefinition Height="0" /><RowDefinition Height="*" /><RowDefinition Height="46" /></Grid.RowDefinitions>
-        <DockPanel Margin="18,12">
+        <Grid.RowDefinitions><RowDefinition x:Name="NavigationRow" Height="65" /><RowDefinition x:Name="SearchRow" Height="52" /><RowDefinition Height="0" /><RowDefinition Height="*" /><RowDefinition x:Name="PagerRow" Height="46" /></Grid.RowDefinitions>
+        <DockPanel x:Name="NavigationBar" Margin="18,12">
           <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+            <Button x:Name="ShowFolders" Visibility="Collapsed" FontFamily="Segoe Fluent Icons" Content="&#xE8B7;" Width="32" Padding="0" Click="ToggleFolders_Click" ToolTip="{local:Text ClientFolderTree}" AutomationProperties.Name="{local:Text ClientFolderTree}"/>
             <Button x:Name="BackButton" FontFamily="Segoe Fluent Icons" Content="&#xE72B;" ToolTip="{local:Text Back}" AutomationProperties.Name="{local:Text Back}" Click="Back_Click" Width="32" Padding="0" />
             <Button x:Name="ForwardButton" FontFamily="Segoe Fluent Icons" Content="&#xE72A;" ToolTip="{local:Text Forward}" AutomationProperties.Name="{local:Text Forward}" Click="Forward_Click" Width="32" Padding="0" />
             <Button x:Name="UpButton" FontFamily="Segoe Fluent Icons" Content="&#xE74A;" ToolTip="{local:Text Up}" AutomationProperties.Name="{local:Text Up}" Click="Up_Click" Width="32" Padding="0" />
@@ -116,9 +125,9 @@
             </Button>
             <Button x:Name="ShowDetails" Content="{local:Text ClientShowDetails}" Visibility="Collapsed" Click="ToggleDetails_Click" Margin="6,0,0,0"/>
           </StackPanel>
-          <Grid Margin="6,0" Background="{StaticResource SurfaceBrush}"><ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"><StackPanel x:Name="Crumbs" Orientation="Horizontal" MouseLeftButtonDown="Address_MouseDown" Background="Transparent" /></ScrollViewer><TextBox x:Name="AddressInput" Visibility="Collapsed" KeyDown="Address_KeyDown" LostKeyboardFocus="Address_Blur" AutomationProperties.Name="{local:Text Path}" /></Grid>
+          <Grid x:Name="AddressBar" Margin="6,0" Background="{StaticResource SurfaceBrush}"><ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"><StackPanel x:Name="Crumbs" Orientation="Horizontal" MouseLeftButtonDown="Address_MouseDown" Background="Transparent" /></ScrollViewer><TextBox x:Name="AddressInput" Visibility="Collapsed" KeyDown="Address_KeyDown" LostKeyboardFocus="Address_Blur" AutomationProperties.Name="{local:Text Path}" /></Grid>
         </DockPanel>
-        <Grid Grid.Row="1" Margin="18,0,18,14"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+        <Grid x:Name="SearchBar" Grid.Row="1" Margin="18,0,18,14"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
           <Grid>
             <TextBox x:Name="SearchBox" MaxLength="512" Padding="12,0,48,0" VerticalContentAlignment="Center" KeyDown="Search_KeyDown" TextChanged="Search_TextChanged" AutomationProperties.Name="{local:Text Search}" AutomationProperties.AcceleratorKey="Ctrl+F" AutomationProperties.AutomationId="ArchiveSearch" />
             <TextBlock x:Name="SearchHint" Text="{local:Text Search}" Style="{StaticResource Muted}" Margin="13,0" IsHitTestVisible="False" />
@@ -132,7 +141,7 @@
           SelectionMode="Extended" SelectionUnit="FullRow" CanUserAddRows="False" CanUserDeleteRows="False" CanUserSortColumns="True" Sorting="Grid_Sorting" CanUserReorderColumns="False"
           HeadersVisibility="Column" RowHeight="40" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#2E2B28"
           EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.CanContentScroll="True"
-          ScrollViewer.HorizontalScrollBarVisibility="Disabled" SelectionChanged="Grid_SelectionChanged" MouseDoubleClick="Grid_DoubleClick" PreviewKeyDown="Grid_KeyDown"
+          ScrollViewer.HorizontalScrollBarVisibility="Auto" SelectionChanged="Grid_SelectionChanged" MouseDoubleClick="Grid_DoubleClick" PreviewKeyDown="Grid_KeyDown"
           AutomationProperties.Name="{local:Text ClientEntryList}" AutomationProperties.AutomationId="ArchiveEntries">
           <DataGrid.ContextMenu>
             <ContextMenu Style="{StaticResource ExtractMenu}" ItemContainerStyle="{StaticResource ExtractMenuItem}">
@@ -167,7 +176,7 @@
         </DockPanel>
       </Grid>
       <Border Grid.Column="3" Background="{StaticResource LineBrush}" />
-      <Border x:Name="DetailPane" Grid.Column="4" Background="{StaticResource SurfaceBrush}" Padding="18">
+      <Border x:Name="DetailPane" Grid.Column="4" Panel.ZIndex="2" Background="{StaticResource SurfaceBrush}" Padding="18">
         <DockPanel>
           <DockPanel DockPanel.Dock="Top" Margin="0,0,0,16">
             <Button x:Name="HideDetails" DockPanel.Dock="Right" Content="×" Width="32" Padding="0" Click="ToggleDetails_Click" ToolTip="{local:Text ClientHideDetails}" AutomationProperties.Name="{local:Text ClientHideDetails}" />

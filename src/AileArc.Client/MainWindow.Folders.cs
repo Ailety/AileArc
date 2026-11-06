@@ -46,9 +46,11 @@ public partial class MainWindow
 
     private async Task EnterFolderAsync(FolderNode node)
     {
-        if (IsBusy || (node.Path == directory && view.Search.Length == 0 && SearchBox.Text.Length == 0)) return;
-        await QueryAsync(node.Path, 0, clearSearch: true);
+        if (IsBusy) return;
+        if (node.Path != directory || view.Search.Length > 0 || SearchBox.Text.Length > 0)
+            await QueryAsync(node.Path, 0, clearSearch: true);
         ReflectFolder(false, currentFolder); // If navigation was cancelled, restore the committed selection.
+        if (treeOverlayOpen && node.Path == directory) { CloseOverlay(false); EntryGrid.Focus(); }
     }
     private async void Folder_Click(object sender, RoutedEventArgs e)
     { if (((FrameworkElement)sender).DataContext is FolderNode node) await EnterFolderAsync(node); }

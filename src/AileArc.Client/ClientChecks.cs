@@ -27,7 +27,7 @@ internal static partial class ClientChecks
         Require(values.SequenceEqual([9_999]), "progress coalesces a backlog and stops at task completion");
     }
 
-    public static int Run(ClientApp app)
+    public static int Run(ClientApp app, string? layoutOutput = null)
     {
         File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "client-self-test-error.txt"), "", System.Text.Encoding.UTF8);
         int result = 1;
@@ -86,6 +86,7 @@ internal static partial class ClientChecks
                 await CheckRetainedCopiesAsync(app, testRoot);
                 await CheckConcurrentOpenAsync(app, testRoot);
                 await CheckReloadAsync(app, testRoot);
+                await CheckKeyboardAndLayoutAsync(app, testRoot, layoutOutput);
                 await CheckProgressAsync(window.Dispatcher);
                 var empty = new MainWindow { Opacity = 0, ShowActivated = false, ShowInTaskbar = false };
                 empty.Show(); empty.Close();

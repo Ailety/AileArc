@@ -16,6 +16,8 @@ WPF 客户端支持浏览、解压、默认应用打开、工作副本保护、Z
 
 ## 已实现
 
+- 在文件列表中，Ctrl+↑/↓ 或 Ctrl+Home/End 移动当前页焦点；空格或 Ctrl+Space 增减焦点行，Shift 扩展范围，Ctrl+Shift 可在已有选择上扩展。Enter 打开焦点项。窗口较窄时从工具栏展开目录树或详情，Esc 收起；高度较低时从左侧“工具与设置”进入语言和创建命令。
+
 - 可从资源管理器将压缩包拖入客户端；一次支持至多 32 个文件。列表右键可直接打开、解压所选、解压文件所在目录或复制多条内部路径。搜索结果可定位至原目录并选中原条目，再后退回到搜索结果。
 - Ctrl+O 打开归档；列表中 Ctrl+C 按显示顺序复制所选路径，Ctrl+E 解压所选项。底栏可切换当前窗口的紧凑行高。拖入提示、详情展开及任务活动指示遵循系统动画和高对比度设置。
 
@@ -87,6 +89,7 @@ WPF 客户端支持浏览、解压、默认应用打开、工作副本保护、Z
 WebView2、Native SDK 和纯 WPF 验证程序保留为历史对照，正式路线与当前接入范围以 [WPF 客户端迁移计划](docs/WPF_Client_Migration.md)为准。历史测量见 [三方案验证](docs/WPF_UI_Validation.md)。
 
 - [M1 实施规范](docs/AileArc_M1_Implementation_Specification.md)
+- [M1 开发预览验收记录与待验环境](docs/M1_Acceptance_Status.md)
 - [长期产品蓝图](docs/AileArc_Development_Specification.md)
 - [架构决策](docs/AileArc_Architecture_Decisions.md)
 - [开发历程](docs/Development_Log.md)

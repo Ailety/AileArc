@@ -44,6 +44,16 @@ public partial class MainWindow : Window
         System.Windows.Automation.AutomationProperties.SetAutomationId(OpenButton,"OpenArchive");
         GraphiteFrame.Install(this, OpenButton);
         PreviewKeyDown += NavigationKey;
+        PreviewKeyDown += OverlayKey;
+        BrowserBody.PreviewMouseDown += (_, _) =>
+        {
+            if ((treeOverlayOpen && !TreePane.IsMouseOver && !ShowFolders.IsMouseOver) ||
+                (detailOverlayOpen && !DetailPane.IsMouseOver && !ShowDetails.IsMouseOver)) CloseOverlay(false);
+        };
+        EntryGrid.PreviewMouseDown += (_, _) => ResetKeyboardRange();
+        EntryGrid.CurrentCellChanged += (_, _) => { if (!changingItems) ResetKeyboardRange(); };
+        EntryGrid.PreviewMouseWheel += (_, _) => keyboardCursor = null;
+        EntryGrid.SizeChanged += (_, _) => RevealCursorAfterResize();
         EncodingBox.ItemsSource = new[] { Text["FilenameEncodingAuto"], "UTF-8 (65001)", "GBK (936)", "Shift-JIS (932)" }; EncodingBox.SelectedIndex = 0;
         InitializeSearch();
         InitializeWorkspaceActions();
@@ -252,6 +262,7 @@ public partial class MainWindow : Window
     }
     internal void ApplyRows(EntryView[] rows)
     {
+        ResetKeyboardRange();
         EntryGrid.ContextMenu.IsOpen = false;
         changingItems = true;
         try { EntryGrid.UnselectAll(); displayed = rows; EntryGrid.ItemsSource = rows; }
@@ -301,7 +312,7 @@ public partial class MainWindow : Window
     {
         foreach (EntryView row in e.RemovedItems) row.IsSelected = false;
         foreach (EntryView row in e.AddedItems) row.IsSelected = true;
-        if (!changingItems) UpdateSelection();
+        if (!changingItems) { ResetKeyboardRange(); UpdateSelection(); }
     }
     private void UpdateSelection()
     {
@@ -323,12 +334,11 @@ public partial class MainWindow : Window
     }
     private void ToggleDetails_Click(object sender, RoutedEventArgs e)
     {
-        bool hide = DetailPane.Visibility == Visibility.Visible;
-        DetailColumn.Width = new GridLength(hide ? 0 : 254); DetailDivider.Width = new GridLength(hide ? 0 : 1);
-        DetailPane.Visibility = hide ? Visibility.Collapsed : Visibility.Visible;
-        ShowDetails.Visibility = hide ? Visibility.Visible : Visibility.Collapsed;
-        if (!hide) FadeIn(DetailPane);
-        (hide ? ShowDetails : HideDetails).Focus();
+        if (compactDetails) { detailOverlayOpen = !detailOverlayOpen; treeOverlayOpen = false; }
+        else dockedDetails = !dockedDetails;
+        ApplyPaneLayout();
+        if (DetailPane.IsVisible) { FadeIn(DetailPane); HideDetails.Focus(); }
+        else ShowDetails.Focus();
     }
     internal Action<string> CopyText { get; set; } = Clipboard.SetText;
     private void CopyPath_Click(object sender, RoutedEventArgs e)
@@ -368,9 +378,26 @@ public partial class MainWindow : Window
         if (row.Row.Type == "folder") return QueryAsync(row.Path, 0, true);
         return OpenExternalAsync(long.Parse(row.Row.Id, System.Globalization.CultureInfo.InvariantCulture));
     }
-    private async void Grid_DoubleClick(object sender, MouseButtonEventArgs e) { if (FindAncestor<DataGridRow>(e.OriginalSource as DependencyObject) is not null) await ActivateAsync(); }
+    private async void Grid_DoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        var source = e.OriginalSource as DependencyObject;
+        if (FindAncestor<DataGridRow>(source) is not null && FindAncestor<CheckBox>(source) is null) await ActivateAsync();
+    }
     private async void Grid_KeyDown(object sender, KeyEventArgs e)
-    { if (e.Key == Key.Escape) { EntryGrid.UnselectAll(); e.Handled = true; } else if (e.Key == Key.Enter) { e.Handled = true; await ActivateAsync(); } }
+    {
+        var source = e.OriginalSource as DependencyObject;
+        if (FindAncestor<System.Windows.Controls.Primitives.DataGridColumnHeader>(source) is not null) return;
+        if (HandleListKey(e.Key, e.KeyboardDevice.Modifiers, FindAncestor<DataGridRow>(source)?.Item as EntryView)) { e.Handled = true; return; }
+        if (e.KeyboardDevice.Modifiers != ModifierKeys.None) return;
+        if (e.Key == Key.Escape) { EntryGrid.UnselectAll(); e.Handled = true; }
+        else if (e.Key == Key.Enter)
+        {
+            e.Handled = true;
+            if (EntryGrid.CurrentItem is EntryView focused && (EntryGrid.SelectedItems.Count != 1 || EntryGrid.SelectedItem != focused))
+            { EntryGrid.UnselectAll(); EntryGrid.SelectedItem = focused; }
+            await ActivateAsync();
+        }
+    }
     private async void Previous_Click(object sender, RoutedEventArgs e) => await QueryAsync(directory, offset, previousPage: true);
     private async void Next_Click(object sender, RoutedEventArgs e) => await QueryAsync(directory, offset + displayed.Length);
     private async void Back_Click(object sender, RoutedEventArgs e) => await QueryAsync(directory, 0, back: true);

@@ -12,6 +12,7 @@ internal static class GraphiteFrame
 {
     public static void Install(Window window, Button? action = null)
     {
+        MonitorWorkArea.Install(window);
         bool main = action is not null;
         int height = main ? 48 : 38;
         WindowChrome.SetWindowChrome(window, new WindowChrome { CaptionHeight = height, GlassFrameThickness = new Thickness(0),

@@ -231,7 +231,8 @@
   <data name="ClientEntryList" xml:space="preserve"><value>Archive entries</value></data>
   <data name="ClientSelectAll" xml:space="preserve"><value>Select all items on this page</value></data>
   <data name="ClientType" xml:space="preserve"><value>Type</value></data>
-  <data name="ClientSize" xml:space="preserve"><value>Size / KiB</value></data>
+  <data name="ClientSize" xml:space="preserve"><value>Size</value></data>
+  <data name="ClientScaledSize"><value>{0} {1}</value></data>
   <data name="ClientEmptySelection" xml:space="preserve"><value>0 items · 0 selected</value></data>
   <data name="ClientPrevious" xml:space="preserve"><value>Previous</value></data>
   <data name="ClientNext" xml:space="preserve"><value>Next</value></data>
@@ -242,6 +243,8 @@
   <data name="ClientFooter" xml:space="preserve"><value>Development preview · Browse and extract</value></data>
   <data name="ClientSelectionHint" xml:space="preserve"><value>Ctrl + click: toggle selection
 Shift + click: select a range
+Ctrl + ↑/↓: move focus
+Space: toggle the focused row
 Ctrl + A: select this page</value></data>
   <data name="ClientIdle" xml:space="preserve"><value>Ready</value></data>
   <data name="ClientFolder" xml:space="preserve"><value>Folder</value></data>
@@ -289,6 +292,7 @@ Ctrl + A: select this page</value></data>
   <data name="ClientClipboardBusy"><value>Clipboard is busy. Please try again.</value></data>
   <data name="ClientClearSearch"><value>Clear search</value></data>
   <data name="ClientFolderTree"><value>Archive folders</value></data>
+  <data name="ClientToolsAndSettings"><value>Tools and settings</value></data>
   <data name="ClientExpandFolder"><value>Expand {0}</value></data>
   <data name="ClientCollapseFolder"><value>Collapse {0}</value></data>
   <data name="ClientLocate"><value>Show in containing folder</value></data>
