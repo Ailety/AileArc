@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using AileArc.Core;
@@ -23,7 +24,7 @@ public static class BrowserProtocol
         if (request.Version != 1 || !Guid.TryParse(request.Id, out _) ||
             request.Action is not ("ready" or "pickArchive" or "query" or "cancel" or "password" or "encoding") ||
             request.Directory is null || request.Search is null || request.Directory.Length > 32768 || request.Search.Length > 512 ||
-            request.Sort is not ("name" or "size") || request.Offset < 0 || request.Offset > 500000 ||
+            request.Sort is not ("name" or "size" or "type" or "path" or "modified") || request.Offset < 0 || request.Offset > 500000 ||
             request.Password?.Length > 4096 || request.CodePage is not (0 or 65001 or 936 or 932))
             throw new InvalidDataException("Invalid browser request.");
         return request;
@@ -71,7 +72,7 @@ public sealed class ArchivePresentation
             request.Sort == "type" ? typeLabel : null);
         var cached = Volatile.Read(ref lastView);
         var rows = cached?.Key == key ? cached.Rows : Index.Query(key.Directory, key.Search, key.Local,
-            sort: key.Sort switch { "size" => EntrySort.Size, "type" => EntrySort.Type, "path" => EntrySort.Path, _ => EntrySort.Name },
+            sort: key.Sort switch { "size" => EntrySort.Size, "type" => EntrySort.Type, "path" => EntrySort.Path, "modified" => EntrySort.Modified, _ => EntrySort.Name },
             descending: key.Descending, cancellationToken: token, typeLabel: key.TypeLabel);
         token.ThrowIfCancellationRequested();
         if (cached?.Key != key && Volatile.Read(ref queryVersion) == version)
@@ -102,6 +103,17 @@ public sealed class ArchivePresentation
             offset = end;
         }
     }
+    private static string FormatModifiedTime(long? time)
+    {
+        if (time is null) return "—";
+        var local = DateTime.FromFileTimeUtc(time.Value).ToLocalTime();
+        var culture = CultureInfo.CurrentCulture;
+        var calendar = culture.DateTimeFormat.Calendar;
+        return local >= calendar.MinSupportedDateTime && local <= calendar.MaxSupportedDateTime
+            ? local.ToString("g", culture)
+            : local.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
+    }
+
     private static BrowserRow[] Bound(IEnumerable<BrowserEntry> rows, int limit, CancellationToken token = default)
     {
         var result = new List<BrowserRow>(); int bytes = 0;
@@ -110,7 +122,7 @@ public sealed class ArchivePresentation
             token.ThrowIfCancellationRequested();
             string type = row.Kind;
             var item = new BrowserRow(row.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), row.Name,
-                row.Parent.Length > 0 ? row.Parent + "/" : "", row.Path, type, row.Size is null ? null : row.Size.Value / 1024d, "—", row.Encrypted) { UnpackedBytes = row.Size };
+                row.Parent.Length > 0 ? row.Parent + "/" : "", row.Path, type, row.Size is null ? null : row.Size.Value / 1024d, FormatModifiedTime(row.ModifiedFileTime), row.Encrypted) { UnpackedBytes = row.Size };
             int length = JsonSerializer.SerializeToUtf8Bytes(item, BrowserProtocol.Json).Length;
             if (length > limit) continue;
             if (bytes + length > limit) break;

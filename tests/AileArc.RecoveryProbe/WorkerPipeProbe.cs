@@ -51,6 +51,7 @@ internal static class WorkerPipeProbe
             case "null-entry": await Send(new("entries", Entries: [null!])); return 0;
             case "empty-batch": await Send(new("entries", Entries: [])); return 0;
             case "negative-id": await Send(new("entries", Entries: [new(-1, "x", false, 1, false)])); return 0;
+            case "invalid-file-time": await Send(new("entries", Entries: [new(0, "x", false, 1, false, ModifiedFileTime: long.MaxValue)])); return 0;
             case "unordered-ids":
             case "duplicate-prefix":
             case "duplicate-sparse":

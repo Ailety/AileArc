@@ -22,7 +22,8 @@ public sealed partial class ArchiveWorkerClient(string workerPath)
         private HashSet<long>? otherIds;
         public void Accept(ArchiveEntry? entry)
         {
-            if (entry?.Path is null || entry.Path.Length > 32768 || entry.Id < consecutive || entry.Id > uint.MaxValue)
+            if (entry?.Path is null || entry.Path.Length > 32768 || entry.Id < consecutive || entry.Id > uint.MaxValue ||
+                entry.ModifiedFileTime is <= 0 || entry.ModifiedFileTime > ArchiveEntry.MaxFileTime)
                 throw new ArchiveOperationException("ProtocolMismatch");
             // Native enumeration normally sends 0..N-1. After the first gap,
             // keep only the rest in a set, including any out-of-order arrivals.

@@ -30,7 +30,9 @@ internal static partial class ClientChecks
         using (var zip = ZipFile.Open(path, ZipArchiveMode.Create))
             for (int i = 0; i < 230; i++)
             {
-                using var writer = new StreamWriter(zip.CreateEntry($"数据/{i:D3}.txt").Open()); writer.Write(i);
+                var entry = zip.CreateEntry($"数据/{i:D3}.txt");
+                entry.LastWriteTime = new DateTimeOffset(new DateTime(2020, 1, 1).AddDays(230 - i));
+                using var writer = new StreamWriter(entry.Open()); writer.Write(i);
             }
         var window = app.CreateWindow();
         window.Width = SystemParameters.PrimaryScreenWidth + 80;
@@ -61,6 +63,13 @@ internal static partial class ClientChecks
         try
         {
             await window.TestOpenAsync(path); await window.GoToAddressAsync("数据");
+            await window.SortByAsync(4);
+            grid.SelectedIndex = 0;
+            Require(window.ModifiedColumn.SortMemberPath == "Modified" && (grid.SelectedItem as EntryView)?.Name == "229.txt" &&
+                window.DetailModified.Text == new DateTime(2020, 1, 2).ToString("g"), "date sorting and details use the stored local timestamp");
+            await window.SortByAsync(4);
+            Require(grid.Items.Cast<EntryView>().First().Name == "000.txt", "descending time sort uses the full archive index");
+            await window.SortByAsync(0);
             await window.Dispatcher.InvokeAsync(window.UpdateLayout, DispatcherPriority.ApplicationIdle);
             Require(MonitorWorkArea.TryBounds(window, out var hwnd, out var work) && hwnd.X >= work.X - 1 && hwnd.Y >= work.Y - 1 &&
                 hwnd.X + hwnd.Width <= work.X + work.Width + 1 && hwnd.Y + hwnd.Height <= work.Y + work.Height + 1,

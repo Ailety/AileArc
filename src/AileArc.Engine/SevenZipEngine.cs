@@ -105,6 +105,7 @@ public sealed partial class SevenZipEngine : IDisposable
                     using var name = Property(archive, i, 3);
                     using var directory = Property(archive, i, 6);
                     using var size = Property(archive, i, 7);
+                    using var modified = Property(archive, i, 12);
                     using var encrypted = Property(archive, i, 15);
                     using var attributes = Property(archive, i, 9);
                     using var posix = Property(archive, i, 53);
@@ -118,7 +119,9 @@ public sealed partial class SevenZipEngine : IDisposable
                     bool isLink = symlink.Text is not null || hardlink.Text is not null ||
                         (rawAttributes & 0x400) != 0 || ((posix.Number ?? 0) & 0xF000) == 0xA000 ||
                         ((rawAttributes & 0x8000) != 0 && ((rawAttributes >> 16) & 0xF000) == 0xA000);
-                    batch.Add(new ArchiveEntry(i, entryPath, directory.Boolean, size.Number, encrypted.Boolean, isLink));
+                    long? fileTime = modified.Type == 64 && modified.Unsigned > 0 && modified.Unsigned <= (ulong)ArchiveEntry.MaxFileTime
+                        ? (long)modified.Unsigned : null;
+                    batch.Add(new ArchiveEntry(i, entryPath, directory.Boolean, size.Number, encrypted.Boolean, isLink, fileTime));
                     batchCharacters += entryPath.Length;
                     // Count path characters once. Long names bound the JSON payload;
                     // slow enumeration still yields progress before the batch fills up.

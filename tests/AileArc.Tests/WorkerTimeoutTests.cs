@@ -51,6 +51,7 @@ public sealed partial class WorkerTests
     [InlineData("null-entry")]
     [InlineData("empty-batch")]
     [InlineData("negative-id")]
+    [InlineData("invalid-file-time")]
     [InlineData("duplicate-prefix")]
     [InlineData("duplicate-sparse")]
     [InlineData("missing-id")]

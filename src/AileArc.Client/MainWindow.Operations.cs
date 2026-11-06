@@ -215,8 +215,9 @@ public partial class MainWindow
     {
         if (!result.Cancelled && result.Failures.Count > 0 && result.Completed == 0)
             return Text.Format("ClientExtractionFailed", result.Failures.Count, result.Skipped);
-        return Text.Format(result.Cancelled ? "ExtractionCancelled" : result.Failures.Count > 0 ? "ExtractionPartial" : "ExtractionDone",
+        string summary = Text.Format(result.Cancelled ? "ExtractionCancelled" : result.Failures.Count > 0 ? "ExtractionPartial" : "ExtractionDone",
             result.Completed, result.Skipped, result.Destination);
+        return result.MetadataWarnings.Count == 0 ? summary : summary + " · " + Text.Format("ClientFileTimeWarnings", result.MetadataWarnings.Count);
     }
 
     private static bool CanRetryFailures(ExtractionResult result) =>
@@ -241,6 +242,7 @@ public partial class MainWindow
                 dialog.Body.Children.Add(button);
             }
         }
+        if (result.MetadataWarnings.Count > 0) AddFailureDetails(dialog, result.MetadataWarnings);
         if (result.Completed > 0)
         {
             var open = new Button { Content = Text["ClientShowOutputFolder"] };

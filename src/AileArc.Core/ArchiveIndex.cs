@@ -2,18 +2,18 @@ using AileArc.Shared;
 
 namespace AileArc.Core;
 
-public sealed record BrowserEntry(long Id, string Name, string Path, string Parent, bool IsDirectory, ulong? Size, bool Encrypted)
+public sealed record BrowserEntry(long Id, string Name, string Path, string Parent, bool IsDirectory, ulong? Size, bool Encrypted, long? ModifiedFileTime = null)
 {
     public string Kind { get; } = IsDirectory ? "folder" : System.IO.Path.GetExtension(Name).ToLowerInvariant() switch { ".pdf" => "pdf", ".md" => "md", ".txt" => "text", ".json" or ".yml" or ".cs" or ".xml" => "code", ".png" or ".jpg" or ".svg" => "image", _ => "file" };
 }
-public enum EntrySort { Name, Size, Type, Path }
+public enum EntrySort { Name, Size, Type, Path, Modified }
 
 /// <summary>Pure archive paths, never destination filesystem paths. Case and duplicate files are retained.</summary>
 public sealed class ArchiveIndex
 {
     private readonly BrowserEntry[] entries;
-    private readonly HashSet<string> directories = new(StringComparer.Ordinal);
-    public bool ContainsDirectory(string path) => directories.Contains(path);
+    private readonly Dictionary<string, int> directories = new(StringComparer.Ordinal);
+    public bool ContainsDirectory(string path) => directories.ContainsKey(path);
     private readonly Dictionary<string, BrowserEntry[]> children;
     public IReadOnlyList<BrowserEntry> Entries => entries;
 
@@ -25,12 +25,12 @@ public sealed class ArchiveIndex
         string EnsureParent(string parent)
         {
             if (parent.Length == 0) return parent;
-            if (directories.TryGetValue(parent, out var existing)) return existing;
-            for (string current = parent; current.Length > 0 && !directories.Contains(current); current = ParentOf(current))
+            if (directories.TryGetValue(parent, out int existing)) return rows[existing].Path;
+            for (string current = parent; current.Length > 0 && !directories.ContainsKey(current); current = ParentOf(current))
                 missing.Push(current);
             while (missing.TryPop(out var directory))
             {
-                directories.Add(directory);
+                directories.Add(directory, rows.Count);
                 rows.Add(new BrowserEntry(syntheticId--, NameOf(directory), directory, ParentOf(directory), true, null, false));
             }
             return parent;
@@ -42,8 +42,14 @@ public sealed class ArchiveIndex
             if (path.Length == 0) continue;
             var parent = EnsureParent(ParentOf(path));
             // Explicit folders already synthesized are the same navigation location; raw entries remain in ArchiveScan.
-            if (entry.IsDirectory && !directories.Add(path)) continue;
-            rows.Add(new BrowserEntry(entry.Id, NameOf(path), path, parent, entry.IsDirectory, entry.Size, entry.Encrypted));
+            if (entry.IsDirectory && !directories.TryAdd(path, rows.Count))
+            {
+                int index = directories[path];
+                if (rows[index].ModifiedFileTime is null && entry.ModifiedFileTime.HasValue)
+                    rows[index] = rows[index] with { ModifiedFileTime = entry.ModifiedFileTime };
+                continue;
+            }
+            rows.Add(new BrowserEntry(entry.Id, NameOf(path), path, parent, entry.IsDirectory, entry.Size, entry.Encrypted, entry.ModifiedFileTime));
         }
         entries = rows.ToArray();
         children = directories.Count == 0 ? new(StringComparer.Ordinal) { [""] = entries } :
@@ -73,9 +79,12 @@ public sealed class ArchiveIndex
             cancellationToken.ThrowIfCancellationRequested();
             int folder = right.IsDirectory.CompareTo(left.IsDirectory);
             if (folder != 0) return folder;
+            if (sort == EntrySort.Modified && left.ModifiedFileTime.HasValue != right.ModifiedFileTime.HasValue)
+                return left.ModifiedFileTime.HasValue ? -1 : 1;
             int comparison = sort switch
             {
                 EntrySort.Size => Nullable.Compare(left.Size, right.Size),
+                EntrySort.Modified => Nullable.Compare(left.ModifiedFileTime, right.ModifiedFileTime),
                 EntrySort.Path => StringComparer.OrdinalIgnoreCase.Compare(left.Path, right.Path),
                 EntrySort.Type => StringComparer.OrdinalIgnoreCase.Compare(typeLabel?.Invoke(left.Kind) ?? left.Kind, typeLabel?.Invoke(right.Kind) ?? right.Kind),
                 _ => StringComparer.OrdinalIgnoreCase.Compare(left.Name, right.Name)

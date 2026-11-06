@@ -238,6 +238,9 @@
   <data name="ClientType" xml:space="preserve"><value>Type</value></data>
   <data name="ClientSize" xml:space="preserve"><value>Size</value></data>
   <data name="ClientScaledSize"><value>{0} {1}</value></data>
+  <data name="ClientModified"><value>Modified</value></data>
+  <data name="ClientFileTimeWarnings"><value>Modification time unavailable on output for {0:N0} items.</value></data>
+  <data name="FileTimeNotRestored"><value>The file was saved. The destination could not retain its archive modification time.</value></data>
   <data name="ClientEmptySelection" xml:space="preserve"><value>0 items · 0 selected</value></data>
   <data name="ClientPrevious" xml:space="preserve"><value>Previous</value></data>
   <data name="ClientNext" xml:space="preserve"><value>Next</value></data>

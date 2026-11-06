@@ -24,7 +24,7 @@ public partial class MainWindow : Window
     private View view = new("", "", false, 0, false, 0);
     private readonly List<(View Page, string[] Selected)> history = [];
     private readonly List<(View Page, string[] Selected)> future = [];
-    private static readonly string[] SortKeys = ["name", "size", "type", "path"];
+    private static readonly string[] SortKeys = ["name", "size", "type", "path", "modified"];
     private readonly Button OpenButton = new();
     private bool composing, closed, changingItems, configuring = true;
     private LanguageService Text => ClientApp.Text;
@@ -327,6 +327,7 @@ public partial class MainWindow : Window
         SummaryText.Visibility = row is null ? Visibility.Visible : Visibility.Collapsed;
         DetailPath.Text = row?.Path ?? "";
         DetailType.Text = row?.TypeLabel ?? "";
+        DetailModified.Text = row?.Row.Date ?? "—";
         DetailSize.Text = row?.Row.Type != "folder" && row?.Row.UnpackedBytes is ulong bytes ? Text.Format("ClientExactSize", bytes) : "—";
         bool enabled = row is not null && !IsBusy && archive is not null && ((ClientApp)Application.Current).CanStart(this);
         OpenFileButton.IsEnabled = enabled && row!.Row.Type != "folder";

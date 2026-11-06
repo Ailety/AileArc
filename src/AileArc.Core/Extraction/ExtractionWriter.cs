@@ -28,6 +28,7 @@ public sealed record UnverifiedContent(string Reason, ulong DecodedBytes, ulong?
 public sealed record ExtractionResult(string Destination, int Completed, int Skipped, IReadOnlyList<ExtractionFailure> Failures, bool Cancelled)
 {
     internal UnverifiedContent? PrivateCopy { get; init; }
+    public IReadOnlyList<ExtractionFailure> MetadataWarnings { get; init; } = [];
 }
 
 internal sealed class ExtractionWriter : IAsyncDisposable
@@ -39,6 +40,7 @@ internal sealed class ExtractionWriter : IAsyncDisposable
     private readonly Func<string, CancellationToken, Task<ConflictDecision>>? conflict;
     private readonly Dictionary<string, string> rootMappings = new(StringComparer.Ordinal);
     private readonly List<ExtractionFailure> failures = [];
+    private readonly List<ExtractionFailure> metadataWarnings = [];
     private readonly HashSet<long> processed = [];
     private VerifiedFile? stage;
     private DirectoryGuard? guard;
@@ -213,6 +215,12 @@ internal sealed class ExtractionWriter : IAsyncDisposable
         await stage.Stream.FlushAsync(token);
         stage.Stream.Flush(flushToDisk: true);
         if (zoneIdentifier is not null) await stage.SetDownloadZoneAsync(zoneIdentifier, token);
+        bool timeFailed = false;
+        if (!privateCopy && active?.ModifiedFileTime is long modified)
+        {
+            try { File.SetLastWriteTimeUtc(stage.Stream.SafeFileHandle, DateTime.FromFileTimeUtc(modified)); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentOutOfRangeException) { timeFailed = true; }
+        }
         token.ThrowIfCancellationRequested();
         while (true)
         {
@@ -220,6 +228,7 @@ internal sealed class ExtractionWriter : IAsyncDisposable
             catch (Win32Exception e) when (!replace && policy == ConflictChoice.Rename && e.NativeErrorCode is 80 or 183)
             { token.ThrowIfCancellationRequested(); target = FindFreeName(target!); }
         }
+        if (timeFailed) metadataWarnings.Add(new(active!.Path, "FileTimeNotRestored") { EntryId = active.Id });
     }
 
     public ExtractionResult Result(bool cancelled = false, string? errorCode = null)
@@ -230,7 +239,8 @@ internal sealed class ExtractionWriter : IAsyncDisposable
             alreadyFailed = true;
         }
         string output = rootMappings.Count == 1 ? Path.Combine(Destination, rootMappings.Values.Single()) : Destination;
-        return new(output, Completed, Skipped, failures.ToArray(), cancelled) { PrivateCopy = cancelled || errorCode is not null ? null : retainedContent };
+        return new(output, Completed, Skipped, failures.ToArray(), cancelled)
+        { PrivateCopy = cancelled || errorCode is not null ? null : retainedContent, MetadataWarnings = metadataWarnings.ToArray() };
     }
     private static string? ReadZone(string archivePath)
     {

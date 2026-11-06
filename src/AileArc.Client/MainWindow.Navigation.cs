@@ -90,8 +90,8 @@ public partial class MainWindow
     }
     private void UpdateHeaders()
     {
-        DataGridColumn[] columns = [NameColumn, SizeColumn, TypeColumn, PathColumn];
-        string[] labels = ["Name", "ClientSize", "ClientType", "Path"];
+        DataGridColumn[] columns = [NameColumn, SizeColumn, TypeColumn, PathColumn, ModifiedColumn];
+        string[] labels = ["Name", "ClientSize", "ClientType", "Path", "ClientModified"];
         for (int i = 0; i < columns.Length; i++)
         {
             columns[i].SortDirection = i != view.Sort ? null : view.Descending ? ListSortDirection.Descending : ListSortDirection.Ascending;
@@ -101,7 +101,7 @@ public partial class MainWindow
     private async void Grid_Sorting(object sender, DataGridSortingEventArgs e)
     {
         e.Handled = true;
-        int index = e.Column.SortMemberPath switch { "Name" => 0, "Size" => 1, "Type" => 2, "Path" => 3, _ => -1 };
+        int index = e.Column.SortMemberPath switch { "Name" => 0, "Size" => 1, "Type" => 2, "Path" => 3, "Modified" => 4, _ => -1 };
         if (index >= 0) await SortByAsync(index);
     }
     internal Task SortByAsync(int index)

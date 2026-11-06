@@ -23,7 +23,7 @@ public sealed class ArchiveReloadMap
         {
             token.ThrowIfCancellationRequested();
             var original = before.Scan.Entries[i]; var current = after.Scan.Entries[i];
-            if (original.Id != current.Id || original.IsDirectory != current.IsDirectory || original.Size != current.Size ||
+            if (original.Id != current.Id || original.IsDirectory != current.IsDirectory || original.Size != current.Size || original.ModifiedFileTime != current.ModifiedFileTime ||
                 original.Encrypted != current.Encrypted || original.IsLink != current.IsLink ||
                 (before.Scan.NameCodePage == after.Scan.NameCodePage && original.Path != current.Path)) return null;
             string left = original.Path.Replace('\\', '/').TrimEnd('/');

@@ -166,6 +166,7 @@
             <DataGridTextColumn x:Name="PathColumn" SortMemberPath="Path" Header="{local:Text Path}" Binding="{Binding Path}" Width="*" MinWidth="100" Visibility="Collapsed" />
             <DataGridTextColumn x:Name="TypeColumn" SortMemberPath="Type" Header="{local:Text ClientType}" Binding="{Binding TypeLabel}" Width="110" />
             <DataGridTextColumn x:Name="SizeColumn" SortMemberPath="Size" Header="{local:Text ClientSize}" Binding="{Binding SizeLabel}" Width="100" />
+            <DataGridTextColumn x:Name="ModifiedColumn" SortMemberPath="Modified" Header="{local:Text ClientModified}" Binding="{Binding Row.Date}" Width="150" />
           </DataGrid.Columns>
         </DataGrid>
         <StackPanel x:Name="EmptyPanel" Grid.Row="3" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="370" Margin="16,32,16,0">
@@ -193,6 +194,8 @@
               <TextBlock x:Name="DetailType" Foreground="{StaticResource AccentBrush}" Margin="0,0,0,12"/>
               <TextBlock Text="{local:Text Size}" Style="{StaticResource Muted}" />
               <TextBlock x:Name="DetailSize" Margin="0,2,0,12"/>
+              <TextBlock Text="{local:Text ClientModified}" Style="{StaticResource Muted}" />
+              <TextBlock x:Name="DetailModified" Margin="0,2,0,12"/>
               <TextBlock Text="{local:Text Path}" Style="{StaticResource Muted}" />
               <TextBlock x:Name="DetailPath" TextWrapping="Wrap" TextTrimming="None" Margin="0,2,0,12"/>
               <Button x:Name="OpenFileButton" Content="{local:Text ClientDefaultOpen}" Click="OpenFile_Click" Style="{StaticResource Primary}" />

@@ -238,6 +238,9 @@
   <data name="ClientType" xml:space="preserve"><value>类型</value></data>
   <data name="ClientSize" xml:space="preserve"><value>大小</value></data>
   <data name="ClientScaledSize"><value>{0} {1}</value></data>
+  <data name="ClientModified"><value>修改时间</value></data>
+  <data name="ClientFileTimeWarnings"><value>{0:N0} 项未能保留修改时间。</value></data>
+  <data name="FileTimeNotRestored"><value>文件已保存，目标位置未能保留归档中记录的修改时间。</value></data>
   <data name="ClientEmptySelection" xml:space="preserve"><value>当前 0 项 · 已选 0 项</value></data>
   <data name="ClientPrevious" xml:space="preserve"><value>上一页</value></data>
   <data name="ClientNext" xml:space="preserve"><value>下一页</value></data>
