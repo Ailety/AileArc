@@ -82,6 +82,11 @@
   <data name="Password"><value>压缩包密码</value></data>
   <data name="Continue"><value>继续</value></data>
   <data name="RestartNow"><value>立即重启</value></data>
+  <data name="ClientRestartLater"><value>稍后</value></data>
+  <data name="ClientLanguageSaving"><value>正在保存语言选择…</value></data>
+  <data name="ClientLanguageDeferred"><value>下次启动 AileArc 时使用所选语言。</value></data>
+  <data name="ClientRestartBusy"><value>请等待当前操作结束后再重启。</value></data>
+  <data name="ClientRestartFailed"><value>无法在新进程中恢复会话，当前窗口已保留。</value></data>
   <data name="Conflict"><value>目标文件已存在</value></data>
   <data name="RenameAutomatically"><value>自动重命名</value></data>
   <data name="Skip"><value>跳过</value></data>

@@ -81,6 +81,11 @@
   <data name="Password"><value>Archive password</value></data>
   <data name="Continue"><value>Continue</value></data>
   <data name="RestartNow"><value>Restart now</value></data>
+  <data name="ClientRestartLater"><value>Later</value></data>
+  <data name="ClientLanguageSaving"><value>Saving language…</value></data>
+  <data name="ClientLanguageDeferred"><value>The selected language will be used next time AileArc starts.</value></data>
+  <data name="ClientRestartBusy"><value>Wait for the current operation to finish, then restart.</value></data>
+  <data name="ClientRestartFailed"><value>Could not restore the session in a new process. Your windows remain open.</value></data>
   <data name="Conflict"><value>Destination already exists</value></data>
   <data name="RenameAutomatically"><value>Rename automatically</value></data>
   <data name="Skip"><value>Skip</value></data>

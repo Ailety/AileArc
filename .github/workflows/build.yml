@@ -13,7 +13,7 @@ jobs:
       - name: Build, test and create self-contained development bundle
         shell: pwsh
         run: ./scripts/Package.ps1 -OutputDirectory .artifacts/ci-package
-      - name: Verify installation, upgrade and uninstall
+      - name: Verify installation, upgrade, language restart and uninstall
         shell: pwsh
         run: ./scripts/Test-Install.ps1 -BundleDirectory .artifacts/ci-package
       - name: Exercise rendered first-page and scan cancellation measurements

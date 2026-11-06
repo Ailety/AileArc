@@ -279,7 +279,7 @@ public partial class MainWindow : Window
     {
         bool idle = !IsBusy && ((ClientApp)Application.Current).CanStart(this);
         EmptyAction.IsEnabled = idle; SetActivity(IsBusy);
-        OpenButton.IsEnabled = idle; LanguageBox.IsEnabled = idle; RestartButton.IsEnabled = idle;
+        OpenButton.IsEnabled = idle; LanguageBox.IsEnabled = idle; ShowLanguageChoice();
         SearchBox.IsEnabled = idle && archive is not null;
         LocalSearchBox.IsEnabled = SearchBox.IsEnabled;
         ClearSearch.IsEnabled = SearchBox.IsEnabled;
@@ -362,13 +362,32 @@ public partial class MainWindow : Window
         if (dialog.ShowDialog(this) != true) return;
         await ((ClientApp)Application.Current).OpenPathAsync(dialog.FileName, preferred: this);
     }
-    private async void Language_Changed(object sender, SelectionChangedEventArgs e)
+    private void Language_Changed(object sender, SelectionChangedEventArgs e)
     {
-        if (configuring) return;
-        try { await new AppSettings(LanguageBox.SelectedIndex == 1 ? "en-US" : "zh-CN").SaveAsync(); StatusText.Text = Text["ClientLanguageSaved"]; RestartButton.Visibility = Visibility.Visible; }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { StatusText.Text = Text["SettingsFailed"]; }
+        if (!configuring && LanguageBox.SelectedIndex >= 0)
+            ((ClientApp)Application.Current).SelectLanguage(LanguageBox.SelectedIndex == 1 ? "en-US" : "zh-CN");
     }
-    private async void Restart_Click(object sender, RoutedEventArgs e) { if (Application.Current.Windows.OfType<MainWindow>().Any(w => w.IsBusy)) StatusText.Text = Text["TaskRunning"]; else await ((ClientApp)Application.Current).RestartAsync(); }
+    internal void ShowLanguageChoice()
+    {
+        var app = (ClientApp)Application.Current;
+        bool previous = configuring; configuring = true;
+        try { LanguageBox.SelectedIndex = app.SelectedLanguage == "en-US" ? 1 : 0; }
+        finally { configuring = previous; }
+        bool pending = app.SelectedLanguage != Text.Language;
+        LanguageNotice.Text = app.LanguageSaveFailed ? Text["SettingsFailed"] : app.SavingLanguage ? Text["ClientLanguageSaving"] :
+            pending ? Text[app.RestartDeferred ? "ClientLanguageDeferred" : "ClientLanguageSaved"] : "";
+        LanguageNotice.Visibility = LanguageNotice.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        RestartButton.Visibility = pending && !app.SavingLanguage ? Visibility.Visible : Visibility.Collapsed;
+        RestartButton.IsEnabled = !IsBusy && app.CanStart(this) && !app.SavingLanguage;
+        RestartLater.Visibility = pending && !app.SavingLanguage && !app.RestartDeferred ? Visibility.Visible : Visibility.Collapsed;
+    }
+    private void RestartLater_Click(object sender, RoutedEventArgs e) => ((ClientApp)Application.Current).DeferRestart();
+    private async void Restart_Click(object sender, RoutedEventArgs e)
+    {
+        var result = await ((ClientApp)Application.Current).TryRestartAsync();
+        if (result == ClientApp.RestartResult.Busy) StatusText.Text = Text["ClientRestartBusy"];
+        if (result == ClientApp.RestartResult.Failed) StatusText.Text = Text["ClientRestartFailed"];
+    }
     private async void Encoding_Changed(object sender, SelectionChangedEventArgs e)
     { if (!configuring && !IsBusy && archive?.Scan.Format == "ZIP" && EncodingBox.SelectedIndex >= 0) await ReopenArchiveAsync(CodePages[EncodingBox.SelectedIndex], OpenIntent.ChangeEncoding); }
     private async void Up_Click(object sender, RoutedEventArgs e) => await GoUpAsync();

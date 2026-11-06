@@ -85,6 +85,12 @@ public partial class MainWindow
         bool enabled = IsEnabled; IsEnabled = false;
         try
         {
+            var app = (ClientApp)Application.Current;
+            if (app.SavingLanguage)
+            {
+                await app.LanguageSettled;
+                if (app.LanguageSaveFailed) return false;
+            }
             if (operation is not null)
             {
                 if (!Confirm("TaskRunning", Text["CloseTaskHint"], "CancelAndExit", "KeepWaiting")) return false;

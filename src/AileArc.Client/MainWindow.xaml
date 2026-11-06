@@ -66,7 +66,11 @@
             <TextBlock x:Name="CopyNotice" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,8" />
             <TextBlock Text="{local:Text Language}" Style="{StaticResource Muted}" Margin="0,0,0,8" />
             <ComboBox x:Name="LanguageBox" SelectionChanged="Language_Changed" AutomationProperties.Name="{local:Text Language}" />
-            <Button x:Name="RestartButton" Content="{local:Text RestartNow}" Click="Restart_Click" Visibility="Collapsed" Margin="0,8,0,0" />
+            <TextBlock x:Name="LanguageNotice" Style="{StaticResource Muted}" TextWrapping="Wrap" Visibility="Collapsed" Margin="0,6,0,0"/>
+            <WrapPanel>
+              <Button x:Name="RestartButton" Content="{local:Text RestartNow}" Click="Restart_Click" Visibility="Collapsed" Margin="0,6,4,0"/>
+              <Button x:Name="RestartLater" Content="{local:Text ClientRestartLater}" Click="RestartLater_Click" Visibility="Collapsed" Margin="0,6,0,0"/>
+            </WrapPanel>
             </StackPanel></ScrollViewer>
           </StackPanel>
           <Grid>

@@ -85,6 +85,7 @@ internal static partial class ClientChecks
                 await CheckExtractionResultsAsync(window, app, testRoot);
                 await CheckRetainedCopiesAsync(app, testRoot);
                 await CheckConcurrentOpenAsync(app, testRoot);
+                await CheckLanguageChoicesAsync(app, testRoot);
                 await CheckReloadAsync(app, testRoot);
                 await CheckKeyboardAndLayoutAsync(app, testRoot, layoutOutput);
                 await CheckProgressAsync(window.Dispatcher);

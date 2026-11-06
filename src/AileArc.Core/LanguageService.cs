@@ -31,25 +31,38 @@ public sealed class LanguageService
 public sealed record AppSettings(string Language = LanguageService.DefaultLanguage)
 {
     private static string SettingsPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AileArc", "settings.json");
-    public static async Task<AppSettings> LoadAsync()
+    public static Task<AppSettings> LoadAsync() => LoadAsync(SettingsPath);
+    public static async Task<AppSettings> LoadAsync(string settingsPath)
     {
         try
         {
-            var settings = JsonSerializer.Deserialize<AppSettings>(await File.ReadAllTextAsync(SettingsPath));
+            using var input = new FileStream(settingsPath, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete, 4096, FileOptions.Asynchronous);
+            if (input.Length > 64 * 1024) return new();
+            var settings = await JsonSerializer.DeserializeAsync<AppSettings>(input).ConfigureAwait(false);
             return settings is not null && LanguageService.Supported.Contains(settings.Language) ? settings : new();
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException) { return new(); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException or JsonException) { return new(); }
     }
-    public async Task SaveAsync()
+    public Task SaveAsync() => SaveAsync(SettingsPath);
+    public async Task SaveAsync(string settingsPath)
     {
         if (!LanguageService.Supported.Contains(Language)) throw new ArgumentException("Unsupported language.");
-        Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);
-        string temp = SettingsPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        settingsPath = Path.GetFullPath(settingsPath);
+        Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
+        string temp = settingsPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        bool ownsTemp = false;
         try
         {
-            await File.WriteAllTextAsync(temp, JsonSerializer.Serialize(this), new System.Text.UTF8Encoding(false));
-            File.Move(temp, SettingsPath, overwrite: true);
+            await using (var output = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous))
+            {
+                ownsTemp = true;
+                await JsonSerializer.SerializeAsync(output, this).ConfigureAwait(false);
+                await output.FlushAsync().ConfigureAwait(false);
+                output.Flush(flushToDisk: true);
+            }
+            File.Move(temp, settingsPath, overwrite: true);
+            ownsTemp = false;
         }
-        finally { if (File.Exists(temp)) File.Delete(temp); }
+        finally { if (ownsTemp) File.Delete(temp); }
     }
 }

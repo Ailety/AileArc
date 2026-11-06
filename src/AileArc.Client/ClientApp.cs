@@ -10,7 +10,7 @@ using AileArc.Core.Recovery;
 
 namespace AileArc.Client;
 
-public sealed class ClientApp : Application
+public sealed partial class ClientApp : Application
 {
     internal AileArc.Core.WorkCopies.WorkCopyStore WorkCopies { get; set; } = new();
     internal RecoveryStore Recovery { get; set; } = RecoveryStore.Default;
@@ -33,6 +33,8 @@ public sealed class ClientApp : Application
         }
     }
     internal bool HideTestWindows { get; set; }
+    private string? restartProbeRoot;
+    private string? nextProbeMode;
     private readonly Dictionary<(AileArc.Shared.ArchiveIdentity Identity, long Id, string EntryPath), (MainWindow Owner, Task Request)> pendingFileOpens = [];
 
     internal Task OpenEntryOnceAsync(MainWindow owner, AileArc.Shared.ArchiveIdentity identity, long id, string entryPath, Func<Task> open)
@@ -91,6 +93,16 @@ public sealed class ClientApp : Application
         if (args is ["--self-test", var layoutLanguage, "--layout-output", var output] && LanguageService.Supported.Contains(layoutLanguage))
         { Text = new(layoutLanguage); return ClientChecks.Run(new ClientApp(), Path.GetFullPath(output)); }
         if (args is ["--self-test", var language]) { Text = new(language); return ClientChecks.Run(new ClientApp()); }
+        string? probe = null;
+        string? probeMode = null;
+        if (args is ["--self-test", "language-restart", var probeFolder])
+        {
+            if (Console.ReadLine() != "start") return 2;
+            probe = Path.GetFullPath(probeFolder); probeMode = "language-restart";
+            args = ClientLanguageProbe.CreateSession(probe);
+        }
+        else if (args is ["--self-test", "language-restored" or "language-returned", var restoredFolder, "--restart-from", _, "--restore-session", _])
+        { probe = Path.GetFullPath(restoredFolder); probeMode = args[1]; args = args[3..]; }
         if (args is ["--restart-from", var pidText, "--restore-session", var session])
         {
             if (!int.TryParse(pidText, out int pid) || pid <= 0 || pid == Environment.ProcessId) return 2;
@@ -98,7 +110,8 @@ public sealed class ClientApp : Application
             catch (ArgumentException) { }
             args = ["--restore-session", session];
         }
-        Text = new(AppSettings.LoadAsync().GetAwaiter().GetResult().Language);
+        var settings = probe is null ? AppSettings.LoadAsync() : AppSettings.LoadAsync(Path.Combine(probe, "settings.json"));
+        Text = new(settings.GetAwaiter().GetResult().Language);
         StartupArchive[] archives = [];
         ActivationRequest? launch = null;
         try
@@ -108,7 +121,7 @@ public sealed class ClientApp : Application
         }
         catch (Exception error) when (error is JsonException or ArgumentException)
         { MessageBox.Show(Text["ClientInvalidArguments"], "AileArc"); return 2; }
-        string key = ActivationBroker.ApplicationKey(Environment.ProcessPath!);
+        string key = ActivationBroker.ApplicationKey(probe is null ? Environment.ProcessPath! : Path.Combine(probe, "probe.exe"));
         using var broker = ActivationBroker.TryRegister(key);
         if (broker is null)
         {
@@ -118,7 +131,7 @@ public sealed class ClientApp : Application
                 else if (archives.Length == 0) ActivationBroker.ForwardAsync(key, new([])).GetAwaiter().GetResult();
                 else foreach (var item in archives)
                 {
-                    var request = item.Empty ? new ActivationRequest([], true) : new ActivationRequest([Path.GetFullPath(item.Path)], CodePages: [item.CodePage]);
+                    var request = item.Empty ? new ActivationRequest([], true) : new ActivationRequest([Path.GetFullPath(item.Path)], true, CodePages: [item.CodePage]);
                     ActivationBroker.ForwardAsync(key, request).GetAwaiter().GetResult();
                 }
                 return 0;
@@ -127,6 +140,12 @@ public sealed class ClientApp : Application
             { MessageBox.Show(Text["ClientActivationFailed"], "AileArc"); return 3; }
         }
         var app = new ClientApp { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+        if (probe is not null)
+        {
+            app.HideTestWindows = true; app.restartProbeRoot = probe;
+            app.nextProbeMode = probeMode == "language-restart" ? "language-restored" : "language-returned";
+            app.WriteSettings = choice => choice.SaveAsync(Path.Combine(probe, "settings.json"));
+        }
         broker.Listen(app.EnqueueActivation);
         app.Startup += async (_, _) =>
         {
@@ -134,14 +153,22 @@ public sealed class ClientApp : Application
             {
                 try
                 {
-                    using var languageKey = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Ailety\AileArc");
-                    languageKey.SetValue("ShellLanguage", Text.Language);
+                    if (probe is null)
+                    {
+                        using var languageKey = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Ailety\AileArc");
+                        languageKey.SetValue("ShellLanguage", Text.Language);
+                    }
                 }
                 catch (Exception error) when (error is UnauthorizedAccessException or System.Security.SecurityException or IOException) { }
                 if (launch is not null) await app.HandleActivationAsync(launch);
                 else if (archives.Length == 0) app.CreateWindow().Show();
                 else foreach (var archive in archives)
-                    if (archive.Empty) app.CreateWindow().Show(); else await app.OpenPathAsync(archive.Path, archive.CodePage);
+                    if (archive.Empty) app.CreateWindow().Show(); else await app.OpenPathAsync(archive.Path, archive.CodePage, forceNew: true);
+                if (probe is not null) await ClientLanguageProbe.CheckAsync(app, probe, probeMode!);
+            }
+            catch (Exception error) when (probe is not null)
+            {
+                File.WriteAllText(Path.Combine(probe, "failure.txt"), error.ToString()); app.Shutdown(1);
             }
             finally { app.initialActivation = false; app.ExitIfIdle(); }
         };
@@ -207,7 +234,7 @@ public sealed class ClientApp : Application
     {
         lock (activationGate)
         {
-            if (initialActivation || Restarting || pendingActivations != 0 || routing.CurrentCount == 0 || Windows.OfType<MainWindow>().Any()) return;
+            if (initialActivation || Restarting || SavingLanguage || pendingActivations != 0 || routing.CurrentCount == 0 || Windows.OfType<MainWindow>().Any()) return;
             exiting = true;
         }
         Shutdown();
@@ -256,29 +283,52 @@ public sealed class ClientApp : Application
         { MessageBox.Show(Text["OpenFailed"], "AileArc"); }
         finally { routing.Release(); ExitIfIdle(); }
     }
-    public async Task RestartAsync()
+    internal enum RestartResult { Started, Busy, Declined, Failed }
+    public async Task RestartAsync() => await TryRestartAsync();
+    internal async Task<RestartResult> TryRestartAsync()
     {
         lock (activationGate)
         {
-            if (Restarting || AnyTaskRunning || pendingActivations != 0 || routing.CurrentCount == 0 || cleanupOwner is not null) return;
+            if (Restarting || SavingLanguage || AnyTaskRunning || pendingActivations != 0 || routing.CurrentCount == 0 || cleanupOwner is not null) return RestartResult.Busy;
             Restarting = true;
         }
         var windows = Windows.OfType<MainWindow>().ToArray();
+        var enabled = windows.Select(window => window.IsEnabled).ToArray();
+        bool handedOff = false;
         foreach (var window in windows) window.IsEnabled = false;
         try
         {
-            foreach (var window in windows) if (!await window.PrepareCloseAsync()) return;
+            foreach (var window in windows) if (!await window.PrepareCloseAsync()) return RestartResult.Declined;
             var start = new ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = false };
             var archives = windows.Select(w => w.OpenedPath is { } path ? new StartupArchive(path, w.CurrentCodePage) : new StartupArchive("", Empty: true)).ToArray();
             string json = JsonSerializer.Serialize(archives);
             // Paths and encoding only: passwords never cross this process boundary.
-            if (json.Length > 24000 || archives.Length > 64) { MessageBox.Show(Text["OpenFailed"], "AileArc"); return; }
+            if (json.Length > 24000 || archives.Length > 64) return RestartResult.Failed;
+            if (restartProbeRoot is not null)
+            {
+                start.ArgumentList.Add("--self-test"); start.ArgumentList.Add(nextProbeMode!); start.ArgumentList.Add(restartProbeRoot);
+                start.WindowStyle = ProcessWindowStyle.Hidden;
+            }
             start.ArgumentList.Add("--restart-from"); start.ArgumentList.Add(Environment.ProcessId.ToString());
             start.ArgumentList.Add("--restore-session"); start.ArgumentList.Add(json);
-            try { Process.Start(start); foreach (var window in windows) window.ApproveClose(); Shutdown(); }
-            catch (Exception error) when (error is IOException or System.ComponentModel.Win32Exception or ArgumentException) { MessageBox.Show(Text["OpenFailed"], "AileArc"); }
+            try
+            {
+                using var replacement = Process.Start(start);
+                if (replacement is null) return RestartResult.Failed;
+                handedOff = true;
+                foreach (var window in windows) window.ApproveClose();
+                Shutdown(); return RestartResult.Started;
+            }
+            catch (Exception error) when (error is IOException or System.ComponentModel.Win32Exception or ArgumentException) { return RestartResult.Failed; }
         }
-        finally { Restarting = false; foreach (var window in windows) window.IsEnabled = true; }
+        finally
+        {
+            if (!handedOff)
+            {
+                Restarting = false;
+                for (int i = 0; i < windows.Length; i++) windows[i].IsEnabled = enabled[i];
+            }
+        }
     }
 }
 
