@@ -15,10 +15,7 @@ Copy-Item -LiteralPath (Join-Path $taskRoot '.tools/dotnet/LICENSE.txt'),(Join-P
 $exe = Join-Path $output 'AileArc.exe'
 if ($Test) {
     foreach ($language in @('zh-CN','en-US')) {
-        $process = Start-Process -FilePath $exe -ArgumentList @('--self-test',$language) -WindowStyle Hidden -PassThru
-        if (!$process.WaitForExit(90000)) { $process.Kill($true); throw "Client self-test timed out: $language" }
-        if ($process.ExitCode -ne 0) { throw "Client self-test failed: $language; inspect client-self-test-error.txt" }
-        Write-Host "WPF client self-test passed: $language"
+        & (Join-Path $PSScriptRoot 'Test-ClientWindow.ps1') -Executable $exe -Language $language
     }
 }
 if ($Run) {

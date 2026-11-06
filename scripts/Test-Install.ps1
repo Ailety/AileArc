@@ -45,9 +45,7 @@ try {
     Assert ((Snapshot-Defaults) -ceq $defaults) 'Installation modified a user default.'
     if ($PreviousBundleDirectory -and (Test-Path -LiteralPath (Join-Path $firstVersion 'PresentationFramework.dll'))) {
         # A previous WPF package must use its own Core when its wire version differs.
-        $priorClient = Start-Process -FilePath $firstApp -ArgumentList @('--self-test','zh-CN') -WindowStyle Hidden -PassThru
-        if (!$priorClient.WaitForExit(90000)) { $priorClient.Kill($true); throw 'Previous installed client timed out.' }
-        Assert ($priorClient.ExitCode -eq 0) 'Previous installed WPF client failed.'
+        & (Join-Path $PSScriptRoot 'Test-ClientWindow.ps1') -Executable $firstApp -Language 'zh-CN'
     }
     # A late failure after registry/shortcut updates must restore the old installation.
     $receiptPath = Join-Path $installRoot '.ailearc-install.json'
@@ -82,9 +80,7 @@ try {
     $secondApp = Join-Path $secondVersion 'AileArc.exe'
     Assert ((Get-RegistryValue 'Software\Classes\AileArc.Development.Archive\shell\open\command' '') -ceq ('"' + $secondApp + '" --open -- "%1"')) 'Upgrade did not select the WPF executable.'
     foreach ($language in @('zh-CN','en-US')) {
-        $client = Start-Process -FilePath $secondApp -ArgumentList @('--self-test',$language) -WindowStyle Hidden -PassThru
-        if (!$client.WaitForExit(90000)) { $client.Kill($true); throw "Installed client timed out: $language" }
-        Assert ($client.ExitCode -eq 0) "Installed WPF client failed: $language"
+        & (Join-Path $PSScriptRoot 'Test-ClientWindow.ps1') -Executable $secondApp -Language $language
     }
     & (Join-Path $PSScriptRoot 'Test-LanguageRestart.ps1') -Executable $secondApp
     & (Join-Path $PSScriptRoot 'Test-PackageWorker.ps1') -WorkerExecutable (Join-Path $secondVersion 'Worker/AileArc.Worker.exe')
