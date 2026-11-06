@@ -44,12 +44,7 @@ internal static partial class ClientChecks
                 var zh = LanguageService.Load("zh-CN"); var en = LanguageService.Load("en-US");
                 foreach (string key in zh.Keys.Where(k => k.StartsWith("Client", StringComparison.Ordinal))) Require(en.ContainsKey(key), "missing translation");
                 Require(window.Title == ClientApp.Text["ClientTitle"], "localized window title");
-                var frame = (System.Windows.Controls.DockPanel)window.Content;
-                var caption = (System.Windows.Controls.DockPanel)frame.Children[0];
-                var controls = caption.Children.OfType<System.Windows.Controls.StackPanel>().Single()
-                    .Children.OfType<System.Windows.Controls.Button>().Where(b => System.Windows.Automation.AutomationProperties.GetAutomationId(b) != "OpenArchive").ToArray();
-                Require(controls.Length == 3 && controls.All(b => Math.Abs(b.TranslatePoint(new System.Windows.Point(), caption).Y) < 0.01 &&
-                    Math.Abs(b.ActualHeight - caption.ActualHeight) < 0.01), "window controls span caption from its top edge");
+                await CheckFrameAsync(window);
                 Require(window.TestGrid.Items.Count == 0, "formal client starts without generated data");
                 var restored = ClientApp.ParseArguments(["--restore-session", "[{\"Path\":\"C:/测试.zip\",\"CodePage\":936}]"]);
                 Require(restored.Length == 1 && restored[0].CodePage == 936 && restored[0].Path == "C:/测试.zip", "restart preserves filename encoding");

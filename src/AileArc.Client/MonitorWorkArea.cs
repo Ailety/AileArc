@@ -63,6 +63,21 @@ internal static class MonitorWorkArea
     internal static Size LogicalSize(int width, int height, uint dpi) =>
         new(Math.Floor(width * 96d / dpi), Math.Floor(height * 96d / dpi));
 
+    internal static bool ClipMaximizedClient(IntPtr proposed)
+    {
+        // The first member of NCCALCSIZE_PARAMS and the simple form are both a screen RECT.
+        var rect = Marshal.PtrToStructure<Bounds>(proposed);
+        var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
+        if (!GetMonitorInfo(MonitorFromRect(ref rect, 2), ref info)) return false;
+        rect.Left = Math.Max(rect.Left, info.Work.Left);
+        rect.Top = Math.Max(rect.Top, info.Work.Top);
+        rect.Right = Math.Min(rect.Right, info.Work.Right);
+        rect.Bottom = Math.Min(rect.Bottom, info.Work.Bottom);
+        if (rect.Left >= rect.Right || rect.Top >= rect.Bottom) return false;
+        Marshal.StructureToPtr(rect, proposed, false);
+        return true;
+    }
+
     internal static bool TryBounds(Window window, out Int32Rect bounds, out Int32Rect work)
     {
         var handle = new WindowInteropHelper(window).Handle;
@@ -78,6 +93,7 @@ internal static class MonitorWorkArea
     }
     [StructLayout(LayoutKind.Sequential)] private struct MonitorInfo { public int Size; public Bounds Monitor, Work; public uint Flags; }
     [DllImport("user32.dll")] private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
+    [DllImport("user32.dll")] private static extern IntPtr MonitorFromRect(ref Bounds rect, uint flags);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo info);
     [DllImport("user32.dll")] private static extern uint GetDpiForWindow(IntPtr hwnd);
     [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr hwnd, out Bounds bounds);
